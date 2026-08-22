@@ -1556,14 +1556,35 @@ export default function RodeoInteligente() {
 function PantallaInicio({ onNavegar }) {
   const [animales, setAnimales] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [tareasSanidad, setTareasSanidad] = useState([]);
 
   useEffect(() => {
-    setAnimales(leerTodosLosAnimalesGuardados());
+    const cargar = () => {
+      setAnimales(leerTodosLosAnimalesGuardados());
+      setTareasSanidad(leerRegistrosSanidad());
+    };
+    cargar();
     setCargando(false);
-    const recargar = () => setAnimales(leerTodosLosAnimalesGuardados());
-    window.addEventListener("agrodata:actualizado", recargar);
-    return () => window.removeEventListener("agrodata:actualizado", recargar);
+    window.addEventListener("agrodata:actualizado", cargar);
+    return () => window.removeEventListener("agrodata:actualizado", cargar);
   }, []);
+
+  const tareasSanidadDelMes = useMemo(() => {
+    const hoy = new Date();
+    const mesActual = hoy.getMonth();
+    const anioActual = hoy.getFullYear();
+    return tareasSanidad
+      .filter((t) => {
+        if (t.completada) return false;
+        if (!t.fecha) return false;
+        const partes = t.fecha.split("-");
+        if (partes.length !== 3) return false;
+        const anio = Number(partes[0]);
+        const mes = Number(partes[1]) - 1;
+        return anio === anioActual && mes === mesActual;
+      })
+      .sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""));
+  }, [tareasSanidad]);
 
   // Conteo por estado reproductivo (Preñada / Vacía / Parida)
   const conteoEstados = useMemo(() => {
@@ -1802,14 +1823,18 @@ function PantallaInicio({ onNavegar }) {
         </div>
       </div>
 
-      {/* 5. Módulo de Sanidad (Placeholder) */}
-      <div
+      {/* 5. Módulo de Sanidad y Vacunación */}
+      <button
+        type="button"
+        onClick={() => onNavegar("sanidad")}
         style={{
-          background: "#F5F2EC",
-          border: "1px dashed var(--borde)",
+          textAlign: "left",
+          background: "var(--crema)",
+          border: "1px solid var(--borde)",
           borderRadius: 16,
           padding: "18px",
-          opacity: 0.85,
+          cursor: "pointer",
+          boxShadow: "0 2px 10px rgba(59,42,29,0.06)",
         }}
       >
         <h3
@@ -1818,15 +1843,36 @@ function PantallaInicio({ onNavegar }) {
             fontSize: 15,
             fontWeight: 600,
             color: "var(--marron-oscuro)",
-            margin: "0 0 4px",
+            margin: "0 0 8px",
           }}
         >
           🩺 Sanidad y Vacunación
         </h3>
-        <p style={{ fontSize: 12.5, color: "#8A7A63", margin: 0 }}>
-          Próximamente vas a ver acá las vacunas y tratamientos pendientes del mes.
-        </p>
-      </div>
+
+        {tareasSanidadDelMes.length === 0 ? (
+          <p style={{ fontSize: 12.5, color: "#8A7A63", margin: 0 }}>
+            No hay vacunas ni tratamientos agendados para este mes.
+          </p>
+        ) : (
+          <>
+            <p style={{ fontSize: 12.5, color: "var(--marron-oscuro)", fontWeight: 600, margin: "0 0 8px" }}>
+              {tareasSanidadDelMes.length} trabajo(s) agendado(s) este mes:
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {tareasSanidadDelMes.slice(0, 3).map((t) => (
+                <div key={t.id} style={{ fontSize: 12, color: "#6B5A45" }}>
+                  • {t.texto.replace("💉 Sanidad: ", "")} — {formatearFechaDDMMYYYY(parseISO(t.fecha))}
+                </div>
+              ))}
+              {tareasSanidadDelMes.length > 3 && (
+                <div style={{ fontSize: 11.5, color: "#8A7A63", fontStyle: "italic" }}>
+                  y {tareasSanidadDelMes.length - 3} más...
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </button>
 
     </div>
   );
