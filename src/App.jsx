@@ -20,6 +20,11 @@ import {
   Volume2
 } from "lucide-react";
 
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, BarChart, Bar, Legend,
+} from "recharts";
+
 const TIPOS = [
   { valor: "Vaca" },
   { valor: "Vaquillona" },
@@ -542,8 +547,7 @@ export default function RodeoInteligente() {
   const [toast, setToast] = useState(null); // { tipo: "exito" | "error", mensaje: string } | null
 
   const muestraServicio = true;
-  const listoParaGuardar = caravana.length > 0 && tipo !== null;
-  const enEdicion = modo === "edicion";
+  const listoParaGuardar = (caravana || "").length > 0 && tipo !== null;  const enEdicion = modo === "edicion";
 
   const mostrarToast = (mensaje, tipo = "exito") => {
     setToast({ mensaje, tipo });
@@ -1099,7 +1103,7 @@ export default function RodeoInteligente() {
             // 3. Creación de la ficha de la cría con los datos correctos
             const fichaCria = {
               caravana: paricion.caravanaCria,
-              tipo: null,
+              tipo: paricion.tipoCria === "Macho" ? "Ternero" : paricion.tipoCria === "Hembra" ? "Ternera" : null,
               raza: raza.trim() || null,
               fechaNacimiento: fechaNacimiento || null,
               observacionesAnimal: observacionesAnimal.trim() || null,
@@ -1353,6 +1357,10 @@ export default function RodeoInteligente() {
 
             {pantalla === "sanidad" && (
               <PantallaSanidad />
+            )}
+
+            {pantalla === "estadisticas" && (
+              <PantallaEstadisticas onVolver={() => setPantalla("inicio")} />
             )}
 
             {pantalla === "formulario" && (
@@ -1770,6 +1778,124 @@ function PantallaInicio({ onNavegar }) {
   );
 }
 
+function PantallaEstadisticas({ onVolver }) {
+  const [animales, setAnimales] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [anioSel, setAnioSel] = useState(null);
+
+  useEffect(() => {
+    const lista = leerTodosLosAnimalesGuardados();
+    setAnimales(lista);
+    const anios = obtenerAniosConDatos(lista);
+    setAnioSel(anios[0] || String(new Date().getFullYear()));
+    setCargando(false);
+  }, []);
+
+  const aniosDisponibles = useMemo(() => obtenerAniosConDatos(animales), [animales]);
+  const stats = useMemo(() => calcularEstadisticasReproductivas(animales, anioSel), [animales, anioSel]);
+
+  const COLORES = ["#3E4E2F", "#8B5A2B", "#8A9A6B", "#A8452F", "#714823", "#4F6B3A"];
+
+  return (
+    <div style={{ background: "var(--crema)", border: "1px solid var(--borde)", borderRadius: 16, padding: "22px 18px", boxShadow: "0 2px 10px rgba(59,42,29,0.06)" }}>
+      <button type="button" onClick={onVolver} style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", color: "var(--marron-cuero-oscuro)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: 0, marginBottom: 14 }}>
+        <ArrowLeft size={14} /> Volver
+      </button>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
+        <h2 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 18, fontWeight: 600, color: "var(--marron-oscuro)", margin: 0 }}>
+          Resumen reproductivo
+        </h2>
+        {aniosDisponibles.length > 0 && (
+          <select
+            value={anioSel || ""}
+            onChange={(e) => setAnioSel(e.target.value)}
+            style={{ padding: "8px 12px", borderRadius: 10, border: "2px solid var(--borde)", background: "#FFFDF8", fontSize: 13.5, fontWeight: 600, color: "var(--marron-oscuro)" }}
+          >
+            {aniosDisponibles.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {cargando ? (
+        <p style={{ fontSize: 13, color: "#8A7A63", textAlign: "center" }}>Cargando...</p>
+      ) : animales.length === 0 ? (
+        <p style={{ fontSize: 13.5, color: "#8A7A63", textAlign: "center" }}>
+          Todavía no hay animales cargados para mostrar estadísticas.
+        </p>
+      ) : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8, marginBottom: 24 }}>
+            <TarjetaKPI numero={stats.totalHembras} etiqueta="Hembras en servicio" color="var(--verde-monte)" />
+            <TarjetaKPI numero={stats.preñadas} etiqueta="Preñadas" color="var(--verde-exito)" />
+            <TarjetaKPI numero={stats.vacias} etiqueta="Vacías" color="var(--terracota)" />
+            <TarjetaKPI numero={stats.totalNacimientos} etiqueta={`Nacimientos ${anioSel || ""}`} color="var(--marron-cuero)" />
+          </div>
+
+          <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
+            <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
+              Nacimientos por mes {anioSel ? `(${anioSel})` : ""}
+            </h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={stats.nacimientosPorMes}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
+                <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Line type="monotone" dataKey="cantidad" stroke="#3E4E2F" strokeWidth={2.5} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="grilla-formulario" style={{ gap: 16 }}>
+            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16 }}>
+              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
+                Crías por sexo
+              </h3>
+              {stats.porSexo.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic" }}>Sin datos para este año.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={stats.porSexo} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
+                      {stats.porSexo.map((entry, index) => (
+                        <Cell key={entry.name} fill={COLORES[index % COLORES.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16 }}>
+              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
+                Crías por padre / servicio
+              </h3>
+              {stats.porServicio.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic" }}>Sin datos para este año.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={stats.porServicio} layout="vertical" margin={{ left: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11 }} width={80} />
+                    <Tooltip />
+                    <Bar dataKey="cantidad" fill="#8B5A2B" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function TarjetaKPI({ numero, etiqueta, color }) {
   return (
     <div
@@ -2101,6 +2227,82 @@ function estadoReproductivoDe(ficha) {
     return { texto: "Vacía", fondo: "var(--terracota)", color: "#FBF7ED" };
   }
   return { texto: "Vacía", fondo: "var(--terracota)", color: "#FBF7ED" };
+}
+
+
+const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+// Recorre todos los animales guardados y arma los datos agregados para el
+// dashboard. Solo usa datos que ya están cargados (historialCrias, tacto),
+// nunca estima ni inventa. Si se pasa un año, filtra las crías de ese año;
+// si no, toma todas.
+function calcularEstadisticasReproductivas(animales, anioFiltro) {
+  const nacimientosPorMes = MESES_CORTOS.map((mes) => ({ mes, cantidad: 0 }));
+  const conteoSexo = { Macho: 0, Hembra: 0 };
+  const conteoPorPadre = {};
+  let totalNacimientos = 0;
+
+  animales.forEach((ficha) => {
+    if (!Array.isArray(ficha.historialCrias)) return;
+    ficha.historialCrias.forEach((cria) => {
+      if (!cria.fechaNacimiento) return;
+      const partes = cria.fechaNacimiento.split("-");
+      if (partes.length !== 3) return;
+      const [anio, mes] = partes;
+      if (anioFiltro && anio !== String(anioFiltro)) return;
+
+      const mesIndice = Number(mes) - 1;
+      if (mesIndice >= 0 && mesIndice < 12) {
+        nacimientosPorMes[mesIndice].cantidad += 1;
+      }
+      totalNacimientos += 1;
+
+      if (cria.sexo === "Macho") conteoSexo.Macho += 1;
+      else if (cria.sexo === "Hembra") conteoSexo.Hembra += 1;
+
+      const padre = cria.nombrePadre && cria.nombrePadre !== "Sin registrar" ? cria.nombrePadre : null;
+      if (padre) conteoPorPadre[padre] = (conteoPorPadre[padre] || 0) + 1;
+    });
+  });
+
+  const porSexo = [
+    { name: "Macho", value: conteoSexo.Macho },
+    { name: "Hembra", value: conteoSexo.Hembra },
+  ].filter((s) => s.value > 0);
+
+  const porServicio = Object.entries(conteoPorPadre)
+    .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+    .sort((a, b) => b.cantidad - a.cantidad)
+    .slice(0, 6);
+
+  // Estado reproductivo actual del rodeo (foto de hoy, no depende del año filtrado)
+  let preñadas = 0, vacias = 0, paridas = 0, totalHembras = 0;
+  animales.forEach((ficha) => {
+    const estado = estadoReproductivoDe(ficha);
+    if (!estado) return;
+    totalHembras += 1;
+    if (estado.texto === "Preñada") preñadas += 1;
+    else if (estado.texto === "Vacía") vacias += 1;
+    else if (estado.texto === "Parida") paridas += 1;
+  });
+
+  return { totalHembras, preñadas, vacias, paridas, totalNacimientos, nacimientosPorMes, porSexo, porServicio };
+}
+
+// Junta todos los años que aparecen en las fechas de nacimiento de crías,
+// para armar el selector de año del dashboard.
+function obtenerAniosConDatos(animales) {
+  const anios = new Set();
+  animales.forEach((ficha) => {
+    if (!Array.isArray(ficha.historialCrias)) return;
+    ficha.historialCrias.forEach((c) => {
+      if (c.fechaNacimiento) {
+        const anio = c.fechaNacimiento.split("-")[0];
+        if (anio) anios.add(anio);
+      }
+    });
+  });
+  return Array.from(anios).sort((a, b) => b.localeCompare(a));
 }
 
 // Lee una ficha guardada por su número de caravana. Devuelve null si no existe
@@ -3451,7 +3653,10 @@ function PantallaGenealogia({ onVolver, onVerFicha }) {
 }
 
 function ArbolGraficoPedigree({ animal, onVerFicha }) {
-  const madreFicha = animal.madre ? leerAnimalPorCaravana(animal.madre) : null;
+  const caravanaMadre = animal.caravanaMadre || animal.cria?.caravanaMadre || null;
+  const nombrePadreAnimal = animal.nombrePadre || animal.cria?.nombrePadre || null;
+  const fechaNacimientoAnimal = animal.fechaNacimiento || animal.cria?.fechaNacimiento || null;
+  const madreFicha = caravanaMadre ? leerAnimalPorCaravana(caravanaMadre) : null;
   const crias = animal.historialCrias || [];
 
   return (
@@ -3467,8 +3672,8 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
             flex: 1,
             padding: "14px 10px",
             borderRadius: 12,
-            border: madreFicha ? "1.5px solid #0277BD" : "1.5px dashed #C4CDD5",
-            background: madreFicha ? "#E1F5FE" : "#F8FAFC",
+            border: caravanaMadre ? "1.5px solid #0277BD" : "1.5px dashed #C4CDD5",
+            background: caravanaMadre ? "#E1F5FE" : "#F8FAFC",
             textAlign: "center",
             cursor: madreFicha ? "pointer" : "default",
           }}
@@ -3476,8 +3681,8 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
           <div style={{ fontSize: 11, fontWeight: 700, color: "#919EAB", textTransform: "uppercase", marginBottom: 4 }}>
             ♀ MADRE
           </div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: madreFicha ? "#0277BD" : "#B0B9C2" }}>
-            {animal.madre ? `N° ${animal.madre}` : "Agregar"}
+          <div style={{ fontSize: 14, fontWeight: 700, color: caravanaMadre ? "#0277BD" : "#B0B9C2" }}>
+            {caravanaMadre ? `N° ${caravanaMadre}` : "Agregar"}
           </div>
         </div>
 
@@ -3487,16 +3692,16 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
             flex: 1,
             padding: "14px 10px",
             borderRadius: 12,
-            border: animal.nombrePadre ? "1.5px solid #0277BD" : "1.5px dashed #C4CDD5",
-            background: animal.nombrePadre ? "#E1F5FE" : "#F8FAFC",
+            border: nombrePadreAnimal ? "1.5px solid #0277BD" : "1.5px dashed #C4CDD5",
+            background: nombrePadreAnimal ? "#E1F5FE" : "#F8FAFC",
             textAlign: "center",
           }}
         >
           <div style={{ fontSize: 11, fontWeight: 700, color: "#919EAB", textTransform: "uppercase", marginBottom: 4 }}>
             ♂ PADRE
           </div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: animal.nombrePadre ? "#0277BD" : "#B0B9C2" }}>
-            {animal.nombrePadre ? animal.nombrePadre : "Agregar"}
+          <div style={{ fontSize: 14, fontWeight: 700, color: nombrePadreAnimal ? "#0277BD" : "#B0B9C2" }}>
+            {nombrePadreAnimal ? nombrePadreAnimal : "Agregar"}
           </div>
         </div>
 
@@ -3528,6 +3733,9 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
           <span style={{ fontSize: 16, fontWeight: 800, color: "#0277BD" }}>
             {animal.caravana}
           </span>
+        </div>
+        <div style={{ fontSize: 11, color: "#637381", marginTop: 4 }}>
+          📅 {fechaNacimientoAnimal ? formatearFechaDDMMYYYY(parseISO(fechaNacimientoAnimal)) : "Sin registrar"}
         </div>
       </div>
 
@@ -6314,6 +6522,15 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
               mostrarTexto={true}
               activa={pantallaActual === "sanidad"}
               onClick={() => irA("sanidad")}
+            />
+
+            {/* 7. Estadísticas */}
+            <OpcionMenu
+              icono={<CalendarClock size={20} />}
+              texto="Estadísticas"
+              mostrarTexto={true}
+              activa={pantallaActual === "estadisticas"}
+              onClick={() => irA("estadisticas")}
             />
           </nav>
         </div>
