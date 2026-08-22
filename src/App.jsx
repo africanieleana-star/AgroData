@@ -488,6 +488,9 @@ export default function RodeoInteligente() {
   const [nombrePadreManual, setNombrePadreManual] = useState("");
   const [observacionesAnimal, setObservacionesAnimal] = useState("");
 
+  const [fallecio, setFallecio] = useState(false);
+  const [fechaFallecimiento, setFechaFallecimiento] = useState("");
+
   // Datos de Inseminación
   const [fechaInseminacion, setFechaInseminacion] = useState("");
   const [nombreInseminacion, setNombreInseminacion] = useState("");
@@ -507,6 +510,8 @@ export default function RodeoInteligente() {
   const [pesoNacer, setPesoNacer] = useState("");
   const [caravanaCria, setCaravanaCria] = useState("");
   const [observacionesParicion, setObservacionesParicion] = useState("");
+  const [criaFallecida, setCriaFallecida] = useState(false);
+  const [fechaFallecimientoCria, setFechaFallecimientoCria] = useState("");
 
   // ❌ Función para eliminar una cría del historial y del localStorage
   const eliminarCria = (caravanaCriaABorrar) => {
@@ -547,14 +552,14 @@ export default function RodeoInteligente() {
   const [toast, setToast] = useState(null); // { tipo: "exito" | "error", mensaje: string } | null
 
   const muestraServicio = true;
-  const listoParaGuardar = (caravana || "").length > 0 && tipo !== null;  const enEdicion = modo === "edicion";
+  const listoParaGuardar = (caravana || "").length > 0 && tipo !== null; const enEdicion = modo === "edicion";
 
   const mostrarToast = (mensaje, tipo = "exito") => {
     setToast({ mensaje, tipo });
     setTimeout(() => setToast(null), 3000);
   };
 
-    // Aviso automático: cuando se abre la app, si hay pendientes para hoy,
+  // Aviso automático: cuando se abre la app, si hay pendientes para hoy,
   // se lo muestra sin que el productor tenga que preguntar. Se avisa una
   // sola vez por día para no ser repetitivo.
   useEffect(() => {
@@ -665,6 +670,8 @@ export default function RodeoInteligente() {
     setCaravanaMadreManual("");
     setNombrePadreManual("");
     setObservacionesAnimal("");
+    setFallecio(false);
+    setFechaFallecimiento("");
     setFechaInseminacion("");
     setNombreInseminacion("");
     setFechaToro("");
@@ -681,6 +688,8 @@ export default function RodeoInteligente() {
     setPesoNacer("");
     setCaravanaCria("");
     setObservacionesParicion("");
+    setCriaFallecida(false);
+    setFechaFallecimientoCria("");
     setObservacionesCria("");
     setResultadoCria(null);
     setEstado("idle");
@@ -723,6 +732,13 @@ export default function RodeoInteligente() {
     setCaravanaMadreManual(f.caravanaMadre || f.cria?.caravanaMadre || "");
     setNombrePadreManual(f.nombrePadre || f.cria?.nombrePadre || "");
     setObservacionesAnimal(f.observacionesAnimal || "");
+    if (f.fallecimiento && f.fallecimiento.fecha) {
+      setFallecio(true);
+      setFechaFallecimiento(f.fallecimiento.fecha);
+    } else {
+      setFallecio(false);
+      setFechaFallecimiento("");
+    }
 
     // 🌟 SERVICIO REPRODUCTIVO VACÍO (El historial previo se lee automáticamente arriba en el cuadro amarillo)
     setFechaInseminacion("");
@@ -754,6 +770,14 @@ export default function RodeoInteligente() {
       setTipoCria(null);
       setCaravanaCria("");
       setObservacionesParicion("");
+    }
+
+    if (f.paricion && f.paricion.criaFallecida && f.paricion.criaFallecida.fecha) {
+      setCriaFallecida(true);
+      setFechaFallecimientoCria(f.paricion.criaFallecida.fecha);
+    } else {
+      setCriaFallecida(false);
+      setFechaFallecimientoCria("");
     }
 
     // Recupera observaciones de la cría desde localStorage
@@ -968,19 +992,30 @@ export default function RodeoInteligente() {
         observacionesParicion.trim()
       );
 
+      const criaFallecidaData = criaFallecida
+        ? { fecha: fechaFallecimientoCria.trim() || fechaParicion.trim() || null }
+        : null;
+
       const paricion = tieneDatosParicion ? {
         fecha: fechaParicion.trim() || null,
         tipoCria: tipoCria || null,
         caravanaCria: caravanaCria.trim() || null,
         proximoServicioSugerido: fechaParicion.trim() ? proximoServicioSugerido : null,
         observaciones: observacionesParicion.trim() || null,
+        criaFallecida: criaFallecidaData,
       } : null;
+
+      const fallecimiento = fallecio && fechaFallecimiento.trim()
+        ? { fecha: fechaFallecimiento.trim() }
+        : null;
 
 
       // 🐄 Actualizamos el historial de crías de esta madre (una fila por cada
       // caravana de cría registrada, sin duplicar si ya existía esa caravana).
       let historialCriasActualizado = [...historialCrias];
-      if (paricion && paricion.caravanaCria && paricion.caravanaCria !== caravana) {
+      const hayDatosDeCria =
+        paricion && (paricion.caravanaCria || criaFallecida) && paricion.caravanaCria !== caravana;
+      if (hayDatosDeCria) {
         const nuevaCria = {
           caravana: caravanaCria.trim(),
           fechaNacimiento: fechaParicion,
@@ -988,8 +1023,13 @@ export default function RodeoInteligente() {
           pesoNacer: pesoNacer ? `${pesoNacer} kg` : null,
           nombrePadre: nombrePadreActual || "Sin registrar",   // ✅
           origen: padreYOrigen.origen || "Sin registrar",       // ✅
+          fallecida: Boolean(criaFallecida),
+          fechaFallecimiento: criaFallecidaData?.fecha || null,
         };
-        const yaExiste = historialCriasActualizado.some((c) => c.caravana === paricion.caravanaCria);
+
+        const yaExiste = paricion.caravanaCria
+          ? historialCriasActualizado.some((c) => c.caravana === paricion.caravanaCria)
+          : false;
         historialCriasActualizado = yaExiste
           ? historialCriasActualizado.map((c) => (c.caravana === paricion.caravanaCria ? nuevaCria : c))
           : [...historialCriasActualizado, nuevaCria];
@@ -1010,6 +1050,7 @@ export default function RodeoInteligente() {
         historialCrias: historialCriasActualizado, // 🐄 ¡ACÁ GUARDAMOS TODAS LAS CRÍAS!
         tacto,
         paricion,
+        fallecimiento,
       };
 
       localStorage.setItem(clave, JSON.stringify(ficha));
@@ -1113,6 +1154,7 @@ export default function RodeoInteligente() {
               servicio: null,
               tacto: null,
               paricion: null,
+              fallecimiento: criaFallecidaData,
               cria: {
                 fechaNacimiento: paricion.fecha,
                 sexo: paricion.tipoCria,
@@ -1173,6 +1215,10 @@ export default function RodeoInteligente() {
     proximoServicioSugerido,
     fichaOriginal,
     enEdicion,
+    fallecio,
+    fechaFallecimiento,
+    criaFallecida,
+    fechaFallecimientoCria,
   ]);
 
   return (
@@ -1422,6 +1468,14 @@ export default function RodeoInteligente() {
                 estado={estado}
                 listoParaGuardar={listoParaGuardar}
                 onGuardar={guardar}
+                fallecio={fallecio}
+                setFallecio={setFallecio}
+                fechaFallecimiento={fechaFallecimiento}
+                setFechaFallecimiento={setFechaFallecimiento}
+                criaFallecida={criaFallecida}
+                setCriaFallecida={setCriaFallecida}
+                fechaFallecimientoCria={fechaFallecimientoCria}
+                setFechaFallecimientoCria={setFechaFallecimientoCria}
               />
             )}
 
@@ -1565,9 +1619,9 @@ function PantallaInicio({ onNavegar }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      
 
-            {window.Notification && Notification.permission === "default" && (
+
+      {window.Notification && Notification.permission === "default" && (
         <button
           type="button"
           onClick={() => Notification.requestPermission()}
@@ -1794,6 +1848,9 @@ function PantallaEstadisticas({ onVolver }) {
   const aniosDisponibles = useMemo(() => obtenerAniosConDatos(animales), [animales]);
   const stats = useMemo(() => calcularEstadisticasReproductivas(animales, anioSel), [animales, anioSel]);
 
+  const mortalidad = useMemo(() => calcularMortalidadPorCategoria(animales), [animales]);
+  const hayMortalidad = Object.values(mortalidad).some((n) => n > 0);
+
   const COLORES = ["#3E4E2F", "#8B5A2B", "#8A9A6B", "#A8452F", "#714823", "#4F6B3A"];
 
   return (
@@ -1833,6 +1890,28 @@ function PantallaEstadisticas({ onVolver }) {
             <TarjetaKPI numero={stats.vacias} etiqueta="Vacías" color="var(--terracota)" />
             <TarjetaKPI numero={stats.totalNacimientos} etiqueta={`Nacimientos ${anioSel || ""}`} color="var(--marron-cuero)" />
           </div>
+
+          {hayMortalidad && (
+            <div style={{ background: "#FDF2E9", border: "1px solid var(--terracota)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
+              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--terracota)", margin: "0 0 12px" }}>
+                ⚠️ Mortalidad
+              </h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8 }}>
+                {mortalidad.Terneros > 0 && (
+                  <TarjetaKPI numero={mortalidad.Terneros} etiqueta="Mortalidad Terneros" color="var(--terracota)" />
+                )}
+                {mortalidad.Vacas > 0 && (
+                  <TarjetaKPI numero={mortalidad.Vacas} etiqueta="Mortalidad Vacas" color="var(--terracota)" />
+                )}
+                {mortalidad.Toros > 0 && (
+                  <TarjetaKPI numero={mortalidad.Toros} etiqueta="Mortalidad Toros" color="var(--terracota)" />
+                )}
+                {mortalidad.Vaquillonas > 0 && (
+                  <TarjetaKPI numero={mortalidad.Vaquillonas} etiqueta="Mortalidad Vaquillonas" color="var(--terracota)" />
+                )}
+              </div>
+            </div>
+          )}
 
           <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
             <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
@@ -2205,6 +2284,9 @@ function leerTodosLosAnimalesGuardados() {
 // Devuelve { texto, color, colorTexto } para la etiqueta de estado
 // reproductivo de un animal, en base a su último tacto registrado.
 function estadoReproductivoDe(ficha) {
+  if (ficha.fallecimiento && ficha.fallecimiento.fecha) {
+    return { texto: "Falleció", fondo: "#5A5A5A", color: "#FBF7ED" };
+  }
   if (ficha.esCria) return null; // las crías no tienen estado reproductivo propio
   if (!APLICA_SERVICIO.includes(ficha.tipo)) return null; // solo aplica a hembras en servicio
 
@@ -2287,6 +2369,36 @@ function calcularEstadisticasReproductivas(animales, anioFiltro) {
   });
 
   return { totalHembras, preñadas, vacias, paridas, totalNacimientos, nacimientosPorMes, porSexo, porServicio };
+}
+
+// Cuenta cuántos animales de cada categoría tienen fallecimiento cargado.
+// Solo se basa en el campo "fallecimiento" que ya guarda cada ficha —
+// no inventa ni estima nada.
+function calcularMortalidadPorCategoria(animales) {
+  const grupos = { Terneros: 0, Vacas: 0, Toros: 0, Vaquillonas: 0 };
+  const mapeoTipo = {
+    Ternero: "Terneros",
+    Ternera: "Terneros",
+    Vaca: "Vacas",
+    Toro: "Toros",
+    Vaquillona: "Vaquillonas",
+  };
+  animales.forEach((f) => {
+    if (f.fallecimiento && f.fallecimiento.fecha) {
+      const grupo = mapeoTipo[f.tipo];
+      if (grupo) grupos[grupo] += 1;
+    }
+    // Crías fallecidas sin caravana propia (no tienen ficha aparte,
+    // solo quedan anotadas en el historial de crías de la madre).
+    if (Array.isArray(f.historialCrias)) {
+      f.historialCrias.forEach((c) => {
+        if (c.fallecida && !c.caravana) {
+          grupos.Terneros += 1;
+        }
+      });
+    }
+  });
+  return grupos;
 }
 
 // Junta todos los años que aparecen en las fechas de nacimiento de crías,
@@ -2523,7 +2635,7 @@ function PantallaListado({ onVolver, onVerFicha }) {
   const [busqueda, setBusqueda] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState(null);
 
-    useEffect(() => {
+  useEffect(() => {
     setAnimales(leerTodosLosAnimalesGuardados());
     setCargando(false);
     const recargar = () => setAnimales(leerTodosLosAnimalesGuardados());
@@ -3144,10 +3256,10 @@ function PantallaAlertas({ onVolver, onVerFicha }) {
   // Qué hay agendado para el día que se tocó en el calendario
   const eventosDelDiaSeleccionado = useMemo(() => {
     if (!diaSeleccionado) return { alertas: [], tareas: [] };
-    
+
     // Normalizamos la fecha seleccionada a YYYY-MM-DD para comparar sin errores
-    const fechaSelISO = diaSeleccionado.includes("T") 
-      ? diaSeleccionado.split("T")[0] 
+    const fechaSelISO = diaSeleccionado.includes("T")
+      ? diaSeleccionado.split("T")[0]
       : diaSeleccionado;
 
     const alertasDelDia = [...grupos.partos, ...grupos.tactos, ...grupos.servicios].filter(
@@ -3273,7 +3385,7 @@ function PantallaAlertas({ onVolver, onVerFicha }) {
                   <X size={16} />
                 </button>
               </div>
-              
+
               {eventosDelDiaSeleccionado.alertas.length === 0 && eventosDelDiaSeleccionado.tareas.length === 0 ? (
                 <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic", margin: 0 }}>
                   No hay nada agendado este día.
@@ -3737,6 +3849,11 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
         <div style={{ fontSize: 11, color: "#637381", marginTop: 4 }}>
           📅 {fechaNacimientoAnimal ? formatearFechaDDMMYYYY(parseISO(fechaNacimientoAnimal)) : "Sin registrar"}
         </div>
+        {animal.fallecimiento && animal.fallecimiento.fecha && (
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--terracota)", marginTop: 4 }}>
+            ✝ Falleció el {formatearFechaDDMMYYYY(parseISO(animal.fallecimiento.fecha))}
+          </div>
+        )}
       </div>
 
       {/* LÍNEA CONECTORA A CRÍAS */}
@@ -3766,6 +3883,21 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
                 {/* Caravana de la Cría */}
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#637381" }}>
                   🐄 N° {cria.caravana || "Sin caravana"}
+                  {cria.fallecida && (
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: "#fff",
+                        background: "var(--terracota)",
+                        padding: "2px 6px",
+                        borderRadius: 999,
+                      }}
+                    >
+                      ✝ Falleció
+                    </span>
+                  )}
                 </div>
 
                 {/* Nombre del Padre de la Cría */}
@@ -3777,6 +3909,15 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
                 {cria.fechaNacimiento && (
                   <div style={{ fontSize: 10.5, color: "#919EAB", marginTop: 2 }}>
                     📅 Nac: {cria.fechaNacimiento}
+                  </div>
+                )}
+
+                {/* Fecha de Fallecimiento (si aplica) */}
+                {cria.fallecida && (
+                  <div style={{ fontSize: 10.5, color: "var(--terracota)", fontWeight: 700, marginTop: 2 }}>
+                    ✝ Falleció: {cria.fechaFallecimiento
+                      ? formatearFechaDDMMYYYY(parseISO(cria.fechaFallecimiento))
+                      : "sin fecha"}
                   </div>
                 )}
               </div>
@@ -3866,6 +4007,14 @@ function PantallaFormulario({
   estado,
   listoParaGuardar,
   onGuardar,
+  fallecio,
+  setFallecio,
+  fechaFallecimiento,
+  setFechaFallecimiento,
+  criaFallecida,
+  setCriaFallecida,
+  fechaFallecimientoCria,
+  setFechaFallecimientoCria,
 }) {
   const enEdicion = modo === "edicion";
 
@@ -4057,6 +4206,41 @@ function PantallaFormulario({
               resize: "vertical",
             }}
           />
+        </div>
+      </div>
+
+      {/* Fallecimiento del animal */}
+      <div className="grilla-formulario" style={{ marginTop: 4, marginBottom: 24 }}>
+        <div className="columna-completa">
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--terracota)",
+              marginBottom: fallecio ? 10 : 0,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={fallecio}
+              onChange={(e) => setFallecio(e.target.checked)}
+              style={{ width: 18, height: 18, accentColor: "var(--terracota)", cursor: "pointer" }}
+            />
+            ⚠️ Este animal falleció
+          </label>
+          {fallecio && (
+            <CampoTexto
+              id="fecha-fallecimiento"
+              etiqueta="Fecha de fallecimiento"
+              tipo="date"
+              valor={fechaFallecimiento}
+              onChange={setFechaFallecimiento}
+            />
+          )}
         </div>
       </div>
 
@@ -4944,7 +5128,40 @@ function PantallaFormulario({
             />
           </div>
 
-          {caravanaCria.trim() && (
+          <div style={{ marginBottom: 16 }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                color: "var(--terracota)",
+                marginBottom: criaFallecida ? 10 : 0,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={criaFallecida}
+                onChange={(e) => setCriaFallecida(e.target.checked)}
+                style={{ width: 18, height: 18, accentColor: "var(--terracota)", cursor: "pointer" }}
+              />
+              ⚠️ La cría nació muerta o falleció
+            </label>
+            {criaFallecida && (
+              <CampoTexto
+                id="fecha-fallecimiento-cria"
+                etiqueta="Fecha de fallecimiento de la cría"
+                tipo="date"
+                placeholder="Dejala igual a la de parición si nació muerta"
+                valor={fechaFallecimientoCria}
+                onChange={setFechaFallecimientoCria}
+              />
+            )}
+          </div>
+
+          {(caravanaCria.trim() || criaFallecida) && (
             <FichaAutomaticaCria
               caravana={caravana}
               caravanaCria={caravanaCria.trim()}
@@ -4986,12 +5203,17 @@ function PantallaFormulario({
                   <button
                     type="button"
                     onClick={() => {
-                      if (!fechaParicion || !caravanaCria.trim()) {
-                        alert("Por favor, ingresá la fecha de parición y el número de caravana de la cría.");
+                      if (!fechaParicion) {
+                        alert("Por favor, ingresá la fecha de parición.");
                         return;
                       }
 
-                      if (caravanaCria.trim() === caravana) {
+                      if (!caravanaCria.trim() && !criaFallecida) {
+                        alert("Ingresá el número de caravana de la cría, o tildá 'La cría nació muerta o falleció' si no tiene caravana.");
+                        return;
+                      }
+
+                      if (caravanaCria.trim() && caravanaCria.trim() === caravana) {
                         alert("La caravana de la cría no puede ser igual a la de la madre.");
                         return;
                       }
@@ -5047,9 +5269,13 @@ function PantallaFormulario({
                           pesoNacer: pesoNacer ? `${pesoNacer} kg` : null,
                           nombrePadre: padreCalculado,
                           origen: origenCalculado,
+                          fallecida: Boolean(criaFallecida),
+                          fechaFallecimiento: criaFallecida ? (fechaFallecimientoCria.trim() || fechaParicion) : null,
                         };
 
-                        const yaExiste = fichaMadre.historialCrias.some((c) => c.caravana === caravanaCria.trim());
+                        const yaExiste = caravanaCria.trim()
+                          ? fichaMadre.historialCrias.some((c) => c.caravana === caravanaCria.trim())
+                          : false;
                         const historialCriasActualizado = yaExiste
                           ? fichaMadre.historialCrias.map((c) => (c.caravana === caravanaCria.trim() ? nuevaCria : c))
                           : [...fichaMadre.historialCrias, nuevaCria];
@@ -5057,30 +5283,38 @@ function PantallaFormulario({
                         fichaMadre.historialCrias = historialCriasActualizado;
                         localStorage.setItem(claveMadre, JSON.stringify(fichaMadre));
 
-                        const claveCria = `animal:${caravanaCria.trim()}`;
-                        const fichaCria = {
-                          caravana: caravanaCria.trim(),
-                          tipo: tipoCria === "Macho" ? "Ternero" : "Ternera", // 👈 AHORA ASIGNA "Ternero" O "Ternera"
-                          esCria: true,
-                          fechaAlta: new Date().toISOString().slice(0, 10),
-                          fechaModificacion: null,
-                          fechaNacimiento: fechaParicion,
-                          caravanaMadre: caravana, // Toma la caravana de la madre actual
-                          nombrePadre: padreCalculado || "Sin registrar",
-                          servicio: null,
-                          tacto: null,
-                          paricion: null,
-                          cria: {
+                        // Solo se crea una ficha propia para la cría si tiene número de
+                        // caravana. Si murió sin caravana, queda anotada nada más en el
+                        // historial de crías de la madre (no se crea ficha aparte).
+                        if (caravanaCria.trim()) {
+                          const claveCria = `animal:${caravanaCria.trim()}`;
+                          const fichaCria = {
+                            caravana: caravanaCria.trim(),
+                            tipo: tipoCria === "Macho" ? "Ternero" : "Ternera",
+                            esCria: true,
+                            fechaAlta: new Date().toISOString().slice(0, 10),
+                            fechaModificacion: null,
                             fechaNacimiento: fechaParicion,
-                            sexo: tipoCria,
-                            pesoNacer: pesoNacer ? `${pesoNacer} kg` : null,
                             caravanaMadre: caravana,
                             nombrePadre: padreCalculado,
-                            origenServicio: origenCalculado,
-                            observaciones: observacionesCria ? observacionesCria.trim() : null,
-                          },
-                        };
-                        localStorage.setItem(claveCria, JSON.stringify(fichaCria));
+                            servicio: null,
+                            tacto: null,
+                            paricion: null,
+                            fallecimiento: criaFallecida
+                              ? { fecha: fechaFallecimientoCria.trim() || fechaParicion }
+                              : null,
+                            cria: {
+                              fechaNacimiento: fechaParicion,
+                              sexo: tipoCria,
+                              pesoNacer: pesoNacer ? `${pesoNacer} kg` : null,
+                              caravanaMadre: caravana,
+                              nombrePadre: padreCalculado,
+                              origenServicio: origenCalculado,
+                              observaciones: observacionesCria ? observacionesCria.trim() : null,
+                            },
+                          };
+                          localStorage.setItem(claveCria, JSON.stringify(fichaCria));
+                        }
 
                         if (typeof setHistorialCrias === "function") {
                           setHistorialCrias(historialCriasActualizado);
@@ -5093,7 +5327,11 @@ function PantallaFormulario({
                         setObservacionesCria("");
                         setPesoNacer("");
 
-                        alert(`✅ Cría N° ${nuevaCria.caravana} agregada al historial correctamente.`);
+                        alert(
+                          nuevaCria.caravana
+                            ? `✅ Cría N° ${nuevaCria.caravana} agregada al historial correctamente.`
+                            : `✅ Se anotó en el historial la cría fallecida (sin caravana) del ${formatearFechaDDMMYYYY(parseISO(fechaParicion))}.`
+                        );
                       } catch (e) {
                         console.error(e);
                         alert("Ocurrió un error al agregar la cría al historial.");
@@ -5128,9 +5366,9 @@ function PantallaFormulario({
               )}
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {[...historialCrias].sort((a, b) => (b.fechaNacimiento || "").localeCompare(a.fechaNacimiento || "")).map((c) => (
+                {[...historialCrias].sort((a, b) => (b.fechaNacimiento || "").localeCompare(a.fechaNacimiento || "")).map((c, idx) => (
                   <div
-                    key={c.caravana}
+                    key={c.caravana || `sin-caravana-${idx}`}
                     style={{
                       padding: "10px 12px",
                       background: "#F5F2EC",
@@ -5141,7 +5379,9 @@ function PantallaFormulario({
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                      <div style={{ fontWeight: 700 }}>🐮 N° {c.caravana}</div>
+                      <div style={{ fontWeight: 700 }}>
+                        🐮 {c.caravana ? `N° ${c.caravana}` : "Sin caravana (falleció)"}
+                      </div>
                       <button
                         type="button"
                         onClick={() => {
@@ -5164,8 +5404,10 @@ function PantallaFormulario({
                                 localStorage.setItem(claveMadre, JSON.stringify(fichaMadre));
                               }
 
-                              // 4. Borrar la ficha propia de la cría
-                              localStorage.removeItem(`animal:${c.caravana}`);
+                              // 4. Borrar la ficha propia de la cría (si tenía una)
+                              if (c.caravana) {
+                                localStorage.removeItem(`animal:${c.caravana}`);
+                              }
 
                               // 5. Forzar actualización de estado si existe la función
                               if (typeof setVersionHistorial === "function") {
@@ -5200,6 +5442,8 @@ function PantallaFormulario({
                     <FilaDato etiqueta="Peso al nacer" valor={c.pesoNacer} />
                     <FilaDato etiqueta="Nombre del padre" valor={c.nombrePadre} />
                     <FilaDato etiqueta="Origen" valor={c.origen} />
+                    <FilaDato etiqueta="Estado" valor={c.fallecida ? `Falleció (${c.fechaFallecimiento || "sin fecha"})` : "Viva"}
+                    />
                   </div>
                 ))}
               </div>
@@ -5791,7 +6035,7 @@ function intentarProcesarComando(preguntaOriginal) {
   let ficha = leerAnimalPorCaravana(caravanaMadre);
 
   // --- ALTA DE FICHA NUEVA (explícita: "dar de alta", "animal nuevo", etc.) ---
-  if (p.includes("alta") || p.includes("animal nuevo") || p.includes("ficha nueva") || p.includes("crear la ficha") ||p.includes("nueva ficha")) {
+  if (p.includes("alta") || p.includes("animal nuevo") || p.includes("ficha nueva") || p.includes("crear la ficha") || p.includes("nueva ficha")) {
     if (ficha) {
       return `La caravana N° ${caravanaMadre} ya existe (${ficha.tipo || "sin categoría"}). Si querés agregarle un dato, decime cuál (tacto, servicio, parición).`;
     }
@@ -5815,7 +6059,7 @@ function intentarProcesarComando(preguntaOriginal) {
     emitirActualizacionDatos();
   }
 
-    // --- COMPLETAR / CORREGIR LA CATEGORÍA de una ficha que ya existe ---
+  // --- COMPLETAR / CORREGIR LA CATEGORÍA de una ficha que ya existe ---
   // (por ejemplo, cuando no se detalló al cargarla por primera vez)
   const categoriaMencionada = extraerCategoriaMencionada(p);
   const esSobreOtroDato =
@@ -6419,13 +6663,19 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
     onCerrar(); // Cierra el menú desplegable al hacer clic
   };
 
-    const [esMobile, setEsMobile] = useState(false);
+  const [esMobile, setEsMobile] = useState(false);
   useEffect(() => {
     const revisarAncho = () => setEsMobile(window.innerWidth < 768);
     revisarAncho();
     window.addEventListener("resize", revisarAncho);
     return () => window.removeEventListener("resize", revisarAncho);
   }, []);
+
+    // 🖱️ Solo para notebook: al pasar el mouse por encima, el menú se
+  // despliega solito (sin necesidad de hacer clic). En celular esto
+  // no se activa nunca, ahí se sigue abriendo solo con las 3 rayitas.
+  const [hoverEscritorio, setHoverEscritorio] = useState(false);
+  const expandido = esMobile ? abierto : (abierto || hoverEscritorio);
 
   return (
     <>
@@ -6445,15 +6695,17 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
         />
       )}
 
-            {/* Menú Lateral */}
+      {/* Menú Lateral */}
       <aside
-        className={`sidebar ${abierto ? "abierto" : ""}`}
+        className={`sidebar ${expandido ? "abierto" : ""}`}
+        onMouseEnter={() => { if (!esMobile) setHoverEscritorio(true); }}
+        onMouseLeave={() => { if (!esMobile) setHoverEscritorio(false); }}
         style={{
           position: "fixed",
           top: "65px",
           left: 0,
           bottom: 0,
-          width: esMobile ? (abierto ? 220 : 0) : (abierto ? 220 : 60),
+          width: esMobile ? (abierto ? 220 : 0) : (expandido ? 220 : 60),
           background: "#FBF7ED",
           borderRight: esMobile && !abierto ? "none" : "2px solid var(--borde, #e0d8c3)",
           zIndex: 45,
@@ -6536,7 +6788,7 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
         </div>
 
         {/* Pie de página del menú */}
-        {abierto && (
+        {expandido && (
           <div
             style={{
               borderTop: "1px solid var(--borde, #e0d8c3)",
@@ -6599,14 +6851,14 @@ function PantallaSanidad() {
   const [evento, setEvento] = useState("Vacunación Aftosa");
   const [lote, setLote] = useState("Rodeo General");
   const [farmaco, setFarmaco] = useState("");
-  
+
   // NUEVO: Estado para capturar la fecha elegida (por defecto trae el día de hoy)
   const [fechaAplicacion, setFechaAplicacion] = useState(
     new Date().toISOString().split("T")[0]
   );
 
   // NUEVO: Función que guarda en "Tareas para hoy" / Calendario
-// Función para eliminar un trabajo cargado
+  // Función para eliminar un trabajo cargado
   const eliminarRegistro = (idParaEliminar) => {
     if (!window.confirm("¿Estás segura de eliminar este registro de sanidad?")) {
       return;
@@ -6615,12 +6867,12 @@ function PantallaSanidad() {
     try {
       const guardadas = JSON.parse(localStorage.getItem("tareas_manuales") || "[]");
       const listaFiltrada = guardadas.filter((item) => item.id !== idParaEliminar);
-      
+
       localStorage.setItem("tareas_manuales", JSON.stringify(listaFiltrada));
       alert("Registro eliminado correctamente.");
-      
+
       // Forzamos un pequeño refresco del estado local para actualizar la pantalla
-      setFarmaco((prev) => prev); 
+      setFarmaco((prev) => prev);
     } catch (e) {
       console.error(e);
       alert("Error al eliminar el registro.");
@@ -6721,7 +6973,7 @@ function PantallaSanidad() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "10px" }}>
-      
+
       {/* 1. Navegación Superior entre Pestañas */}
       <div style={{ display: "flex", gap: 6, background: "#F5F2EC", padding: 4, borderRadius: 12 }}>
         {[
@@ -6754,7 +7006,7 @@ function PantallaSanidad() {
       {/* PESTAÑA 1: PLAN SANITARIO */}
       {pestaña === "plan" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          
+
           {/* Botones de Categorías */}
           <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
             {Object.keys(PLANES).map((cat) => (
@@ -6784,7 +7036,7 @@ function PantallaSanidad() {
             <h3 style={{ fontSize: 16, margin: "0 0 12px", color: "var(--marron-oscuro)" }}>
               Calendario Sanitario: {categoriaSel}
             </h3>
-            
+
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {PLANES[categoriaSel].tareas.map((item, idx) => (
                 <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "#F5F2EC", borderRadius: 10 }}>
@@ -6811,7 +7063,7 @@ function PantallaSanidad() {
       {/* PESTAÑA 2: CARGAR TRABAJO MASIVO E HISTORIAL */}
       {pestaña === "registro" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          
+
           {/* Formulario de Carga */}
           <div style={{ background: "#FFFDF8", border: "1px solid var(--borde, #E0D8C3)", borderRadius: 16, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
             <h3 style={{ fontSize: 16, margin: 0, color: "var(--marron-oscuro, #3B2A1D)" }}>
@@ -6844,11 +7096,11 @@ function PantallaSanidad() {
 
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: "#8A7A63", display: "block", marginBottom: 4 }}>Fecha de Aplicación / Programación</label>
-              <input 
-                type="date" 
-                value={fechaAplicacion} 
-                onChange={(e) => setFechaAplicacion(e.target.value)} 
-                style={{ width: "100%", padding: "12px", borderRadius: 10, border: "1px solid var(--borde, #E0D8C3)", background: "#F5F2EC", fontSize: 14, boxSizing: "border-box", color: "var(--marron-oscuro, #3B2A1D)" }} 
+              <input
+                type="date"
+                value={fechaAplicacion}
+                onChange={(e) => setFechaAplicacion(e.target.value)}
+                style={{ width: "100%", padding: "12px", borderRadius: 10, border: "1px solid var(--borde, #E0D8C3)", background: "#F5F2EC", fontSize: 14, boxSizing: "border-box", color: "var(--marron-oscuro, #3B2A1D)" }}
               />
             </div>
 
