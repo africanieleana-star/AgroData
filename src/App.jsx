@@ -6211,6 +6211,14 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
     onCerrar(); // Cierra el menú desplegable al hacer clic
   };
 
+    const [esMobile, setEsMobile] = useState(false);
+  useEffect(() => {
+    const revisarAncho = () => setEsMobile(window.innerWidth < 768);
+    revisarAncho();
+    window.addEventListener("resize", revisarAncho);
+    return () => window.removeEventListener("resize", revisarAncho);
+  }, []);
+
   return (
     <>
       {/* Fondo oscuro transparente que se ubica debajo del header */}
@@ -6229,25 +6237,23 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
         />
       )}
 
-      {/* Menú Lateral */}
+            {/* Menú Lateral */}
       <aside
-        onMouseEnter={onAbrir}
-        onMouseLeave={onCerrar}
         className={`sidebar ${abierto ? "abierto" : ""}`}
         style={{
           position: "fixed",
-          top: "65px", // Se posiciona debajo de la barra superior fija
+          top: "65px",
           left: 0,
           bottom: 0,
-          width: abierto ? 220 : 60,
+          width: esMobile ? (abierto ? 220 : 0) : (abierto ? 220 : 60),
           background: "#FBF7ED",
-          borderRight: "2px solid var(--borde, #e0d8c3)",
-          zIndex: 45, // Menor que el zIndex del header (50) para no taparlo
+          borderRight: esMobile && !abierto ? "none" : "2px solid var(--borde, #e0d8c3)",
+          zIndex: 45,
           transition: "width 0.25s ease-in-out",
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          padding: "16px 10px",
+          padding: esMobile && !abierto ? "16px 0" : "16px 10px",
           boxSizing: "border-box",
           overflow: "hidden",
           whiteSpace: "nowrap",
