@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react'
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   Tag,
@@ -1234,6 +1235,7 @@ export default function RodeoInteligente() {
       <style>{ESTILOS_GLOBALES}</style>
       <Toast toast={toast} />
       <ChatBot />
+      <Analytics />
 
       <div className="app-container">
         <MenuLateral
