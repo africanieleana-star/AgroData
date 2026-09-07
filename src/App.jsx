@@ -1381,6 +1381,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
               {pantalla === "formulario" && (enEdicion ? "Editar ficha" : "Nueva ficha")}
               {pantalla === "guardado" && "Confirmación"}
               {pantalla === "listado" && "TODOS MIS ANIMALES"}
+              {pantalla === "recria" && "RECRÍA"}
               {pantalla === "resumen" && "Ficha del animal"}
               {pantalla === "alertas" && "TAREAS PARA HOY"}
             </p>
@@ -1418,8 +1419,12 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
               />
             )}
 
-            {pantalla === "listado" && (
+             {pantalla === "listado" && (
               <PantallaListado onVolver={volverDesdeListado} onVerFicha={irAVerResumen} />
+            )}
+
+            {pantalla === "recria" && (
+              <PantallaRecria onVolver={() => setPantalla("inicio")} onVerFicha={irAVerResumen} />
             )}
 
             {pantalla === "resumen" && fichaEnResumen && (
@@ -2945,6 +2950,266 @@ function PantallaListado({ onVolver, onVerFicha }) {
                 >
                   <div>
                     <div style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontWeight: 700, fontSize: 15.5, color: "var(--marron-oscuro)" }}>
+                      N° {a.caravana}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#8A7A63", fontWeight: 500, marginTop: 2 }}>
+                      {a.tipo || "Sin categoría"}
+                    </div>
+                  </div>
+                  <EtiquetaEstado estado={estado} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => eliminarAnimalDelListado(a.caravana)}
+                  title="Eliminar ficha"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#C62828",
+                    cursor: "pointer",
+                    fontSize: 16,
+                    padding: "0 12px",
+                    flexShrink: 0,
+                  }}
+                >
+                  ❌
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PantallaRecria({ onVolver, onVerFicha }) {
+  const [animales, setAnimales] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [busqueda, setBusqueda] = useState("");
+  const [categoriaFiltro, setCategoriaFiltro] = useState(null); // null = todas, "Ternero" | "Ternera"
+
+  useEffect(() => {
+    const cargar = () =>
+      setAnimales(
+        leerTodosLosAnimalesGuardados().filter((a) => a.tipo === "Ternero" || a.tipo === "Ternera")
+      );
+    cargar();
+    setCargando(false);
+    window.addEventListener("agrodata:actualizado", cargar);
+    return () => window.removeEventListener("agrodata:actualizado", cargar);
+  }, []);
+
+  const conteoPorCategoria = useMemo(() => {
+    const conteo = { Ternero: 0, Ternera: 0 };
+    animales.forEach((a) => {
+      if (conteo[a.tipo] !== undefined) conteo[a.tipo] += 1;
+    });
+    return conteo;
+  }, [animales]);
+
+  const animalesFiltrados = useMemo(() => {
+    let lista = animales;
+    if (categoriaFiltro) {
+      lista = lista.filter((a) => a.tipo === categoriaFiltro);
+    }
+    const texto = busqueda.trim().toLowerCase();
+    if (texto) {
+      lista = lista.filter((a) => (a.caravana || "").toLowerCase().includes(texto));
+    }
+    return [...lista].sort((a, b) => (a.caravana || "").localeCompare(b.caravana || ""));
+  }, [animales, busqueda, categoriaFiltro]);
+
+  const eliminarAnimalDelListado = (caravanaABorrar) => {
+    if (!window.confirm(`¿Estás segura de eliminar la ficha N° ${caravanaABorrar}? Esta acción no se puede deshacer.`))
+      return;
+    try {
+      localStorage.removeItem(`animal:${caravanaABorrar}`);
+      setAnimales((prev) => prev.filter((a) => a.caravana !== caravanaABorrar));
+    } catch (e) {
+      alert("No se pudo eliminar la ficha.");
+    }
+  };
+
+  return (
+    <div
+      style={{
+        background: "var(--crema)",
+        border: "1px solid var(--borde)",
+        borderRadius: 16,
+        padding: "22px 18px",
+        boxShadow: "0 2px 10px rgba(59,42,29,0.06)",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onVolver}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          background: "none",
+          border: "none",
+          color: "var(--marron-cuero-oscuro)",
+          fontSize: 12.5,
+          fontWeight: 600,
+          cursor: "pointer",
+          padding: 0,
+          marginBottom: 14,
+        }}
+      >
+        <ArrowLeft size={14} /> Volver
+      </button>
+
+      <h2
+        style={{
+          fontFamily: "'PP Neue Montreal Bold', serif",
+          fontSize: 18,
+          fontWeight: 600,
+          color: "var(--marron-oscuro)",
+          margin: "0 0 14px",
+        }}
+      >
+        Recría {animales.length > 0 && `(${animales.length})`}
+      </h2>
+
+      <div style={{ position: "relative", marginBottom: 14 }}>
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="Filtrar por número de caravana"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 15,
+            padding: "12px 38px 12px 14px",
+            borderRadius: 10,
+            border: "2px solid var(--borde)",
+            background: "#FFFDF8",
+            color: "var(--marron-oscuro)",
+          }}
+        />
+        {busqueda && (
+          <button
+            type="button"
+            onClick={() => setBusqueda("")}
+            aria-label="Limpiar búsqueda"
+            style={{
+              position: "absolute",
+              right: 10,
+              top: "50%",
+              transform: "translateY(-50%)",
+              background: "none",
+              border: "none",
+              color: "#8A7A63",
+              cursor: "pointer",
+              padding: 4,
+              display: "flex",
+            }}
+          >
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+        <button
+          type="button"
+          onClick={() => setCategoriaFiltro(null)}
+          style={{
+            padding: "7px 12px",
+            borderRadius: 999,
+            border: categoriaFiltro === null ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
+            background: categoriaFiltro === null ? "var(--verde-monte)" : "#FFFDF8",
+            color: categoriaFiltro === null ? "#FBF7ED" : "var(--marron-oscuro)",
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Todas ({animales.length})
+        </button>
+        {["Ternero", "Ternera"].map((cat) => {
+          const activo = categoriaFiltro === cat;
+          return (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setCategoriaFiltro(activo ? null : cat)}
+              style={{
+                padding: "7px 12px",
+                borderRadius: 999,
+                border: activo ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
+                background: activo ? "var(--verde-monte)" : "#FFFDF8",
+                color: activo ? "#FBF7ED" : "var(--marron-oscuro)",
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {cat} ({conteoPorCategoria[cat] || 0})
+            </button>
+          );
+        })}
+      </div>
+
+      {cargando ? (
+        <p style={{ fontSize: 13, color: "#8A7A63", textAlign: "center" }}>Cargando...</p>
+      ) : animales.length === 0 ? (
+        <p style={{ fontSize: 13.5, color: "#8A7A63", textAlign: "center", lineHeight: 1.5 }}>
+          Todavía no hay terneros ni terneras guardados. Las crías que cargues como Ternero o Ternera van a aparecer acá.
+        </p>
+      ) : animalesFiltrados.length === 0 ? (
+        <p style={{ fontSize: 13.5, color: "#8A7A63", textAlign: "center", lineHeight: 1.5 }}>
+          Ningún animal coincide con ese filtro.
+        </p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {animalesFiltrados.map((a) => {
+            const estado = estadoReproductivoDe(a);
+            return (
+              <div
+                key={a.caravana}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  borderRadius: 10,
+                  border: "1px solid var(--borde)",
+                  background: "#FFFDF8",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => onVerFicha(a, "recria")}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    flex: 1,
+                    textAlign: "left",
+                    padding: "12px 14px",
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: "'PP Neue Montreal Bold', serif",
+                        fontWeight: 700,
+                        fontSize: 15.5,
+                        color: "var(--marron-oscuro)",
+                      }}
+                    >
                       N° {a.caravana}
                     </div>
                     <div style={{ fontSize: 12, color: "#8A7A63", fontWeight: 500, marginTop: 2 }}>
@@ -6847,7 +7112,16 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
               onClick={() => irA("listado")}
             />
 
-            {/* 5. Genealogía */}
+            {/* 5. Recría */}
+            <OpcionMenu
+              icono={<Tag size={20} />}
+              texto="Recría"
+              mostrarTexto={true}
+              activa={pantallaActual === "recria"}
+              onClick={() => irA("recria")}
+            />
+
+            {/* 6. Genealogía */}
             <OpcionMenu
               icono={<GitFork size={20} />}
               texto="Genealogía"
