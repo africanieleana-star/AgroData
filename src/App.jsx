@@ -19,7 +19,7 @@ import {
   Send,
   Mic,
   Volume2
-} from "lucide-react";
+} from "lucide-react"; 
 
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
