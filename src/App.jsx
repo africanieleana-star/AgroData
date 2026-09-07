@@ -3217,27 +3217,51 @@ function PantallaListado({ onVolver, onVerFicha }) {
         onChange={manejarArchivoExcel}
         style={{ display: "none" }}
       />
-      <button
-        type="button"
-        onClick={() => inputExcelRef.current && inputExcelRef.current.click()}
-        disabled={importando}
-        style={{
-          width: "100%",
-          marginBottom: 12,
-          padding: "12px",
-          borderRadius: 10,
-          border: "2px dashed var(--verde-salvia)",
-          background: "#FFFDF8",
-          color: "var(--verde-monte)",
-          fontFamily: "'PP Neue Montreal Bold', serif",
-          fontWeight: 600,
-          fontSize: 13.5,
-          cursor: importando ? "not-allowed" : "pointer",
-          opacity: importando ? 0.6 : 1,
-        }}
-      >
-        {importando ? "Importando..." : "📥 Importar animales desde Excel"}
-      </button>
+           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <button
+          type="button"
+          onClick={() => inputExcelRef.current && inputExcelRef.current.click()}
+          disabled={importando}
+          style={{
+            flex: 1,
+            padding: "12px",
+            borderRadius: 10,
+            border: "2px dashed var(--verde-salvia)",
+            background: "#FFFDF8",
+            color: "var(--verde-monte)",
+            fontFamily: "'PP Neue Montreal Bold', serif",
+            fontWeight: 600,
+            fontSize: 13,
+            cursor: importando ? "not-allowed" : "pointer",
+            opacity: importando ? 0.6 : 1,
+          }}
+        >
+          {importando ? "Importando..." : "📥 Importar Excel"}
+        </button>
+
+        <button
+          type="button"
+          onClick={descargarPlantillaExcel}
+          style={{
+            flex: 1,
+            padding: "12px",
+            borderRadius: 10,
+            border: "2px solid var(--borde)",
+            background: "#FFFDF8",
+            color: "var(--marron-cuero-oscuro)",
+            fontFamily: "'PP Neue Montreal Bold', serif",
+            fontWeight: 600,
+            fontSize: 13,
+            cursor: "pointer",
+          }}
+        >
+          📄 Descargar plantilla
+        </button>
+      </div>
+
+      <p style={{ fontSize: 11, color: "#8A7A63", textAlign: "center", margin: "0 0 14px", lineHeight: 1.4 }}>
+        Descargá la plantilla, completala con los datos de tu rodeo y después subila con "Importar Excel".
+      </p>
 
       {mensajeImportacion && (
         <p
