@@ -1587,6 +1587,18 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
                 setCriaFallecida={setCriaFallecida}
                 fechaFallecimientoCria={fechaFallecimientoCria}
                 setFechaFallecimientoCria={setFechaFallecimientoCria}
+                pesoDestete205={pesoDestete205}
+                setPesoDestete205={setPesoDestete205}
+                castrado={castrado}
+                setCastrado={setCastrado}
+                gananciaDiariaSuplementacion={gananciaDiariaSuplementacion}
+                setGananciaDiariaSuplementacion={setGananciaDiariaSuplementacion}
+                gananciaDiariaVerdeo={gananciaDiariaVerdeo}
+                setGananciaDiariaVerdeo={setGananciaDiariaVerdeo}
+                fechaVenta={fechaVenta}
+                setFechaVenta={setFechaVenta}
+                pesoVenta={pesoVenta}
+                setPesoVenta={setPesoVenta}
               />
             )}
 
@@ -3425,6 +3437,22 @@ function PantallaResumen({ ficha, onVolver, onEditar }) {
         </div>
       )}
 
+            {ficha.recria && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--verde-salvia)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>
+            Datos de recría
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <FilaDato etiqueta="Peso al destete (205 días)" valor={ficha.recria.pesoDestete205 ? `${ficha.recria.pesoDestete205} kg` : null} />
+            <FilaDato etiqueta="Estado" valor={ficha.recria.castrado ? "Castrado" : "Entero"} />
+            <FilaDato etiqueta="Ganancia diaria (suplementación)" valor={ficha.recria.gananciaDiariaSuplementacion ? `${ficha.recria.gananciaDiariaSuplementacion} kg/día` : null} />
+            <FilaDato etiqueta="Ganancia diaria (verdeo)" valor={ficha.recria.gananciaDiariaVerdeo ? `${ficha.recria.gananciaDiariaVerdeo} kg/día` : null} />
+            <FilaDato etiqueta="Fecha de venta" valor={ficha.recria.fechaVenta ? formatearFechaDDMMYYYY(parseISO(ficha.recria.fechaVenta)) : null} />
+            <FilaDato etiqueta="Peso al momento de venta" valor={ficha.recria.pesoVenta ? `${ficha.recria.pesoVenta} kg` : null} />
+          </div>
+        </>
+      )}
+
       <div style={{ fontSize: 11, fontWeight: 700, color: "var(--verde-salvia)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>
         Historial reciente
       </div>
@@ -4428,12 +4456,25 @@ function PantallaFormulario({
   setFallecio,
   fechaFallecimiento,
   setFechaFallecimiento,
-  criaFallecida,
+    criaFallecida,
   setCriaFallecida,
   fechaFallecimientoCria,
   setFechaFallecimientoCria,
+  pesoDestete205,
+  setPesoDestete205,
+  castrado,
+  setCastrado,
+  gananciaDiariaSuplementacion,
+  setGananciaDiariaSuplementacion,
+  gananciaDiariaVerdeo,
+  setGananciaDiariaVerdeo,
+  fechaVenta,
+  setFechaVenta,
+  pesoVenta,
+  setPesoVenta,
 }) {
   const enEdicion = modo === "edicion";
+  const esRecria = tipo === "Ternero" || tipo === "Ternera";
 
 
   return (
@@ -4649,7 +4690,7 @@ function PantallaFormulario({
             />
             ⚠️ Este animal falleció
           </label>
-          {fallecio && (
+                    {fallecio && (
             <CampoTexto
               id="fecha-fallecimiento"
               etiqueta="Fecha de fallecimiento"
@@ -4660,6 +4701,109 @@ function PantallaFormulario({
           )}
         </div>
       </div>
+
+      {/* Datos de Recría (solo Terneros / Terneras) */}
+      {esRecria && (
+        <div style={{ borderTop: "1px dashed var(--borde)", paddingTop: 18, marginBottom: 20 }}>
+          <h3
+            style={{
+              fontFamily: "'PP Neue Montreal Bold', serif",
+              fontSize: 18,
+              fontWeight: 600,
+              color: "#FBF7ED",
+              background: "var(--verde-monte)",
+              padding: "12px 16px",
+              borderRadius: 8,
+              margin: "10px 0 14px 0",
+            }}
+          >
+            🌾 Datos de Recría
+          </h3>
+
+          <div className="grilla-formulario">
+            <CampoTexto
+              id="peso-destete-205"
+              etiqueta="Peso al destete (205 días) — kg"
+              tipo="text"
+              placeholder="Ej: 180"
+              valor={pesoDestete205}
+              onChange={setPesoDestete205}
+            />
+
+            <div style={{ marginBottom: 12 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "var(--marron-oscuro)",
+                  marginBottom: 5,
+                }}
+              >
+                Estado
+              </label>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "var(--marron-oscuro)",
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: "2px solid var(--borde)",
+                  background: "#FFFDF8",
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={castrado}
+                  onChange={(e) => setCastrado(e.target.checked)}
+                  style={{ width: 18, height: 18, accentColor: "var(--verde-monte)", cursor: "pointer" }}
+                />
+                {castrado ? "Castrado" : "Entero"}
+              </label>
+            </div>
+
+            <CampoTexto
+              id="ganancia-suplementacion"
+              etiqueta="Ganancia diaria con suplementación — kg"
+              tipo="text"
+              placeholder="Ej: 0.9"
+              valor={gananciaDiariaSuplementacion}
+              onChange={setGananciaDiariaSuplementacion}
+            />
+
+            <CampoTexto
+              id="ganancia-verdeo"
+              etiqueta="Ganancia diaria con verdeo — kg"
+              tipo="text"
+              placeholder="Ej: 0.7"
+              valor={gananciaDiariaVerdeo}
+              onChange={setGananciaDiariaVerdeo}
+            />
+
+            <CampoTexto
+              id="fecha-venta"
+              etiqueta="Fecha de venta"
+              tipo="date"
+              valor={fechaVenta}
+              onChange={setFechaVenta}
+            />
+
+            <CampoTexto
+              id="peso-venta"
+              etiqueta="Peso al momento de venta — kg"
+              tipo="text"
+              placeholder="Ej: 220"
+              valor={pesoVenta}
+              onChange={setPesoVenta}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Servicio reproductivo */}
       {muestraServicio && (
