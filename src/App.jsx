@@ -26,6 +26,8 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, Legend,
 } from "recharts";
 
+import * as XLSX from "xlsx";
+
 const TIPOS = [
   { valor: "Vaca" },
   { valor: "Vaquillona" },
