@@ -3053,7 +3053,7 @@ function PantallaListado({ onVolver, onVerFicha }) {
         <ArrowLeft size={14} /> Volver a buscar
       </button>
 
-      <h2
+            <h2
         style={{
           fontFamily: "'PP Neue Montreal Bold', serif",
           fontSize: 18,
@@ -3064,6 +3064,50 @@ function PantallaListado({ onVolver, onVerFicha }) {
       >
         Todos los animales {animales.length > 0 && `(${animales.length})`}
       </h2>
+
+      {/* Importar desde Excel */}
+      <input
+        type="file"
+        accept=".xlsx,.xls"
+        ref={inputExcelRef}
+        onChange={manejarArchivoExcel}
+        style={{ display: "none" }}
+      />
+      <button
+        type="button"
+        onClick={() => inputExcelRef.current && inputExcelRef.current.click()}
+        disabled={importando}
+        style={{
+          width: "100%",
+          marginBottom: 12,
+          padding: "12px",
+          borderRadius: 10,
+          border: "2px dashed var(--verde-salvia)",
+          background: "#FFFDF8",
+          color: "var(--verde-monte)",
+          fontFamily: "'PP Neue Montreal Bold', serif",
+          fontWeight: 600,
+          fontSize: 13.5,
+          cursor: importando ? "not-allowed" : "pointer",
+          opacity: importando ? 0.6 : 1,
+        }}
+      >
+        {importando ? "Importando..." : "📥 Importar animales desde Excel"}
+      </button>
+
+      {mensajeImportacion && (
+        <p
+          style={{
+            fontSize: 12.5,
+            fontWeight: 600,
+            textAlign: "center",
+            color: mensajeImportacion.tipo === "error" ? "var(--terracota)" : "var(--verde-exito)",
+            marginBottom: 14,
+          }}
+        >
+          {mensajeImportacion.texto}
+        </p>
+      )}
 
       {/* Buscador por caravana */}
       <div style={{ position: "relative", marginBottom: 14 }}>
