@@ -2654,6 +2654,26 @@ function normalizarFechaExcel(valor) {
   return null;
 }
 
+// Acepta "Preñada", "Preniada", "Positivo", etc. y devuelve el valor
+// interno que usa la app ("Preniada" o "Vacia"). Si no reconoce nada,
+// devuelve null (no se inventa un resultado).
+function normalizarResultadoTactoExcel(valor) {
+  if (!valor) return null;
+  const texto = normalizarTexto(String(valor));
+  if (texto.includes("prenad") || texto.includes("preniad") || texto.includes("positiv")) return "Preniada";
+  if (texto.includes("vacia") || texto.includes("negativ")) return "Vacia";
+  return null;
+}
+
+// Acepta "Hembra"/"Macho" en cualquier mayúscula/minúscula.
+function normalizarTipoCriaExcel(valor) {
+  if (!valor) return null;
+  const texto = normalizarTexto(String(valor));
+  if (texto.includes("hembra")) return "Hembra";
+  if (texto.includes("macho")) return "Macho";
+  return null;
+}
+
 // Lee el archivo Excel elegido por el usuario, fila por fila, y crea o
 // actualiza la ficha de cada animal en localStorage (mismo formato que
 // usa el resto de la app). Si la caravana ya existe, pregunta antes de
