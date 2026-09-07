@@ -2619,6 +2619,119 @@ function leerAnimalPorCaravana(caravana) {
   }
 }
 
+// --- IMPORTACIÓN DESDE EXCEL ---
+
+// Convierte lo que venga en la columna "tipo" del Excel a una de las
+// categorías válidas de la app (Vaca, Toro, etc.). Si no coincide con
+// ninguna, devuelve null (no se inventa una categoría).
+function normalizarTipoExcel(valor) {
+  if (!valor) return null;
+  const texto = String(valor).trim();
+  const encontrado = TIPOS.find((t) => t.valor.toLowerCase() === texto.toLowerCase());
+  return encontrado ? encontrado.valor : null;
+}
+
+// Acepta fechas en formato AAAA-MM-DD, DD/MM/AAAA, o fechas nativas de
+// Excel (números de serie), y las devuelve siempre como AAAA-MM-DD.
+function normalizarFechaExcel(valor) {
+  if (!valor) return null;
+  if (typeof valor === "number") {
+    const fecha = XLSX.SSF.parse_date_code(valor);
+    if (!fecha) return null;
+    const mm = String(fecha.m).padStart(2, "0");
+    const dd = String(fecha.d).padStart(2, "0");
+    return `${fecha.y}-${mm}-${dd}`;
+  }
+  const texto = String(valor).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) return texto;
+  const match = texto.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (match) {
+    const dia = match[1].padStart(2, "0");
+    const mes = match[2].padStart(2, "0");
+    const anio = match[3].length === 2 ? `20${match[3]}` : match[3];
+    return `${anio}-${mes}-${dia}`;
+  }
+  return null;
+}
+
+// Lee el archivo Excel elegido por el usuario, fila por fila, y crea o
+// actualiza la ficha de cada animal en localStorage (mismo formato que
+// usa el resto de la app). Si la caravana ya existe, pregunta antes de
+// sobrescribir. Nunca inventa datos: lo que no viene en la columna,
+// queda como "Sin registrar" (null).
+function importarAnimalesDesdeExcel(archivo) {
+  return new Promise((resolve, reject) => {
+    const lector = new FileReader();
+    lector.onload = (e) => {
+      try {
+        const datos = new Uint8Array(e.target.result);
+        const libro = XLSX.read(datos, { type: "array" });
+        const primeraHoja = libro.Sheets[libro.SheetNames[0]];
+        const filas = XLSX.utils.sheet_to_json(primeraHoja, { defval: "" });
+
+        const resumen = { creados: 0, actualizados: 0, omitidos: 0, errores: [] };
+
+        filas.forEach((fila, indice) => {
+          const numeroFila = indice + 2; // +2: la fila 1 del Excel es el encabezado
+
+          const caravana = String(fila.caravana || fila.Caravana || "").trim();
+          if (!caravana) {
+            resumen.errores.push(`Fila ${numeroFila}: falta la caravana, se omitió.`);
+            return;
+          }
+
+          const tipo = normalizarTipoExcel(fila.tipo || fila.Tipo);
+          if (!tipo) {
+            resumen.errores.push(`Fila ${numeroFila} (caravana ${caravana}): tipo inválido o vacío, se omitió.`);
+            return;
+          }
+
+          const existente = leerAnimalPorCaravana(caravana);
+
+          if (existente) {
+            const sobrescribir = window.confirm(
+              `La caravana N° ${caravana} ya existe (${existente.tipo || "sin categoría"}).\n\n¿Querés SOBRESCRIBIRLA con los datos del Excel?\n\n(Aceptar = sobrescribir / Cancelar = omitir esta fila)`
+            );
+            if (!sobrescribir) {
+              resumen.omitidos += 1;
+              return;
+            }
+          }
+
+          const ficha = {
+            caravana,
+            tipo,
+            raza: (fila.raza || fila.Raza) ? String(fila.raza || fila.Raza).trim() : null,
+            fechaNacimiento: normalizarFechaExcel(fila.fechaNacimiento || fila.FechaNacimiento),
+            caravanaMadre: (fila.caravanaMadre || fila.CaravanaMadre) ? String(fila.caravanaMadre || fila.CaravanaMadre).trim() : null,
+            nombrePadre: (fila.nombrePadre || fila.NombrePadre) ? String(fila.nombrePadre || fila.NombrePadre).trim() : null,
+            observacionesAnimal: (fila.observaciones || fila.Observaciones) ? String(fila.observaciones || fila.Observaciones).trim() : null,
+            fechaAlta: existente?.fechaAlta || fechaAISO(new Date()),
+            fechaModificacion: existente ? fechaAISO(new Date()) : null,
+            servicio: existente?.servicio || null,
+            historialServicios: existente?.historialServicios || [],
+            historialCrias: existente?.historialCrias || [],
+            tacto: existente?.tacto || null,
+            paricion: existente?.paricion || null,
+            fallecimiento: existente?.fallecimiento || null,
+            recria: existente?.recria || null,
+          };
+
+          localStorage.setItem(`animal:${caravana}`, JSON.stringify(ficha));
+          existente ? (resumen.actualizados += 1) : (resumen.creados += 1);
+        });
+
+        emitirActualizacionDatos();
+        resolve(resumen);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    lector.onerror = () => reject(new Error("No se pudo leer el archivo."));
+    lector.readAsArrayBuffer(archivo);
+  });
+}
+
 // Arma el árbol genealógico subiendo por el lado de la madre (porque es el
 // único dato que permite encadenar una ficha con otra). El padre se muestra
 // como dato final de cada generación, tal cual está cargado, sin inventar
