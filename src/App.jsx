@@ -1371,7 +1371,6 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
                   </button>
                 )}
               </div>
-              )}
             </div>
 
             {/* Fila inferior: Título dinámico de la pantalla actual */}
