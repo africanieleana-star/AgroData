@@ -3497,7 +3497,7 @@ function PantallaFormularioRecria({ caravana, onVolver }) {
           onChange={setPesoDestete205}
         />
 
-                <div style={{ marginBottom: 12 }}>
+                        <div className="columna-completa" style={{ marginBottom: 12 }}>
           <label
             style={{
               display: "block",
