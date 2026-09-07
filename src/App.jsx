@@ -111,6 +111,7 @@ function formatearFechaDDMMYYYY(date) {
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const yyyy = date.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
+  }
 
   // Pone en mayúscula la primera letra de un texto (ej: "maria" -> "Maria")
 function capitalizar(texto) {
