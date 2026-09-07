@@ -90,9 +90,11 @@ export default function Auth() {
           gap: 14,
         }}
       >
-        <h1 style={{ fontSize: 22, margin: 0, color: "#3B2A1D", textAlign: "center" }}>
-          🌾 AgroData
-        </h1>
+        <img
+          src="/hojalogo.png"
+          alt="AgroData"
+          style={{ width: 96, height: 96, objectFit: "contain", margin: "0 auto" }}
+        />
         <p style={{ fontSize: 13, color: "#8A7A63", margin: "0 0 8px", textAlign: "center" }}>
           {modo === "login"
             ? "Ingresá con tu email para ver tus datos."
