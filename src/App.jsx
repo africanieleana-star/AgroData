@@ -111,6 +111,11 @@ function formatearFechaDDMMYYYY(date) {
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const yyyy = date.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
+
+  // Pone en mayúscula la primera letra de un texto (ej: "maria" -> "Maria")
+function capitalizar(texto) {
+  if (!texto) return "";
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
 // 🌟 PEGAR AQUÍ LA CALCULADORA AUTOMÁTICA DE PADRE Y ORIGEN
@@ -1337,27 +1342,35 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
                 </div>
               </div>
 
-              {/* Lado derecho: Cerrar sesión */}
-              {onCerrarSesion && (
-                <button
-                  type="button"
-                  onClick={onCerrarSesion}
-                  title={userEmail ? `Salir de ${userEmail}` : "Cerrar sesión"}
-                  style={{
-                    background: "rgba(0,0,0,0.15)",
-                    border: "1px solid rgba(251,247,237,0.4)",
-                    color: "#FBF7ED",
-                    borderRadius: 8,
-                    padding: "6px 10px",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    flexShrink: 0,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Cerrar sesión
-                </button>
+                           {/* Lado derecho: Bienvenida + Cerrar sesión */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                {userEmail && (
+                  <span style={{ color: "#FBF7ED", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
+                    Hola, {capitalizar(userEmail.split("@")[0])}                  
+                  </span>
+                )}
+                {onCerrarSesion && (
+                  <button
+                    type="button"
+                    onClick={onCerrarSesion}
+                    title={userEmail ? `Salir de ${userEmail}` : "Cerrar sesión"}
+                    style={{
+                      background: "rgba(0,0,0,0.15)",
+                      border: "1px solid rgba(251,247,237,0.4)",
+                      color: "#FBF7ED",
+                      borderRadius: 8,
+                      padding: "6px 10px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      flexShrink: 0,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Cerrar sesión
+                  </button>
+                )}
+              </div>
               )}
             </div>
 
