@@ -4755,9 +4755,8 @@ function PantallaFormulario({
   setPesoVenta,
 }) {
   const enEdicion = modo === "edicion";
-  const esRecria = tipo === "Ternero" || tipo === "Ternera";
 
-
+  
   return (
     <div
       style={{
@@ -4984,21 +4983,7 @@ function PantallaFormulario({
       </div>
 
       {/* Datos de Recría (solo Terneros / Terneras) */}
-      {esRecria && (
-        <div style={{ borderTop: "1px dashed var(--borde)", paddingTop: 18, marginBottom: 20 }}>
-          <h3
-            style={{
-              fontFamily: "'PP Neue Montreal Bold', serif",
-              fontSize: 18,
-              fontWeight: 600,
-              color: "#FBF7ED",
-              background: "var(--verde-monte)",
-              padding: "12px 16px",
-              borderRadius: 8,
-              margin: "10px 0 14px 0",
-            }}
-          >
-            🌾 Datos de Recría
+            🐄 Datos de Recría
           </h3>
 
           <div className="grilla-formulario">
