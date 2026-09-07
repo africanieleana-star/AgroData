@@ -91,9 +91,9 @@ export default function Auth() {
         }}
       >
         <img
-          src="/hojalogo.png"
+          src="/logo-login.png"
           alt="AgroData"
-          style={{ width: 96, height: 96, objectFit: "contain", margin: "0 auto" }}
+          style={{ width: "100%", maxWidth: 260, height: "auto", objectFit: "contain", margin: "0 auto" }}
         />
         <p style={{ fontSize: 13, color: "#8A7A63", margin: "0 0 8px", textAlign: "center" }}>
           {modo === "login"
