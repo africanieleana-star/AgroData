@@ -476,6 +476,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   }, []);
   const [fichaEnResumen, setFichaEnResumen] = useState(null);
   const [origenResumen, setOrigenResumen] = useState("listado"); // a dónde volver desde el resumen
+  const [caravanaFormularioRecria, setCaravanaFormularioRecria] = useState(null);
   const [menuAbierto, setMenuAbierto] = useState(false);
 
   // --- Búsqueda ---
@@ -850,8 +851,18 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setPantalla("buscar");
   };
 
-  const irAAlertas = () => {
+    const irAAlertas = () => {
     setPantalla("alertas");
+  };
+
+  const irAFormularioRecria = (caravanaAnimal) => {
+    setCaravanaFormularioRecria(caravanaAnimal);
+    setPantalla("formulario-recria");
+  };
+
+  const volverDesdeFormularioRecria = () => {
+    setCaravanaFormularioRecria(null);
+    setPantalla("recria");
   };
 
   const volverDesdeAlertas = () => {
@@ -1445,6 +1456,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
               {pantalla === "guardado" && "Confirmación"}
               {pantalla === "listado" && "TODOS MIS ANIMALES"}
               {pantalla === "recria" && "RECRÍA"}
+              {pantalla === "formulario-recria" && "FICHA DE RECRÍA"}
               {pantalla === "resumen" && "Ficha del animal"}
               {pantalla === "alertas" && "TAREAS PARA HOY"}
             </p>
@@ -1487,7 +1499,14 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
             )}
 
             {pantalla === "recria" && (
-              <PantallaRecria onVolver={() => setPantalla("inicio")} onVerFicha={irAVerResumen} />
+              <PantallaRecria onVolver={() => setPantalla("inicio")} onEditar={irAFormularioRecria} />
+            )}
+
+            {pantalla === "formulario-recria" && caravanaFormularioRecria && (
+              <PantallaFormularioRecria
+                caravana={caravanaFormularioRecria}
+                onVolver={volverDesdeFormularioRecria}
+              />
             )}
 
             {pantalla === "resumen" && fichaEnResumen && (
@@ -3059,7 +3078,7 @@ function PantallaListado({ onVolver, onVerFicha }) {
   );
 }
 
-function PantallaRecria({ onVolver, onVerFicha }) {
+function PantallaRecria({ onVolver, onEditar }) {
   const [animales, setAnimales] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
@@ -3262,7 +3281,7 @@ function PantallaRecria({ onVolver, onVerFicha }) {
               >
                 <button
                   type="button"
-                  onClick={() => onVerFicha(a, "recria")}
+                  onClick={() => onEditar(a.caravana)}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -3315,6 +3334,268 @@ function PantallaRecria({ onVolver, onVerFicha }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- */
+/* Pantalla "Formulario de Recría": ficha chica y aparte             */
+/* ---------------------------------------------------------------- */
+
+function PantallaFormularioRecria({ caravana, onVolver }) {
+  const [ficha, setFicha] = useState(null);
+  const [cargando, setCargando] = useState(true);
+
+  const [fechaNacimiento, setFechaNacimiento] = useState("");
+  const [pesoDestete205, setPesoDestete205] = useState("");
+  const [castrado, setCastrado] = useState(false);
+  const [gananciaDiariaSuplementacion, setGananciaDiariaSuplementacion] = useState("");
+  const [gananciaDiariaVerdeo, setGananciaDiariaVerdeo] = useState("");
+  const [fechaVenta, setFechaVenta] = useState("");
+  const [pesoVenta, setPesoVenta] = useState("");
+
+  const [guardando, setGuardando] = useState(false);
+  const [guardadoOk, setGuardadoOk] = useState(false);
+
+  useEffect(() => {
+    const f = leerAnimalPorCaravana(caravana);
+    setFicha(f);
+    if (f) {
+      setFechaNacimiento(f.fechaNacimiento || f.cria?.fechaNacimiento || "");
+      const r = f.recria || {};
+      setPesoDestete205(r.pesoDestete205 || "");
+      setCastrado(Boolean(r.castrado));
+      setGananciaDiariaSuplementacion(r.gananciaDiariaSuplementacion || "");
+      setGananciaDiariaVerdeo(r.gananciaDiariaVerdeo || "");
+      setFechaVenta(r.fechaVenta || "");
+      setPesoVenta(r.pesoVenta || "");
+    }
+    setCargando(false);
+  }, [caravana]);
+
+  const guardar = () => {
+    if (!ficha) return;
+    setGuardando(true);
+    try {
+      const clave = `animal:${caravana}`;
+      const raw = localStorage.getItem(clave);
+      const actual = raw ? JSON.parse(raw) : { ...ficha };
+
+      actual.fechaNacimiento = fechaNacimiento.trim() || null;
+
+      const tieneDatosRecria = Boolean(
+        pesoDestete205 ||
+        castrado ||
+        gananciaDiariaSuplementacion ||
+        gananciaDiariaVerdeo ||
+        fechaVenta.trim() ||
+        pesoVenta
+      );
+
+      actual.recria = tieneDatosRecria
+        ? {
+          pesoDestete205: pesoDestete205 || null,
+          castrado: Boolean(castrado),
+          gananciaDiariaSuplementacion: gananciaDiariaSuplementacion || null,
+          gananciaDiariaVerdeo: gananciaDiariaVerdeo || null,
+          fechaVenta: fechaVenta.trim() || null,
+          pesoVenta: pesoVenta || null,
+        }
+        : null;
+
+      localStorage.setItem(clave, JSON.stringify(actual));
+      setFicha(actual);
+      emitirActualizacionDatos();
+      setGuardadoOk(true);
+      setTimeout(() => setGuardadoOk(false), 2500);
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo guardar la ficha de recría.");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const cajaEstilo = {
+    background: "var(--crema)",
+    border: "1px solid var(--borde)",
+    borderRadius: 16,
+    padding: "22px 18px",
+    boxShadow: "0 2px 10px rgba(59,42,29,0.06)",
+  };
+
+  const botonVolverEstilo = {
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+    background: "none",
+    border: "none",
+    color: "var(--marron-cuero-oscuro)",
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: "pointer",
+    padding: 0,
+    marginBottom: 14,
+  };
+
+  if (cargando) {
+    return (
+      <div style={cajaEstilo}>
+        <button type="button" onClick={onVolver} style={botonVolverEstilo}>
+          <ArrowLeft size={14} /> Volver a Recría
+        </button>
+        <p style={{ fontSize: 13, color: "#8A7A63", textAlign: "center" }}>Cargando...</p>
+      </div>
+    );
+  }
+
+  if (!ficha) {
+    return (
+      <div style={cajaEstilo}>
+        <button type="button" onClick={onVolver} style={botonVolverEstilo}>
+          <ArrowLeft size={14} /> Volver a Recría
+        </button>
+        <p style={{ fontSize: 13.5, color: "#8A7A63", textAlign: "center" }}>
+          No se encontró la ficha N° {caravana}.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={cajaEstilo}>
+      <button type="button" onClick={onVolver} style={botonVolverEstilo}>
+        <ArrowLeft size={14} /> Volver a Recría
+      </button>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+        <div>
+          <div style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontWeight: 700, fontSize: 24, color: "var(--marron-oscuro)" }}>
+            N° {ficha.caravana}
+          </div>
+          <div style={{ fontSize: 12.5, color: "#8A7A63", fontWeight: 600, marginTop: 2 }}>
+            {ficha.tipo || "Sin categoría"}
+          </div>
+        </div>
+      </div>
+
+      <div className="grilla-formulario">
+        <CampoTexto
+          id="recria-fecha-nacimiento"
+          etiqueta="Fecha de nacimiento"
+          tipo="date"
+          valor={fechaNacimiento}
+          onChange={setFechaNacimiento}
+        />
+
+        <CampoTexto
+          id="recria-peso-destete-205"
+          etiqueta="Peso al destete (205 días) — kg"
+          tipo="text"
+          placeholder="Ej: 180"
+          valor={pesoDestete205}
+          onChange={setPesoDestete205}
+        />
+
+        <div style={{ marginBottom: 12 }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--marron-oscuro)",
+              marginBottom: 5,
+            }}
+          >
+            Estado
+          </label>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 14,
+              fontWeight: 600,
+              color: "var(--marron-oscuro)",
+              padding: "12px 14px",
+              borderRadius: 10,
+              border: "2px solid var(--borde)",
+              background: "#FFFDF8",
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={castrado}
+              onChange={(e) => setCastrado(e.target.checked)}
+              style={{ width: 18, height: 18, accentColor: "var(--verde-monte)", cursor: "pointer" }}
+            />
+            {castrado ? "Castrado" : "Entero"}
+          </label>
+        </div>
+
+        <CampoTexto
+          id="recria-ganancia-suplementacion"
+          etiqueta="Ganancia diaria con suplementación — kg"
+          tipo="text"
+          placeholder="Ej: 0.9"
+          valor={gananciaDiariaSuplementacion}
+          onChange={setGananciaDiariaSuplementacion}
+        />
+
+        <CampoTexto
+          id="recria-ganancia-verdeo"
+          etiqueta="Ganancia diaria con verdeo — kg"
+          tipo="text"
+          placeholder="Ej: 0.7"
+          valor={gananciaDiariaVerdeo}
+          onChange={setGananciaDiariaVerdeo}
+        />
+
+        <CampoTexto
+          id="recria-fecha-venta"
+          etiqueta="Fecha de venta"
+          tipo="date"
+          valor={fechaVenta}
+          onChange={setFechaVenta}
+        />
+
+        <CampoTexto
+          id="recria-peso-venta"
+          etiqueta="Peso al momento de venta — kg"
+          tipo="text"
+          placeholder="Ej: 220"
+          valor={pesoVenta}
+          onChange={setPesoVenta}
+        />
+      </div>
+
+      {guardadoOk && (
+        <p style={{ fontSize: 12.5, color: "var(--verde-exito)", fontWeight: 700, textAlign: "center", margin: "0 0 12px" }}>
+          ✅ Cambios guardados
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={guardar}
+        disabled={guardando}
+        style={{
+          width: "100%",
+          padding: "15px",
+          borderRadius: 12,
+          border: "none",
+          background: "var(--verde-monte)",
+          color: "#FBF7ED",
+          fontFamily: "'PP Neue Montreal Bold', serif",
+          fontWeight: 600,
+          fontSize: 15.5,
+          cursor: guardando ? "not-allowed" : "pointer",
+          opacity: guardando ? 0.6 : 1,
+        }}
+      >
+        {guardando ? "Guardando..." : "Guardar"}
+      </button>
     </div>
   );
 }
