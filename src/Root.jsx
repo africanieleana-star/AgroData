@@ -49,35 +49,6 @@ export default function Root() {
   if (estado === "sin-sesion") return <Auth />;
 
   return (
-    <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "8px 16px",
-          background: "#3E4E2F",
-          color: "#FFF",
-          fontSize: 12,
-        }}
-      >
-        <span>Conectado como {usuario?.email}</span>
-        <button
-          onClick={() => signOut(auth)}
-          style={{
-            background: "none",
-            border: "1px solid rgba(255,255,255,0.5)",
-            color: "#FFF",
-            borderRadius: 8,
-            padding: "4px 10px",
-            fontSize: 12,
-            cursor: "pointer",
-          }}
-        >
-          Cerrar sesión
-        </button>
-      </div>
-      <App />
-    </div>
+    <App userEmail={usuario?.email} onCerrarSesion={() => signOut(auth)} />
   );
 }

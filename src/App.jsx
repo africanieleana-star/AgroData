@@ -459,7 +459,7 @@ const ESTILOS_GLOBALES = `
   }
 `;
 
-export default function RodeoInteligente() {
+export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [pantalla, setPantalla] = useState("inicio"); // "inicio" | "buscar" | "formulario" | "guardado" | "listado" | "resumen" | "alertas"
   // Estado para la fecha y hora actual
   const [fechaHora, setFechaHora] = useState(new Date());
@@ -1262,75 +1262,103 @@ export default function RodeoInteligente() {
               zIndex: 50,
             }}
           >
-            {/* Fila superior: Menú + Logo + Fecha y Hora */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Fila superior: Menú + Logo + Fecha y Hora (izquierda) | Cerrar sesión (derecha) */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
 
-              {/* Botón 1: Solo las 3 rayitas para abrir/cerrar menú */}
-              <button
-                type="button"
-                onClick={() => setMenuAbierto((abierto) => !abierto)}
-                title="Abrir / Cerrar Menú"
-                aria-label="Abrir menú de navegación"
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 0,
-                  color: "#FBF7ED",
-                  display: "flex",
-                  alignItems: "center"
-                }}
-              >
-                <Menu size={20} />
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
 
-              {/* Botón 2: El Logo + Nombre AgroData para ir a INICIO */}
-              <button
-                type="button"
-                onClick={() => setPantalla("inicio")}
-                title="Ir a Inicio"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 0,
-                  color: "#FBF7ED",
-                  textAlign: "left",
-                }}
-              >
-                <img
-                  src="/hojalogo.png"
-                  alt="AgroData"
-                  style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", flexShrink: 0 }}
-                />
-                <h1
+                {/* Botón 1: Solo las 3 rayitas para abrir/cerrar menú */}
+                <button
+                  type="button"
+                  onClick={() => setMenuAbierto((abierto) => !abierto)}
+                  title="Abrir / Cerrar Menú"
+                  aria-label="Abrir menú de navegación"
                   style={{
-                    fontFamily: "'PP Neue Montreal Bold', serif",
-                    fontWeight: 700,
-                    fontSize: 20,
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
                     color: "#FBF7ED",
-                    margin: 0,
-                    letterSpacing: 0.2,
+                    display: "flex",
+                    alignItems: "center",
+                    flexShrink: 0,
                   }}
                 >
-                  AgroData
-                </h1>
-              </button>
+                  <Menu size={20} />
+                </button>
 
-              {/* LÍNEA SEPARADORA Y FECHA/HORA A LA IZQUIERDA */}
-              <div style={{ width: "1px", height: "22px", background: "rgba(251, 247, 237, 0.3)", margin: "0 2px" }} />
+                {/* Botón 2: El Logo + Nombre AgroData para ir a INICIO */}
+                <button
+                  type="button"
+                  onClick={() => setPantalla("inicio")}
+                  title="Ir a Inicio"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                    color: "#FBF7ED",
+                    textAlign: "left",
+                    flexShrink: 0,
+                  }}
+                >
+                  <img
+                    src="/hojalogo.png"
+                    alt="AgroData"
+                    style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", flexShrink: 0 }}
+                  />
+                  <h1
+                    style={{
+                      fontFamily: "'PP Neue Montreal Bold', serif",
+                      fontWeight: 700,
+                      fontSize: 20,
+                      color: "#FBF7ED",
+                      margin: 0,
+                      letterSpacing: 0.2,
+                    }}
+                  >
+                    AgroData
+                  </h1>
+                </button>
 
-              <div style={{ color: "#FBF7ED", fontSize: 11, lineHeight: 1.1, fontWeight: 500 }}>
-                <div style={{ textTransform: "capitalize" }}>
-                  {fechaHora.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "short" })}
-                </div>
-                <div style={{ opacity: 0.85, fontSize: 10 }}>
-                  {fechaHora.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
+                {/* LÍNEA SEPARADORA Y FECHA/HORA */}
+                <div style={{ width: "1px", height: "22px", background: "rgba(251, 247, 237, 0.3)", margin: "0 2px", flexShrink: 0 }} />
+
+                <div style={{ color: "#FBF7ED", fontSize: 11, lineHeight: 1.1, fontWeight: 500, flexShrink: 0 }}>
+                  <div style={{ textTransform: "capitalize" }}>
+                    {fechaHora.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "short" })}
+                  </div>
+                  <div style={{ opacity: 0.85, fontSize: 10 }}>
+                    {fechaHora.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
+                  </div>
                 </div>
               </div>
+
+              {/* Lado derecho: Cerrar sesión */}
+              {onCerrarSesion && (
+                <button
+                  type="button"
+                  onClick={onCerrarSesion}
+                  title={userEmail ? `Salir de ${userEmail}` : "Cerrar sesión"}
+                  style={{
+                    background: "rgba(0,0,0,0.15)",
+                    border: "1px solid rgba(251,247,237,0.4)",
+                    color: "#FBF7ED",
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Cerrar sesión
+                </button>
+              )}
             </div>
 
             {/* Fila inferior: Título dinámico de la pantalla actual */}
