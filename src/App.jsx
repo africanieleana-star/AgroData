@@ -2819,6 +2819,63 @@ function importarAnimalesDesdeExcel(archivo) {
   });
 }
 
+// Genera y descarga un Excel de ejemplo con las columnas correctas,
+// para que el usuario sepa exactamente cómo tiene que completar los
+// datos antes de importarlos.
+function descargarPlantillaExcel() {
+  const encabezados = [
+    "caravana", "tipo", "raza", "fechaNacimiento", "caravanaMadre", "nombrePadre", "observaciones",
+    "fechaInseminacion", "nombreInseminacion", "fechaServicioToro", "nombreToro",
+    "fechaTacto", "resultadoTacto",
+    "fechaParicion", "tipoCria", "caravanaCria", "pesoNacer",
+  ];
+
+  const filaEjemplo1 = {
+    caravana: "A047",
+    tipo: "Vaca",
+    raza: "Angus",
+    fechaNacimiento: "2019-03-10",
+    caravanaMadre: "",
+    nombrePadre: "La Joya",
+    observaciones: "",
+    fechaInseminacion: "2024-11-05",
+    nombreInseminacion: "SEMEX 4410",
+    fechaServicioToro: "",
+    nombreToro: "",
+    fechaTacto: "2025-01-15",
+    resultadoTacto: "Preñada",
+    fechaParicion: "",
+    tipoCria: "",
+    caravanaCria: "",
+    pesoNacer: "",
+  };
+
+  const filaEjemplo2 = {
+    caravana: "A058",
+    tipo: "Ternero",
+    raza: "",
+    fechaNacimiento: "2024-08-20",
+    caravanaMadre: "A047",
+    nombrePadre: "",
+    observaciones: "",
+    fechaInseminacion: "",
+    nombreInseminacion: "",
+    fechaServicioToro: "",
+    nombreToro: "",
+    fechaTacto: "",
+    resultadoTacto: "",
+    fechaParicion: "",
+    tipoCria: "",
+    caravanaCria: "",
+    pesoNacer: "",
+  };
+
+  const hoja = XLSX.utils.json_to_sheet([filaEjemplo1, filaEjemplo2], { header: encabezados });
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja, "Animales");
+  XLSX.writeFile(libro, "Plantilla_AgroData.xlsx");
+}
+
 // Arma el árbol genealógico subiendo por el lado de la madre (porque es el
 // único dato que permite encadenar una ficha con otra). El padre se muestra
 // como dato final de cada generación, tal cual está cargado, sin inventar
