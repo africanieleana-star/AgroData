@@ -2946,6 +2946,38 @@ function PantallaListado({ onVolver, onVerFicha }) {
   const [busqueda, setBusqueda] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState(null);
 
+    const [importando, setImportando] = useState(false);
+  const [mensajeImportacion, setMensajeImportacion] = useState(null);
+  const inputExcelRef = useRef(null);
+
+  const manejarArchivoExcel = async (e) => {
+    const archivo = e.target.files[0];
+    e.target.value = ""; // permite volver a elegir el mismo archivo después
+    if (!archivo) return;
+
+    setImportando(true);
+    setMensajeImportacion(null);
+    try {
+      const resumen = await importarAnimalesDesdeExcel(archivo);
+      setAnimales(leerTodosLosAnimalesGuardados());
+      let texto = `✅ ${resumen.creados} creado(s), ${resumen.actualizados} actualizado(s)`;
+      if (resumen.omitidos > 0) texto += `, ${resumen.omitidos} omitido(s)`;
+      setMensajeImportacion({ tipo: "exito", texto });
+      if (resumen.errores.length > 0) {
+        console.warn("Filas con problemas al importar:", resumen.errores);
+        setMensajeImportacion({
+          tipo: "exito",
+          texto: `${texto}. ⚠️ ${resumen.errores.length} fila(s) con problemas (revisá la consola).`,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      setMensajeImportacion({ tipo: "error", texto: "No se pudo leer el archivo. Verificá que sea un Excel (.xlsx) válido." });
+    } finally {
+      setImportando(false);
+    }
+  };
+
   useEffect(() => {
     setAnimales(leerTodosLosAnimalesGuardados());
     setCargando(false);
