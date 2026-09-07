@@ -2714,6 +2714,14 @@ function guardarTareaManual(nuevaTarea) {
   }
 }
 
+function guardarTareasManuales(listaCompleta) {
+  try {
+    localStorage.setItem("agrodata_tareas_manuales", JSON.stringify(listaCompleta));
+  } catch (e) {
+    console.error("Error al guardar las tareas:", e);
+  }
+}
+
 // Convierte un objeto Date de JavaScript a texto "YYYY-MM-DD",
 // para poder comparar fechas del calendario con fechas guardadas.
 function fechaAISO(date) {
