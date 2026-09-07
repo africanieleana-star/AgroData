@@ -495,8 +495,18 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [nombrePadreManual, setNombrePadreManual] = useState("");
   const [observacionesAnimal, setObservacionesAnimal] = useState("");
 
-  const [fallecio, setFallecio] = useState(false);
+    const [fallecio, setFallecio] = useState(false);
   const [fechaFallecimiento, setFechaFallecimiento] = useState("");
+
+  // Datos de Recría (solo aplican a Terneros / Terneras)
+  const [pesoDestete205, setPesoDestete205] = useState("");
+  const [castrado, setCastrado] = useState(false);
+  const [gananciaDiariaSuplementacion, setGananciaDiariaSuplementacion] = useState("");
+  const [gananciaDiariaVerdeo, setGananciaDiariaVerdeo] = useState("");
+  const [fechaVenta, setFechaVenta] = useState("");
+  const [pesoVenta, setPesoVenta] = useState("");
+
+  // Datos de Inseminación
 
   // Datos de Inseminación
   const [fechaInseminacion, setFechaInseminacion] = useState("");
@@ -679,6 +689,12 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setObservacionesAnimal("");
     setFallecio(false);
     setFechaFallecimiento("");
+    setPesoDestete205("");
+    setCastrado(false);
+    setGananciaDiariaSuplementacion("");
+    setGananciaDiariaVerdeo("");
+    setFechaVenta("");
+    setPesoVenta("");
     setFechaInseminacion("");
     setNombreInseminacion("");
     setFechaToro("");
@@ -739,12 +755,28 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setCaravanaMadreManual(f.caravanaMadre || f.cria?.caravanaMadre || "");
     setNombrePadreManual(f.nombrePadre || f.cria?.nombrePadre || "");
     setObservacionesAnimal(f.observacionesAnimal || "");
-    if (f.fallecimiento && f.fallecimiento.fecha) {
+        if (f.fallecimiento && f.fallecimiento.fecha) {
       setFallecio(true);
       setFechaFallecimiento(f.fallecimiento.fecha);
     } else {
       setFallecio(false);
       setFechaFallecimiento("");
+    }
+
+    if (f.recria) {
+      setPesoDestete205(f.recria.pesoDestete205 || "");
+      setCastrado(Boolean(f.recria.castrado));
+      setGananciaDiariaSuplementacion(f.recria.gananciaDiariaSuplementacion || "");
+      setGananciaDiariaVerdeo(f.recria.gananciaDiariaVerdeo || "");
+      setFechaVenta(f.recria.fechaVenta || "");
+      setPesoVenta(f.recria.pesoVenta || "");
+    } else {
+      setPesoDestete205("");
+      setCastrado(false);
+      setGananciaDiariaSuplementacion("");
+      setGananciaDiariaVerdeo("");
+      setFechaVenta("");
+      setPesoVenta("");
     }
 
     // 🌟 SERVICIO REPRODUCTIVO VACÍO (El historial previo se lee automáticamente arriba en el cuadro amarillo)
@@ -869,6 +901,12 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setRaza("");
     setFechaNacimiento("");
     setObservacionesAnimal("");
+    setPesoDestete205("");
+    setCastrado(false);
+    setGananciaDiariaSuplementacion("");
+    setGananciaDiariaVerdeo("");
+    setFechaVenta("");
+    setPesoVenta("");
     setFechaInseminacion("");
     setNombreInseminacion("");
     setFechaToro("");
@@ -1016,6 +1054,24 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
         ? { fecha: fechaFallecimiento.trim() }
         : null;
 
+      const tieneDatosRecria = Boolean(
+        pesoDestete205 ||
+        castrado ||
+        gananciaDiariaSuplementacion ||
+        gananciaDiariaVerdeo ||
+        fechaVenta.trim() ||
+        pesoVenta
+      );
+
+      const recria = tieneDatosRecria ? {
+        pesoDestete205: pesoDestete205 || null,
+        castrado: Boolean(castrado),
+        gananciaDiariaSuplementacion: gananciaDiariaSuplementacion || null,
+        gananciaDiariaVerdeo: gananciaDiariaVerdeo || null,
+        fechaVenta: fechaVenta.trim() || null,
+        pesoVenta: pesoVenta || null,
+      } : null;
+
 
       // 🐄 Actualizamos el historial de crías de esta madre (una fila por cada
       // caravana de cría registrada, sin duplicar si ya existía esa caravana).
@@ -1058,6 +1114,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
         tacto,
         paricion,
         fallecimiento,
+        recria,
       };
 
       localStorage.setItem(clave, JSON.stringify(ficha));
@@ -1226,6 +1283,12 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     fechaFallecimiento,
     criaFallecida,
     fechaFallecimientoCria,
+    pesoDestete205,
+    castrado,
+    gananciaDiariaSuplementacion,
+    gananciaDiariaVerdeo,
+    fechaVenta,
+    pesoVenta,
   ]);
 
   return (
