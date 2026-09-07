@@ -3348,7 +3348,7 @@ function PantallaFormularioRecria({ caravana, onVolver }) {
 
   const [fechaNacimiento, setFechaNacimiento] = useState("");
   const [pesoDestete205, setPesoDestete205] = useState("");
-  const [castrado, setCastrado] = useState(false);
+  const [estadoAnimal, setEstadoAnimal] = useState(null); // "Entero" | "Castrado" | null  
   const [gananciaDiariaSuplementacion, setGananciaDiariaSuplementacion] = useState("");
   const [gananciaDiariaVerdeo, setGananciaDiariaVerdeo] = useState("");
   const [fechaVenta, setFechaVenta] = useState("");
@@ -3364,7 +3364,7 @@ function PantallaFormularioRecria({ caravana, onVolver }) {
       setFechaNacimiento(f.fechaNacimiento || f.cria?.fechaNacimiento || "");
       const r = f.recria || {};
       setPesoDestete205(r.pesoDestete205 || "");
-      setCastrado(Boolean(r.castrado));
+      setEstadoAnimal(r.castrado === true ? "Castrado" : r.castrado === false ? "Entero" : null);
       setGananciaDiariaSuplementacion(r.gananciaDiariaSuplementacion || "");
       setGananciaDiariaVerdeo(r.gananciaDiariaVerdeo || "");
       setFechaVenta(r.fechaVenta || "");
@@ -3385,7 +3385,7 @@ function PantallaFormularioRecria({ caravana, onVolver }) {
 
       const tieneDatosRecria = Boolean(
         pesoDestete205 ||
-        castrado ||
+        estadoAnimal ||
         gananciaDiariaSuplementacion ||
         gananciaDiariaVerdeo ||
         fechaVenta.trim() ||
@@ -3395,7 +3395,7 @@ function PantallaFormularioRecria({ caravana, onVolver }) {
       actual.recria = tieneDatosRecria
         ? {
           pesoDestete205: pesoDestete205 || null,
-          castrado: Boolean(castrado),
+          castrado: estadoAnimal === "Castrado" ? true : estadoAnimal === "Entero" ? false : null,
           gananciaDiariaSuplementacion: gananciaDiariaSuplementacion || null,
           gananciaDiariaVerdeo: gananciaDiariaVerdeo || null,
           fechaVenta: fechaVenta.trim() || null,
@@ -3497,7 +3497,7 @@ function PantallaFormularioRecria({ caravana, onVolver }) {
           onChange={setPesoDestete205}
         />
 
-        <div style={{ marginBottom: 12 }}>
+                <div style={{ marginBottom: 12 }}>
           <label
             style={{
               display: "block",
@@ -3509,29 +3509,52 @@ function PantallaFormularioRecria({ caravana, onVolver }) {
           >
             Estado
           </label>
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontSize: 14,
-              fontWeight: 600,
-              color: "var(--marron-oscuro)",
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "2px solid var(--borde)",
-              background: "#FFFDF8",
-              cursor: "pointer",
-            }}
+          <div
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+            role="radiogroup"
+            aria-label="Estado del animal"
           >
-            <input
-              type="checkbox"
-              checked={castrado}
-              onChange={(e) => setCastrado(e.target.checked)}
-              style={{ width: 18, height: 18, accentColor: "var(--verde-monte)", cursor: "pointer" }}
-            />
-            {castrado ? "Castrado" : "Entero"}
-          </label>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={estadoAnimal === "Entero"}
+              className="tipo-btn"
+              onClick={() => setEstadoAnimal((actual) => (actual === "Entero" ? null : "Entero"))}
+              style={{
+                padding: "12px 8px",
+                borderRadius: 12,
+                border: estadoAnimal === "Entero" ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
+                background: estadoAnimal === "Entero" ? "var(--verde-monte)" : "#FFFDF8",
+                color: estadoAnimal === "Entero" ? "#FBF7ED" : "var(--marron-oscuro)",
+                cursor: "pointer",
+                fontFamily: "'PP Neue Montreal Bold', serif",
+                fontWeight: 600,
+                fontSize: 14.5,
+              }}
+            >
+              Entero
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={estadoAnimal === "Castrado"}
+              className="tipo-btn"
+              onClick={() => setEstadoAnimal((actual) => (actual === "Castrado" ? null : "Castrado"))}
+              style={{
+                padding: "12px 8px",
+                borderRadius: 12,
+                border: estadoAnimal === "Castrado" ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
+                background: estadoAnimal === "Castrado" ? "var(--verde-monte)" : "#FFFDF8",
+                color: estadoAnimal === "Castrado" ? "#FBF7ED" : "var(--marron-oscuro)",
+                cursor: "pointer",
+                fontFamily: "'PP Neue Montreal Bold', serif",
+                fontWeight: 600,
+                fontSize: 14.5,
+              }}
+            >
+              Castrado
+            </button>
+          </div>
         </div>
 
         <CampoTexto
