@@ -2718,6 +2718,73 @@ function importarAnimalesDesdeExcel(archivo) {
             }
           }
 
+                    // --- Datos reproductivos (última foto conocida, opcional) ---
+          const fechaInsem = normalizarFechaExcel(fila.fechaInseminacion || fila.FechaInseminacion);
+          const nombreInsem = (fila.nombreInseminacion || fila.NombreInseminacion) ? String(fila.nombreInseminacion || fila.NombreInseminacion).trim() : null;
+          const fechaToroExcel = normalizarFechaExcel(fila.fechaServicioToro || fila.FechaServicioToro);
+          const nombreToroExcel = (fila.nombreToro || fila.NombreToro) ? String(fila.nombreToro || fila.NombreToro).trim() : null;
+
+          const servicioDesdeExcel = (fechaInsem || nombreInsem || fechaToroExcel || nombreToroExcel) ? {
+            inseminacion: (fechaInsem || nombreInsem) ? {
+              fecha: fechaInsem,
+              nombre: nombreInsem,
+              calculos: fechaInsem ? calcularFechasInseminacion(fechaInsem) : null,
+            } : null,
+            toro: (fechaToroExcel || nombreToroExcel) ? {
+              fecha: fechaToroExcel,
+              nombre: nombreToroExcel,
+              esRepasoToro: false,
+            } : null,
+          } : null;
+
+          const fechaTactoExcel = normalizarFechaExcel(fila.fechaTacto || fila.FechaTacto);
+          const resultadoTactoExcel = normalizarResultadoTactoExcel(fila.resultadoTacto || fila.ResultadoTacto);
+          const tactoDesdeExcel = (fechaTactoExcel || resultadoTactoExcel) ? {
+            fecha: fechaTactoExcel,
+            resultado: resultadoTactoExcel,
+            observaciones: null,
+          } : null;
+
+          const fechaParicionExcel = normalizarFechaExcel(fila.fechaParicion || fila.FechaParicion);
+          const tipoCriaExcel = normalizarTipoCriaExcel(fila.tipoCria || fila.TipoCria);
+          const caravanaCriaExcel = (fila.caravanaCria || fila.CaravanaCria) ? String(fila.caravanaCria || fila.CaravanaCria).trim() : null;
+          const pesoNacerExcel = (fila.pesoNacer || fila.PesoNacer) ? String(fila.pesoNacer || fila.PesoNacer).trim() : null;
+
+          const paricionDesdeExcel = (fechaParicionExcel || tipoCriaExcel || caravanaCriaExcel) ? {
+            fecha: fechaParicionExcel,
+            tipoCria: tipoCriaExcel,
+            caravanaCria: caravanaCriaExcel,
+            proximoServicioSugerido: fechaParicionExcel ? calcularProximoServicio(fechaParicionExcel) : null,
+            observaciones: null,
+            criaFallecida: null,
+          } : null;
+
+          // Historial de servicios: si ya había uno guardado, se agrega el
+          // nuevo al final sin borrar los anteriores.
+          let historialServiciosFinal = existente?.historialServicios || [];
+          if (servicioDesdeExcel) {
+            historialServiciosFinal = [...historialServiciosFinal, servicioDesdeExcel];
+          }
+
+          // Historial de crías: si la fila trae una cría y todavía no está
+          // en el historial, se agrega.
+          let historialCriasFinal = existente?.historialCrias || [];
+          if (paricionDesdeExcel && caravanaCriaExcel) {
+            const yaExiste = historialCriasFinal.some((c) => c.caravana === caravanaCriaExcel);
+            if (!yaExiste) {
+              historialCriasFinal = [...historialCriasFinal, {
+                caravana: caravanaCriaExcel,
+                fechaNacimiento: fechaParicionExcel,
+                sexo: tipoCriaExcel,
+                pesoNacer: pesoNacerExcel ? `${pesoNacerExcel} kg` : null,
+                nombrePadre: nombreInsem || nombreToroExcel || "Sin registrar",
+                origen: nombreInsem ? "Inseminación Artificial" : nombreToroExcel ? "Servicio Natural" : "Sin registrar",
+                fallecida: false,
+                fechaFallecimiento: null,
+              }];
+            }
+          }
+
           const ficha = {
             caravana,
             tipo,
@@ -2728,11 +2795,11 @@ function importarAnimalesDesdeExcel(archivo) {
             observacionesAnimal: (fila.observaciones || fila.Observaciones) ? String(fila.observaciones || fila.Observaciones).trim() : null,
             fechaAlta: existente?.fechaAlta || fechaAISO(new Date()),
             fechaModificacion: existente ? fechaAISO(new Date()) : null,
-            servicio: existente?.servicio || null,
-            historialServicios: existente?.historialServicios || [],
-            historialCrias: existente?.historialCrias || [],
-            tacto: existente?.tacto || null,
-            paricion: existente?.paricion || null,
+            servicio: servicioDesdeExcel || existente?.servicio || null,
+            historialServicios: historialServiciosFinal,
+            historialCrias: historialCriasFinal,
+            tacto: tactoDesdeExcel || existente?.tacto || null,
+            paricion: paricionDesdeExcel || existente?.paricion || null,
             fallecimiento: existente?.fallecimiento || null,
             recria: existente?.recria || null,
           };
