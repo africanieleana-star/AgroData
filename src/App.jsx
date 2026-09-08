@@ -494,6 +494,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [tipo, setTipo] = useState(null);
   const [raza, setRaza] = useState("");
   const [color, setColor] = useState("");
+  const [establecimiento, setEstablecimiento] = useState("");
   const [fechaNacimiento, setFechaNacimiento] = useState("");
   const [caravanaMadreManual, setCaravanaMadreManual] = useState("");
   const [nombrePadreManual, setNombrePadreManual] = useState("");
@@ -689,9 +690,9 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setTipo(null);
     setRaza("");
     setColor("");
+    setEstablecimiento("");
     setFechaNacimiento("");
     setCaravanaMadreManual("");
-    setNombrePadreManual("");
     setObservacionesAnimal("");
     setFallecio(false);
     setFechaFallecimiento("");
@@ -759,6 +760,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setTipo(f.tipo || null);
     setRaza(f.raza || "");
     setColor(f.color || "");
+    setEstablecimiento(f.establecimiento || "");
     setFechaNacimiento(f.fechaNacimiento || f.cria?.fechaNacimiento || "");
     setCaravanaMadreManual(f.caravanaMadre || f.cria?.caravanaMadre || "");
     setNombrePadreManual(f.nombrePadre || f.cria?.nombrePadre || "");
@@ -918,6 +920,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setTipo(null);
     setRaza("");
     setColor("");
+    setEstablecimiento("");
     setFechaNacimiento("");
     setObservacionesAnimal("");
     setPesoDestete205("");
@@ -1124,6 +1127,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
         tipo,
         raza: raza.trim() || null,
         color: color.trim() || null,
+        establecimiento: establecimiento.trim() || null,
         fechaNacimiento: fechaNacimiento || null,
         caravanaMadre: caravanaMadreManual.trim() || null,
         nombrePadre: nombrePadreManual.trim() || null,
@@ -1277,6 +1281,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     tipo,
     raza,
     color,
+    establecimiento
     fechaNacimiento,
     caravanaMadreManual,
     nombrePadreManual,
@@ -1568,6 +1573,8 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
                 setRaza={setRaza}
                 color={color}
                 setColor={setColor}
+                establecimiento={establecimiento}
+                setEstablecimiento={setEstablecimiento}
                 fechaNacimiento={fechaNacimiento}
                 setFechaNacimiento={setFechaNacimiento}
                 caravanaMadreManual={caravanaMadreManual}
@@ -5269,6 +5276,8 @@ function PantallaFormulario({
   setRaza,
   color,
   setColor,
+  establecimiento,
+  setEstablecimiento,
   fechaNacimiento,
   setFechaNacimiento,
   caravanaMadreManual,
@@ -5425,6 +5434,17 @@ function PantallaFormulario({
       <p style={{ fontSize: 11.5, color: "#8A7A63", fontStyle: "italic", margin: "0 0 10px" }}>
         💡 Recordá actualizar la categoría a medida que el animal crece (por ejemplo, de Ternera a Vaquillona, o de Ternero a Novillo).
       </p>
+
+      <div style={{ marginBottom: 18 }}>
+        <CampoTexto
+          id="establecimiento"
+          etiqueta="Establecimiento"
+          tipo="text"
+          placeholder="Ej: Campo Norte, La Esperanza (opcional)"
+          valor={establecimiento}
+          onChange={setEstablecimiento}
+        />
+      </div>
 
       <div
         style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 24 }}
