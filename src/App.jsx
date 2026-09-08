@@ -5094,7 +5094,7 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
                 display: "inline-block",
               }}
             >
-              ✝ Falleció
+              ✝ Falleció: {formatearFechaDDMMYYYY(parseISO(madreFicha.fallecimiento.fecha))}
             </div>
           )}
         </div>
