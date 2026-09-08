@@ -2692,7 +2692,7 @@ function normalizarTipoCriaExcel(valor) {
 // usa el resto de la app). Si la caravana ya existe, pregunta antes de
 // sobrescribir. Nunca inventa datos: lo que no viene en la columna,
 // queda como "Sin registrar" (null).
-function importarAnimalesDesdeExcel(archivo) {
+function importarAnimalesDesdeExcel(archivo, sobrescribirTodos) {
   return new Promise((resolve, reject) => {
     const lector = new FileReader();
     lector.onload = (e) => {
@@ -2701,6 +2701,7 @@ function importarAnimalesDesdeExcel(archivo) {
         const libro = XLSX.read(datos, { type: "array", cellDates: true });
         const primeraHoja = libro.Sheets[libro.SheetNames[0]];
         const filas = XLSX.utils.sheet_to_json(primeraHoja, { defval: "" });
+
         const resumen = { creados: 0, actualizados: 0, omitidos: 0, errores: [] };
 
         filas.forEach((fila, indice) => {
@@ -2720,14 +2721,9 @@ function importarAnimalesDesdeExcel(archivo) {
 
           const existente = leerAnimalPorCaravana(caravana);
 
-          if (existente) {
-            const sobrescribir = window.confirm(
-              `La caravana N° ${caravana} ya existe (${existente.tipo || "sin categoría"}).\n\n¿Querés SOBRESCRIBIRLA con los datos del Excel?\n\n(Aceptar = sobrescribir / Cancelar = omitir esta fila)`
-            );
-            if (!sobrescribir) {
-              resumen.omitidos += 1;
-              return;
-            }
+          if (existente && !sobrescribirTodos) {
+            resumen.omitidos += 1;
+            return;
           }
 
                     // --- Datos reproductivos (última foto conocida, opcional) ---
@@ -3236,6 +3232,27 @@ function PantallaListado({ onVolver, onVerFicha }) {
     }
   };
 
+    const vaciarTodosLosAnimales = () => {
+    if (animales.length === 0) return;
+    const confirmacion1 = window.confirm(
+      `⚠️ Esto va a borrar los ${animales.length} animales cargados. Esta acción NO se puede deshacer. ¿Estás segura?`
+    );
+    if (!confirmacion1) return;
+
+    const confirmacion2 = window.confirm(
+      "Última confirmación: se van a eliminar TODAS las fichas de animales. ¿Continuar?"
+    );
+    if (!confirmacion2) return;
+
+    try {
+      animales.forEach((a) => localStorage.removeItem(`animal:${a.caravana}`));
+      setAnimales([]);
+      emitirActualizacionDatos();
+    } catch (e) {
+      alert("No se pudieron eliminar todos los animales.");
+    }
+  };
+
   return (
     <div
       style={{
@@ -3308,7 +3325,7 @@ function PantallaListado({ onVolver, onVerFicha }) {
           {importando ? "Importando..." : "📥 Importar Excel"}
         </button>
 
-        <button
+               <button
           type="button"
           onClick={descargarPlantillaExcel}
           style={{
@@ -3324,9 +3341,31 @@ function PantallaListado({ onVolver, onVerFicha }) {
             cursor: "pointer",
           }}
         >
-          📄 Descargar plantilla
+          📄 Descargar plantilla para importar datos
         </button>
       </div>
+
+      {animales.length > 0 && (
+        <button
+          type="button"
+          onClick={vaciarTodosLosAnimales}
+          style={{
+            width: "100%",
+            marginBottom: 12,
+            padding: "10px",
+            borderRadius: 10,
+            border: "1px solid #C62828",
+            background: "#FDECEA",
+            color: "#C62828",
+            fontFamily: "'PP Neue Montreal Bold', serif",
+            fontWeight: 600,
+            fontSize: 12.5,
+            cursor: "pointer",
+          }}
+        >
+          🗑️ Vaciar todos los animales ({animales.length})
+        </button>
+      )}
 
       <p style={{ fontSize: 11, color: "#8A7A63", textAlign: "center", margin: "0 0 14px", lineHeight: 1.4 }}>
         Descargá la plantilla, completala con los datos de tu rodeo y después subila con "Importar Excel".
