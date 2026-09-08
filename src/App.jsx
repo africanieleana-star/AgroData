@@ -1099,11 +1099,12 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
       const hayDatosDeCria =
         paricion && (paricion.caravanaCria || criaFallecida) && paricion.caravanaCria !== caravana;
       if (hayDatosDeCria) {
-        const nuevaCria = {
+          const nuevaCria = {
           caravana: caravanaCria.trim(),
           fechaNacimiento: fechaParicion,
           sexo: tipoCria,
           pesoNacer: pesoNacer ? `${pesoNacer} kg` : null,
+          colorPelaje: colorCria.trim() || null,
           nombrePadre: nombrePadreActual || "Sin registrar",   // ✅
           origen: padreYOrigen.origen || "Sin registrar",       // ✅
           fallecida: Boolean(criaFallecida),
@@ -1240,10 +1241,11 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
               tacto: null,
               paricion: null,
               fallecimiento: criaFallecidaData,
-              cria: {
+                cria: {
                 fechaNacimiento: paricion.fecha,
                 sexo: paricion.tipoCria,
                 pesoNacer: pesoNacer ? `${pesoNacer} kg` : null,
+                colorPelaje: colorCria.trim() || null,
                 caravanaMadre: caravana,
                 nombrePadre: padreCalculado || "Sin registrar",
                 origenServicio: origenCalculado,
@@ -1292,6 +1294,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     fechaParicion,
     tipoCria,
     caravanaCria,
+    colorCria,
     observacionesParicion,
     observacionesCria,
     origenCria,
