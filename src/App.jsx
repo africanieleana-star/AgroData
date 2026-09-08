@@ -14,12 +14,13 @@ import {
   Home,
   GitFork, 
   Syringe,
+  DollarSign,
   PlusCircle,
   MessageCircle,
   Send,
   Mic,
   Volume2
-} from "lucide-react"; 
+} from "lucide-react";
 
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -1572,6 +1573,7 @@ const irAIngresar = () => {
               {pantalla === "formulario-recria" && "FICHA DE RECRÍA"}
               {pantalla === "resumen" && "Ficha del animal"}
               {pantalla === "alertas" && "TAREAS PARA HOY"}
+              {pantalla === "ventas" && "VENTAS"}
             </p>
           </div>
 
@@ -1647,6 +1649,13 @@ const irAIngresar = () => {
 
             {pantalla === "sanidad" && (
               <PantallaSanidad />
+            )}
+
+            {pantalla === "ventas" && (
+              <PantallaVentas
+                onVolver={() => setPantalla("inicio")}
+                onVerFicha={(f) => irAVerResumen(f, "ventas")}
+              />
             )}
 
             {pantalla === "estadisticas" && (
@@ -1822,7 +1831,7 @@ function PantallaInicio({ onNavegar }) {
 
   useEffect(() => {
     const cargar = () => {
-      setAnimales(leerTodosLosAnimalesGuardados());
+      setAnimales(leerAnimalesActivos());
       setTareasSanidad(leerRegistrosSanidad());
     };
     cargar();
@@ -2595,6 +2604,9 @@ function estadoReproductivoDe(ficha) {
   if (ficha.fallecimiento && ficha.fallecimiento.fecha) {
     return { texto: "Falleció", fondo: "#5A5A5A", color: "#FBF7ED" };
   }
+  if (ficha.vendido) {
+    return { texto: "Vendido", fondo: "#6B4F2A", color: "#FBF7ED" };
+  }
   if (ficha.esCria) return null; // las crías no tienen estado reproductivo propio
   if (!APLICA_SERVICIO.includes(ficha.tipo)) return null; // solo aplica a hembras en servicio
 
@@ -3190,6 +3202,95 @@ function guardarTareasManuales(listaCompleta) {
   }
 }
 
+// ============================================================
+// VENTAS: se guardan todas juntas bajo una sola clave, igual que
+// las tareas manuales. Cada venta "agrupa" uno o varios animales.
+// ============================================================
+const CLAVE_VENTAS = "agrodata_ventas";
+
+function leerVentas() {
+  try {
+    const data = localStorage.getItem(CLAVE_VENTAS);
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function guardarVentas(listaCompleta) {
+  try {
+    localStorage.setItem(CLAVE_VENTAS, JSON.stringify(listaCompleta));
+  } catch (e) {
+    console.error("Error al guardar las ventas:", e);
+  }
+}
+
+// Animales que siguen en stock (no vendidos). Se usa en las pantallas
+// que muestran "lo que tengo hoy": Mis animales, Recría, Inicio.
+function leerAnimalesActivos() {
+  return leerTodosLosAnimalesGuardados().filter((a) => !a.vendido);
+}
+
+// Crea el registro de venta y marca cada animal seleccionado como
+// "vendido" (sin borrar su ficha, para no perder el historial).
+function registrarVenta(datosVenta, caravanasSeleccionadas) {
+  const ventas = leerVentas();
+  const nuevaVenta = {
+    id: `${Date.now()}`,
+    fecha: datosVenta.fecha,
+    precioPorKilo: datosVenta.precioPorKilo || null,
+    precioPorUnidad: datosVenta.precioPorUnidad || null,
+    cantidadKilos: datosVenta.cantidadKilos || null,
+    fechaPago30: datosVenta.fechaPago30 || null,
+    fechaPago60: datosVenta.fechaPago60 || null,
+    fechaPago90: datosVenta.fechaPago90 || null,
+    observaciones: datosVenta.observaciones || null,
+    animales: caravanasSeleccionadas,
+  };
+  guardarVentas([...ventas, nuevaVenta]);
+
+  caravanasSeleccionadas.forEach((caravana) => {
+    const clave = `animal:${caravana}`;
+    const raw = localStorage.getItem(clave);
+    if (!raw) return;
+    try {
+      const ficha = JSON.parse(raw);
+      ficha.vendido = { fecha: datosVenta.fecha, ventaId: nuevaVenta.id };
+      localStorage.setItem(clave, JSON.stringify(ficha));
+    } catch (e) {
+      // ficha corrupta, se omite
+    }
+  });
+
+  emitirActualizacionDatos();
+  return nuevaVenta;
+}
+
+// Deshace una venta: borra el registro y devuelve los animales al stock.
+function deshacerVenta(ventaId) {
+  const ventas = leerVentas();
+  const venta = ventas.find((v) => v.id === ventaId);
+  if (!venta) return;
+
+  (venta.animales || []).forEach((caravana) => {
+    const clave = `animal:${caravana}`;
+    const raw = localStorage.getItem(clave);
+    if (!raw) return;
+    try {
+      const ficha = JSON.parse(raw);
+      if (ficha.vendido && ficha.vendido.ventaId === ventaId) {
+        delete ficha.vendido;
+        localStorage.setItem(clave, JSON.stringify(ficha));
+      }
+    } catch (e) {
+      // ficha corrupta, se omite
+    }
+  });
+
+  guardarVentas(ventas.filter((v) => v.id !== ventaId));
+  emitirActualizacionDatos();
+}
+
 // Convierte un objeto Date de JavaScript a texto "YYYY-MM-DD",
 // para poder comparar fechas del calendario con fechas guardadas.
 function fechaAISO(date) {
@@ -3356,9 +3457,9 @@ function PantallaListado({ onVolver, onVerFicha }) {
   };
 
   useEffect(() => {
-    setAnimales(leerTodosLosAnimalesGuardados());
+    setAnimales(leerAnimalesActivos());
     setCargando(false);
-    const recargar = () => setAnimales(leerTodosLosAnimalesGuardados());
+    const recargar = () => setAnimales(leerAnimalesActivos());
     window.addEventListener("agrodata:actualizado", recargar);
     return () => window.removeEventListener("agrodata:actualizado", recargar);
   }, []);
@@ -3774,7 +3875,7 @@ function PantallaRecria({ onVolver, onEditar }) {
   useEffect(() => {
     const cargar = () =>
       setAnimales(
-        leerTodosLosAnimalesGuardados().filter((a) => a.tipo === "Ternero" || a.tipo === "Ternera")
+        leerAnimalesActivos().filter((a) => a.tipo === "Ternero" || a.tipo === "Ternera")
       );
     cargar();
     setCargando(false);
@@ -8448,6 +8549,15 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
               onClick={() => irA("sanidad")}
             />
 
+            {/* 6.5 Ventas */}
+            <OpcionMenu
+              icono={<DollarSign size={20} />}
+              texto="Ventas"
+              mostrarTexto={true}
+              activa={pantallaActual === "ventas"}
+              onClick={() => irA("ventas")}
+            />
+
             {/* 7. Estadísticas */}
             <OpcionMenu
               icono={<CalendarClock size={20} />}
@@ -8866,6 +8976,489 @@ function PantallaSanidad() {
         </div>
       )}
 
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- */
+/* Pantalla "Ventas": registrar ventas y ver el historial            */
+/* ---------------------------------------------------------------- */
+
+function PantallaVentas({ onVolver, onVerFicha }) {
+  const [pestaña, setPestaña] = useState("nueva"); // "nueva" | "historial"
+
+  return (
+    <div
+      style={{
+        background: "var(--crema)",
+        border: "1px solid var(--borde)",
+        borderRadius: 16,
+        padding: "22px 18px",
+        boxShadow: "0 2px 10px rgba(59,42,29,0.06)",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onVolver}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          background: "none",
+          border: "none",
+          color: "var(--marron-cuero-oscuro)",
+          fontSize: 12.5,
+          fontWeight: 600,
+          cursor: "pointer",
+          padding: 0,
+          marginBottom: 14,
+        }}
+      >
+        <ArrowLeft size={14} /> Volver
+      </button>
+
+      <h2
+        style={{
+          fontFamily: "'PP Neue Montreal Bold', serif",
+          fontSize: 18,
+          fontWeight: 600,
+          color: "var(--marron-oscuro)",
+          margin: "0 0 14px",
+        }}
+      >
+        Ventas
+      </h2>
+
+      <div style={{ display: "flex", gap: 6, background: "#F5F2EC", padding: 4, borderRadius: 12, marginBottom: 18 }}>
+        {[
+          { id: "nueva", label: "🐄 Registrar venta" },
+          { id: "historial", label: "📋 Historial" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setPestaña(tab.id)}
+            style={{
+              flex: 1,
+              padding: "10px 4px",
+              borderRadius: 8,
+              border: "none",
+              background: pestaña === tab.id ? "var(--crema)" : "transparent",
+              color: pestaña === tab.id ? "var(--marron-oscuro)" : "#8A7A63",
+              fontWeight: 700,
+              fontSize: 13,
+              cursor: "pointer",
+              boxShadow: pestaña === tab.id ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {pestaña === "nueva" && <FormularioNuevaVenta />}
+      {pestaña === "historial" && <HistorialVentas onVerFicha={onVerFicha} />}
+    </div>
+  );
+}
+
+function FormularioNuevaVenta() {
+  const [animales, setAnimales] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [busqueda, setBusqueda] = useState("");
+  const [categoriaFiltro, setCategoriaFiltro] = useState(null);
+  const [seleccionados, setSeleccionados] = useState([]); // array de caravanas
+
+  const [fechaVenta, setFechaVenta] = useState("");
+  const [precioPorKilo, setPrecioPorKilo] = useState("");
+  const [precioPorUnidad, setPrecioPorUnidad] = useState("");
+  const [cantidadKilos, setCantidadKilos] = useState("");
+  const [fechaPago30, setFechaPago30] = useState("");
+  const [fechaPago60, setFechaPago60] = useState("");
+  const [fechaPago90, setFechaPago90] = useState("");
+  const [observaciones, setObservaciones] = useState("");
+
+  useEffect(() => {
+    setAnimales(leerAnimalesActivos());
+    setCargando(false);
+    const recargar = () => setAnimales(leerAnimalesActivos());
+    window.addEventListener("agrodata:actualizado", recargar);
+    return () => window.removeEventListener("agrodata:actualizado", recargar);
+  }, []);
+
+  // Sugiere las fechas de pago a 30/60/90 al cargar la fecha de venta,
+  // sin pisar lo que el usuario ya haya tocado a mano.
+  useEffect(() => {
+    if (!fechaVenta) return;
+    setFechaPago30((actual) => actual || fechaAISO(sumarDiasISO(fechaVenta, 30)));
+    setFechaPago60((actual) => actual || fechaAISO(sumarDiasISO(fechaVenta, 60)));
+    setFechaPago90((actual) => actual || fechaAISO(sumarDiasISO(fechaVenta, 90)));
+  }, [fechaVenta]);
+
+  const categoriasPresentes = useMemo(() => {
+    const presentes = new Set(animales.map((a) => a.tipo).filter(Boolean));
+    return TIPOS.map((t) => t.valor).filter((v) => presentes.has(v));
+  }, [animales]);
+
+  const animalesFiltrados = useMemo(() => {
+    let lista = animales;
+    if (categoriaFiltro) lista = lista.filter((a) => a.tipo === categoriaFiltro);
+    const texto = busqueda.trim().toLowerCase();
+    if (texto) lista = lista.filter((a) => (a.caravana || "").toLowerCase().includes(texto));
+    return [...lista].sort((a, b) => (a.caravana || "").localeCompare(b.caravana || ""));
+  }, [animales, busqueda, categoriaFiltro]);
+
+  const alternarSeleccion = (caravana) => {
+    setSeleccionados((actual) =>
+      actual.includes(caravana) ? actual.filter((c) => c !== caravana) : [...actual, caravana]
+    );
+  };
+
+  const listoParaGuardar = seleccionados.length > 0 && fechaVenta.trim().length > 0;
+
+  const guardar = () => {
+    if (!listoParaGuardar) return;
+    registrarVenta(
+      {
+        fecha: fechaVenta.trim(),
+        precioPorKilo: precioPorKilo.trim() || null,
+        precioPorUnidad: precioPorUnidad.trim() || null,
+        cantidadKilos: cantidadKilos.trim() || null,
+        fechaPago30: fechaPago30.trim() || null,
+        fechaPago60: fechaPago60.trim() || null,
+        fechaPago90: fechaPago90.trim() || null,
+        observaciones: observaciones.trim() || null,
+      },
+      seleccionados
+    );
+
+    const cantidadVendida = seleccionados.length;
+    setSeleccionados([]);
+    setFechaVenta("");
+    setPrecioPorKilo("");
+    setPrecioPorUnidad("");
+    setCantidadKilos("");
+    setFechaPago30("");
+    setFechaPago60("");
+    setFechaPago90("");
+    setObservaciones("");
+    setAnimales(leerAnimalesActivos());
+    alert(`✅ Venta registrada. ${cantidadVendida} animal(es) se sacaron del stock de "Mis animales".`);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {/* 1. Selección de animales */}
+      <div>
+        <h3
+          style={{
+            fontFamily: "'PP Neue Montreal Bold', serif",
+            fontSize: 15,
+            fontWeight: 600,
+            color: "var(--marron-oscuro)",
+            margin: "0 0 10px",
+          }}
+        >
+          1. Elegí los animales vendidos{" "}
+          {seleccionados.length > 0 && `(${seleccionados.length} seleccionado${seleccionados.length > 1 ? "s" : ""})`}
+        </h3>
+
+        <input
+          type="text"
+          placeholder="Filtrar por número de caravana"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 14,
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "2px solid var(--borde)",
+            background: "#FFFDF8",
+            color: "var(--marron-oscuro)",
+            marginBottom: 10,
+          }}
+        />
+
+        {categoriasPresentes.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+            <button
+              type="button"
+              onClick={() => setCategoriaFiltro(null)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 999,
+                border: categoriaFiltro === null ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
+                background: categoriaFiltro === null ? "var(--verde-monte)" : "#FFFDF8",
+                color: categoriaFiltro === null ? "#FBF7ED" : "var(--marron-oscuro)",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Todas
+            </button>
+            {categoriasPresentes.map((cat) => {
+              const activo = categoriaFiltro === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategoriaFiltro(activo ? null : cat)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 999,
+                    border: activo ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
+                    background: activo ? "var(--verde-monte)" : "#FFFDF8",
+                    color: activo ? "#FBF7ED" : "var(--marron-oscuro)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  {cat}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {cargando ? (
+          <p style={{ fontSize: 13, color: "#8A7A63", textAlign: "center" }}>Cargando...</p>
+        ) : animales.length === 0 ? (
+          <p style={{ fontSize: 13, color: "#8A7A63", textAlign: "center" }}>
+            No hay animales en stock para vender.
+          </p>
+        ) : animalesFiltrados.length === 0 ? (
+          <p style={{ fontSize: 13, color: "#8A7A63", textAlign: "center" }}>
+            Ningún animal coincide con ese filtro.
+          </p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 320, overflowY: "auto", paddingRight: 2 }}>
+            {animalesFiltrados.map((a) => {
+              const marcado = seleccionados.includes(a.caravana);
+              return (
+                <button
+                  key={a.caravana}
+                  type="button"
+                  onClick={() => alternarSeleccion(a.caravana)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: marcado ? "2px solid var(--verde-monte)" : "1px solid var(--borde)",
+                    background: marcado ? "#E9F0E2" : "#FFFDF8",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 5,
+                      flexShrink: 0,
+                      border: "2px solid var(--verde-monte)",
+                      background: marcado ? "var(--verde-monte)" : "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#FBF7ED",
+                      fontSize: 12,
+                    }}
+                  >
+                    {marcado ? "✓" : ""}
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontWeight: 700, fontSize: 14, color: "var(--marron-oscuro)" }}>
+                      N° {a.caravana}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: "#8A7A63" }}>
+                      {a.tipo || "Sin categoría"}
+                      {a.establecimiento ? ` · ${a.establecimiento}` : ""}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 2. Datos de la venta */}
+      <div style={{ borderTop: "1px dashed var(--borde)", paddingTop: 16 }}>
+        <h3
+          style={{
+            fontFamily: "'PP Neue Montreal Bold', serif",
+            fontSize: 15,
+            fontWeight: 600,
+            color: "var(--marron-oscuro)",
+            margin: "0 0 10px",
+          }}
+        >
+          2. Datos de la venta
+        </h3>
+
+        <div className="grilla-formulario">
+          <CampoTexto id="venta-fecha" etiqueta="Fecha de venta" tipo="date" valor={fechaVenta} onChange={setFechaVenta} />
+          <CampoTexto id="venta-precio-kilo" etiqueta="Precio por kilo" tipo="text" placeholder="Ej: 2500" valor={precioPorKilo} onChange={setPrecioPorKilo} />
+          <CampoTexto id="venta-precio-unidad" etiqueta="Precio por unidad" tipo="text" placeholder="Ej: 450000" valor={precioPorUnidad} onChange={setPrecioPorUnidad} />
+          <CampoTexto id="venta-kilos" etiqueta="Cantidad de kilos" tipo="text" placeholder="Ej: 180" valor={cantidadKilos} onChange={setCantidadKilos} />
+        </div>
+
+        <p style={{ fontSize: 11.5, color: "#8A7A63", fontStyle: "italic", margin: "12px 0 6px" }}>
+          Las fechas de pago se completan solas a partir de la fecha de venta (30 / 60 / 90 días), pero las podés cambiar.
+        </p>
+        <div className="grilla-formulario">
+          <CampoTexto id="venta-pago-30" etiqueta="Fecha de pago a 30 días" tipo="date" valor={fechaPago30} onChange={setFechaPago30} />
+          <CampoTexto id="venta-pago-60" etiqueta="Fecha de pago a 60 días" tipo="date" valor={fechaPago60} onChange={setFechaPago60} />
+          <CampoTexto id="venta-pago-90" etiqueta="Fecha de pago a 90 días" tipo="date" valor={fechaPago90} onChange={setFechaPago90} />
+        </div>
+
+        <label
+          htmlFor="venta-observaciones"
+          style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--marron-oscuro)", marginBottom: 5 }}
+        >
+          Observaciones
+        </label>
+        <textarea
+          id="venta-observaciones"
+          rows={2}
+          placeholder="Comprador, forma de pago, etc. (opcional)"
+          value={observaciones}
+          onChange={(e) => setObservaciones(e.target.value)}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 14,
+            padding: "12px 14px",
+            borderRadius: 10,
+            border: "2px solid var(--borde)",
+            background: "#FFFDF8",
+            color: "var(--marron-oscuro)",
+            resize: "vertical",
+          }}
+        />
+      </div>
+
+      <button
+        type="button"
+        disabled={!listoParaGuardar}
+        onClick={guardar}
+        style={{
+          width: "100%",
+          padding: "15px",
+          borderRadius: 12,
+          border: "none",
+          background: "var(--verde-monte)",
+          color: "#FBF7ED",
+          fontFamily: "'PP Neue Montreal Bold', serif",
+          fontWeight: 600,
+          fontSize: 15.5,
+          cursor: listoParaGuardar ? "pointer" : "not-allowed",
+          opacity: listoParaGuardar ? 1 : 0.5,
+        }}
+      >
+        ✅ Registrar venta y sacar del stock
+      </button>
+    </div>
+  );
+}
+
+function HistorialVentas({ onVerFicha }) {
+  const [ventas, setVentas] = useState([]);
+
+  useEffect(() => {
+    setVentas(leerVentas());
+    const recargar = () => setVentas(leerVentas());
+    window.addEventListener("agrodata:actualizado", recargar);
+    return () => window.removeEventListener("agrodata:actualizado", recargar);
+  }, []);
+
+  const eliminar = (venta) => {
+    if (
+      !window.confirm(
+        `¿Deshacer esta venta del ${formatearFechaDDMMYYYY(parseISO(venta.fecha))}? Los ${venta.animales.length} animal(es) vuelven al stock de "Mis animales".`
+      )
+    )
+      return;
+    deshacerVenta(venta.id);
+    setVentas(leerVentas());
+  };
+
+  const ventasOrdenadas = [...ventas].sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+
+  if (ventasOrdenadas.length === 0) {
+    return (
+      <p style={{ fontSize: 13.5, color: "#8A7A63", textAlign: "center", padding: "20px 0" }}>
+        Todavía no registraste ninguna venta.
+      </p>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {ventasOrdenadas.map((venta) => (
+        <div key={venta.id} style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 12, padding: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+            <div>
+              <div style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontWeight: 700, fontSize: 15, color: "var(--marron-oscuro)" }}>
+                {formatearFechaDDMMYYYY(parseISO(venta.fecha))}
+              </div>
+              <div style={{ fontSize: 12, color: "#8A7A63", marginTop: 2 }}>
+                {venta.animales.length} animal(es) vendido(s)
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => eliminar(venta)}
+              title="Deshacer esta venta"
+              style={{ background: "none", border: "none", color: "#C62828", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+            >
+              Deshacer
+            </button>
+          </div>
+
+          <FilaDato etiqueta="Precio por kilo" valor={venta.precioPorKilo ? `$${venta.precioPorKilo}` : null} />
+          <FilaDato etiqueta="Precio por unidad" valor={venta.precioPorUnidad ? `$${venta.precioPorUnidad}` : null} />
+          <FilaDato etiqueta="Cantidad de kilos" valor={venta.cantidadKilos ? `${venta.cantidadKilos} kg` : null} />
+          <FilaDato etiqueta="Pago a 30 días" valor={venta.fechaPago30 ? formatearFechaDDMMYYYY(parseISO(venta.fechaPago30)) : null} />
+          <FilaDato etiqueta="Pago a 60 días" valor={venta.fechaPago60 ? formatearFechaDDMMYYYY(parseISO(venta.fechaPago60)) : null} />
+          <FilaDato etiqueta="Pago a 90 días" valor={venta.fechaPago90 ? formatearFechaDDMMYYYY(parseISO(venta.fechaPago90)) : null} />
+          {venta.observaciones && <FilaDato etiqueta="Observaciones" valor={venta.observaciones} />}
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+            {venta.animales.map((caravana) => {
+              const ficha = leerAnimalPorCaravana(caravana);
+              return (
+                <button
+                  key={caravana}
+                  type="button"
+                  onClick={() => ficha && onVerFicha && onVerFicha(ficha)}
+                  style={{
+                    padding: "5px 10px",
+                    borderRadius: 999,
+                    border: "1px solid var(--verde-salvia)",
+                    background: "#F5F2EC",
+                    color: "var(--marron-oscuro)",
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    cursor: ficha ? "pointer" : "default",
+                  }}
+                >
+                  N° {caravana}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
