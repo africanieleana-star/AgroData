@@ -6479,6 +6479,7 @@ function PantallaFormulario({
               fechaParicion={fechaParicion}
               tipoCria={tipoCria}
               pesoNacer={pesoNacer}
+              colorCria={colorCria}
               nombreServicio={nombrePadreActual}
               muestraServicio={muestraServicio}
               origenCria={origenCria}
@@ -6754,6 +6755,7 @@ function PantallaFormulario({
                       }
                     />
                     <FilaDato etiqueta="Peso al nacer" valor={c.pesoNacer} />
+                    <FilaDato etiqueta="Color de pelaje" valor={c.colorPelaje} />
                     <FilaDato etiqueta="Nombre del padre" valor={c.nombrePadre} />
                     <FilaDato etiqueta="Origen" valor={c.origen} />
                     <FilaDato etiqueta="Estado" valor={c.fallecida ? `Falleció (${c.fechaFallecimiento || "sin fecha"})` : "Viva"}
@@ -6846,6 +6848,7 @@ function FichaAutomaticaCria({
   fechaParicion,
   tipoCria,
   pesoNacer,
+  colorCria,
   nombreServicio,
   muestraServicio,
   origenCria,
@@ -6891,6 +6894,7 @@ function FichaAutomaticaCria({
             valor={tipoCria === "Hembra" ? "Hembra (ternera)" : tipoCria === "Macho" ? "Macho (ternero)" : null}
           />
           <FilaDato etiqueta="Peso al nacer" valor={pesoNacer ? `${pesoNacer} kg` : null} />
+          <FilaDato etiqueta="Color de pelaje" valor={colorCria || null} />
           <FilaDato etiqueta="Caravana de la madre" valor={caravana} />
           <FilaDato
             etiqueta="Nombre del padre"
