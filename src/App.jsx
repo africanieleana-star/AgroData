@@ -1828,11 +1828,13 @@ function PantallaInicio({ onNavegar }) {
   const [animales, setAnimales] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [tareasSanidad, setTareasSanidad] = useState([]);
+  const [ventas, setVentas] = useState([]);
 
   useEffect(() => {
     const cargar = () => {
       setAnimales(leerAnimalesActivos());
       setTareasSanidad(leerRegistrosSanidad());
+      setVentas(leerVentas());
     };
     cargar();
     setCargando(false);
@@ -1856,6 +1858,19 @@ function PantallaInicio({ onNavegar }) {
       })
       .sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""));
   }, [tareasSanidad]);
+
+  const cobrosPendientes = useMemo(() => calcularCobrosPendientes(ventas, new Date()), [ventas]);
+
+  const ventasDelMes = useMemo(() => {
+    const hoy = new Date();
+    const delMes = ventas.filter((v) => {
+      const f = parseISO(v.fecha);
+      return f && f.getMonth() === hoy.getMonth() && f.getFullYear() === hoy.getFullYear();
+    });
+    const cantidadAnimales = delMes.reduce((acc, v) => acc + (v.animales?.length || 0), 0);
+    const totalFacturado = delMes.reduce((acc, v) => acc + (calcularMontoVenta(v) || 0), 0);
+    return { cantidadVentas: delMes.length, cantidadAnimales, totalFacturado };
+  }, [ventas]);
 
   // Conteo por estado reproductivo (Preñada / Vacía / Parida)
   const conteoEstados = useMemo(() => {
@@ -1961,6 +1976,71 @@ function PantallaInicio({ onNavegar }) {
         </div>
       </button>
 
+      {/* 1.5 Cobros pendientes de Ventas */}
+      {cobrosPendientes.length > 0 && (
+        <div
+          style={{
+            background: "var(--crema)",
+            border: "1px solid var(--borde)",
+            borderRadius: 16,
+            padding: "18px",
+            boxShadow: "0 2px 10px rgba(59,42,29,0.06)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <DollarSign size={18} color="var(--marron-cuero)" />
+            <h3
+              style={{
+                fontFamily: "'PP Neue Montreal Bold', serif",
+                fontSize: 15,
+                fontWeight: 600,
+                color: "var(--marron-oscuro)",
+                margin: 0,
+              }}
+            >
+              Cobros pendientes
+            </h3>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {cobrosPendientes.slice(0, 5).map((item, idx) => (
+              <div
+                key={`${item.ventaId}-${item.etiqueta}-${idx}`}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  background: item.vencido ? "#FDECEA" : "#F5F2EC",
+                  border: item.vencido ? "1px solid var(--terracota)" : "1px solid transparent",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      color: item.vencido ? "var(--terracota)" : "var(--marron-oscuro)",
+                    }}
+                  >
+                    {item.etiqueta}{item.vencido ? " · Vencido" : ""}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#8A7A63" }}>
+                    {formatearFechaDDMMYYYY(parseISO(item.fecha))}
+                  </div>
+                </div>
+                {item.monto !== null && (
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--marron-oscuro)" }}>
+                    {formatearMonto(item.monto)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 2. KPIs de estado reproductivo y de rodeo */}
       <div
         style={{
@@ -1987,6 +2067,38 @@ function PantallaInicio({ onNavegar }) {
           <TarjetaKPI numero={cargando ? "..." : conteoEstados.Preñada} etiqueta="Preñadas" color="var(--verde-exito)" />
           <TarjetaKPI numero={cargando ? "..." : conteoEstados.Vacía} etiqueta="Vacías" color="var(--terracota)" />
           <TarjetaKPI numero={cargando ? "..." : proximosPartosCount} etiqueta="Partos (30d)" color="var(--marron-cuero)" />
+        </div>
+      </div>
+
+      {/* Ventas de este mes */}
+      <div
+        style={{
+          background: "var(--crema)",
+          border: "1px solid var(--borde)",
+          borderRadius: 16,
+          padding: "18px",
+          boxShadow: "0 2px 10px rgba(59,42,29,0.06)",
+        }}
+      >
+        <h3
+          style={{
+            fontFamily: "'PP Neue Montreal Bold', serif",
+            fontSize: 15,
+            fontWeight: 600,
+            color: "var(--marron-oscuro)",
+            margin: "0 0 12px",
+          }}
+        >
+          Ventas de este mes
+        </h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          <TarjetaKPI numero={cargando ? "..." : ventasDelMes.cantidadVentas} etiqueta="Ventas" color="var(--marron-cuero)" />
+          <TarjetaKPI numero={cargando ? "..." : ventasDelMes.cantidadAnimales} etiqueta="Animales" color="var(--verde-monte)" />
+          <TarjetaKPI
+            numero={cargando ? "..." : formatearMonto(ventasDelMes.totalFacturado)}
+            etiqueta="Facturado"
+            color="var(--verde-exito)"
+          />
         </div>
       </div>
 
@@ -2087,10 +2199,12 @@ function PantallaInicio({ onNavegar }) {
           Cargar animal - Evento
         </button>
 
-        {/* Reemplazado "Buscar animal" por "Sanidad" */}
+        {/* Accesos a las secciones principales */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <BotonAcceso texto="Sanidad" icono={<Syringe size={17} />} onClick={() => onNavegar("sanidad")} />
           <BotonAcceso texto="Mis animales" icono={<List size={17} />} onClick={() => onNavegar("listado")} />
+          <BotonAcceso texto="Ventas" icono={<DollarSign size={17} />} onClick={() => onNavegar("ventas")} />
+          <BotonAcceso texto="Genealogía" icono={<GitFork size={17} />} onClick={() => onNavegar("genealogia")} />
         </div>
       </div>
 
@@ -3289,6 +3403,55 @@ function deshacerVenta(ventaId) {
 
   guardarVentas(ventas.filter((v) => v.id !== ventaId));
   emitirActualizacionDatos();
+}
+
+// Calcula el monto total de una venta. Si cargaste "precio por unidad",
+// se multiplica por la cantidad de animales de esa venta. Si no, se usa
+// precio por kilo x cantidad de kilos. Si no hay ninguno de los dos
+// datos, devuelve null (no se inventa un monto).
+function calcularMontoVenta(venta) {
+  const num = (v) => {
+    if (!v) return null;
+    const n = parseFloat(String(v).replace(",", "."));
+    return isNaN(n) ? null : n;
+  };
+  const porUnidad = num(venta.precioPorUnidad);
+  if (porUnidad !== null) return porUnidad * (venta.animales?.length || 1);
+  const porKilo = num(venta.precioPorKilo);
+  const kilos = num(venta.cantidadKilos);
+  if (porKilo !== null && kilos !== null) return porKilo * kilos;
+  return null;
+}
+
+function formatearMonto(valor) {
+  if (valor === null || valor === undefined || isNaN(valor)) return "$0";
+  return `$${Math.round(valor).toLocaleString("es-AR")}`;
+}
+
+// Junta los vencimientos de pago (30/60/90 días) de todas las ventas
+// que estén cerca: desde 60 días atrás (para no perder los vencidos)
+// hasta 30 días para adelante.
+function calcularCobrosPendientes(ventas, hoy) {
+  const items = [];
+  ventas.forEach((venta) => {
+    const monto = calcularMontoVenta(venta);
+    [
+      { campo: venta.fechaPago30, etiqueta: "Pago a 30 días" },
+      { campo: venta.fechaPago60, etiqueta: "Pago a 60 días" },
+      { campo: venta.fechaPago90, etiqueta: "Pago a 90 días" },
+    ].forEach(({ campo, etiqueta }) => {
+      if (!campo) return;
+      const fecha = parseISO(campo);
+      if (!fecha) return;
+      const dias = diasEntre(fecha, hoy);
+      if (dias === null) return;
+      if (dias >= -60 && dias <= 30) {
+        items.push({ ventaId: venta.id, fecha: campo, etiqueta, monto, dias, vencido: dias < 0 });
+      }
+    });
+  });
+  items.sort((a, b) => a.dias - b.dias);
+  return items;
 }
 
 // Convierte un objeto Date de JavaScript a texto "YYYY-MM-DD",
