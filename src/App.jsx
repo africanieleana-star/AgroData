@@ -1547,6 +1547,7 @@ const irAIngresar = () => {
                 ficha={fichaEnResumen}
                 onVolver={volverDesdeResumen}
                 onEditar={irAEditarDesdeResumen}
+                onVerFicha={(f) => irAVerResumen(f, "resumen")}
               />
             )}
 
@@ -4258,7 +4259,7 @@ function obtenerProximaAccion(ficha) {
   return null;
 }
 
-function PantallaResumen({ ficha, onVolver, onEditar }) {
+function PantallaResumen({ ficha, onVolver, onEditar, onVerFicha }) {
   const estado = estadoReproductivoDe(ficha);
   const proximaAccion = obtenerProximaAccion(ficha);
 
@@ -4387,8 +4388,49 @@ function PantallaResumen({ ficha, onVolver, onEditar }) {
             valor={ficha.tacto.resultado === "Preniada" ? "Preñada" : ficha.tacto.resultado === "Vacia" ? "Vacía" : null}
           />
         )}
-        <FilaDato etiqueta="Crías registradas" valor={cantidadCrias > 0 ? String(cantidadCrias) : null} />
-        {!ultimoServicio && !ficha.tacto && cantidadCrias === 0 && (
+        {cantidadCrias === 0 ? (
+          <FilaDato etiqueta="Crías registradas" valor={null} />
+        ) : (
+          <div style={{ marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: "#6B5A45", marginBottom: 6 }}>
+              Crías registradas ({cantidadCrias})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {ficha.historialCrias.map((c, idx) => {
+                const tipoCriaTexto =
+                  c.sexo === "Macho" ? "Ternero" : c.sexo === "Hembra" ? "Ternera" : "Sin categoría";
+                const fichaCria = c.caravana ? leerAnimalPorCaravana(c.caravana) : null;
+                return (
+                  <button
+                    key={c.caravana || `cria-${idx}`}
+                    type="button"
+                    onClick={() => fichaCria && onVerFicha && onVerFicha(fichaCria)}
+                    disabled={!fichaCria}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      border: "1px solid var(--borde)",
+                      background: "#F5F2EC",
+                      cursor: fichaCria ? "pointer" : "default",
+                    }}
+                  >
+                    <span style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 13.5, fontWeight: 700, color: "var(--marron-oscuro)" }}>
+                      N° {c.caravana || "Sin caravana"}
+                    </span>
+                    <span style={{ fontSize: 12, color: "#8A7A63", fontWeight: 600 }}>
+                      {tipoCriaTexto}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}        {!ultimoServicio && !ficha.tacto && cantidadCrias === 0 && (
           <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic", margin: "4px 0 0" }}>
             Todavía no hay servicios, tactos ni crías registradas.
           </p>
