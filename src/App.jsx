@@ -2910,50 +2910,54 @@ function importarAnimalesDesdeExcel(archivo, sobrescribirTodos) {
 // datos antes de importarlos.
 function descargarPlantillaExcel() {
   const encabezados = [
-    "caravana", "tipo", "raza", "fechaNacimiento", "caravanaMadre", "nombrePadre", "observaciones",
+    "caravana", "tipo", "raza", "color", "fechaNacimiento", "caravanaMadre", "nombrePadre", "observaciones",
     "fechaInseminacion", "nombreInseminacion", "fechaServicioToro", "nombreToro",
     "fechaTacto", "resultadoTacto",
-    "fechaParicion", "tipoCria", "caravanaCria", "pesoNacer",
+    "fechaParicion", "tipoCria", "caravanaCria", "pesoNacer", "colorCria",
   ];
 
-  const filaEjemplo1 = {
+    const filaEjemplo1 = {
     caravana: "A047",
     tipo: "Vaca",
     raza: "Angus",
+    color: "Negro",
     fechaNacimiento: "2019-03-10",
-    caravanaMadre: "",
+    caravanaMadre: "011",
     nombrePadre: "La Joya",
     observaciones: "",
     fechaInseminacion: "2024-11-05",
     nombreInseminacion: "SEMEX 4410",
-    fechaServicioToro: "",
-    nombreToro: "",
+    fechaServicioToro: "11/11/2025",
+    nombreToro: "Rauch",
     fechaTacto: "2025-01-15",
     resultadoTacto: "Preñada",
     fechaParicion: "",
-    tipoCria: "",
-    caravanaCria: "",
-    pesoNacer: "",
+    tipoCria: "Hembra",
+    caravanaCria: "T03",
+    pesoNacer: "40",
+    colorCria: "Colorado",
   };
 
-  const filaEjemplo2 = {
+    const filaEjemplo2 = {
     caravana: "A058",
     tipo: "Ternero",
     raza: "",
+    color: "Colorado",
     fechaNacimiento: "2024-08-20",
     caravanaMadre: "A047",
-    nombrePadre: "",
+    nombrePadre: "La Joya",
     observaciones: "",
-    fechaInseminacion: "",
-    nombreInseminacion: "",
+    fechaInseminacion: "20-10-2025",
+    nombreInseminacion: "Escoses",
     fechaServicioToro: "",
-    nombreToro: "",
-    fechaTacto: "",
-    resultadoTacto: "",
-    fechaParicion: "",
-    tipoCria: "",
-    caravanaCria: "",
-    pesoNacer: "",
+    nombreToro: "Messi",
+    fechaTacto: "23-05-2026",
+    resultadoTacto: "Preñada",
+    fechaParicion: "08-09-2026",
+    tipoCria: "Macho",
+    caravanaCria: "T01",
+    pesoNacer: "40",
+    colorCria: "Negro",
   };
 
    const hoja = XLSX.utils.json_to_sheet([filaEjemplo1, filaEjemplo2], { header: encabezados });
