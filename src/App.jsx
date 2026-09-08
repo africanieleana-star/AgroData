@@ -2685,9 +2685,9 @@ function importarAnimalesDesdeExcel(archivo) {
     lector.onload = (e) => {
       try {
         const datos = new Uint8Array(e.target.result);
-        const libro = XLSX.read(datos, { type: "array" });
+        const libro = XLSX.read(datos, { type: "array", cellText: true });
         const primeraHoja = libro.Sheets[libro.SheetNames[0]];
-        const filas = XLSX.utils.sheet_to_json(primeraHoja, { defval: "" });
+        const filas = XLSX.utils.sheet_to_json(primeraHoja, { defval: "", raw: false });
 
         const resumen = { creados: 0, actualizados: 0, omitidos: 0, errores: [] };
 
@@ -2870,7 +2870,18 @@ function descargarPlantillaExcel() {
     pesoNacer: "",
   };
 
-  const hoja = XLSX.utils.json_to_sheet([filaEjemplo1, filaEjemplo2], { header: encabezados });
+   const hoja = XLSX.utils.json_to_sheet([filaEjemplo1, filaEjemplo2], { header: encabezados });
+
+  // Fuerza que la columna "caravana" (columna A) se guarde como texto,
+  // para que Excel no le borre los ceros iniciales al abrirla.
+  const columnaA = ["A1", "A2", "A3"];
+  columnaA.forEach((celda) => {
+    if (hoja[celda]) {
+      hoja[celda].t = "s"; // tipo "string"
+      hoja[celda].z = "@"; // formato de número: texto
+    }
+  });
+
   const libro = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(libro, hoja, "Animales");
   XLSX.writeFile(libro, "Plantilla_AgroData.xlsx");
