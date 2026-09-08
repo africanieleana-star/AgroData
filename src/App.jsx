@@ -1542,14 +1542,13 @@ const irAIngresar = () => {
               />
             )}
 
-{pantalla === "resumen" && fichaEnResumen && (
-  <PantallaResumen
-    ficha={fichaEnResumen}
-    onVolver={volverDesdeResumen}
-    onEditar={irAEditarDesdeResumen}
-    onVerFicha={verFicha}
-  />
-)}
+            {pantalla === "resumen" && fichaEnResumen && (
+              <PantallaResumen
+                ficha={fichaEnResumen}
+                onVolver={volverDesdeResumen}
+                onEditar={irAEditarDesdeResumen}
+              />
+            )}
 
             {pantalla === "alertas" && (
               <PantallaAlertas
