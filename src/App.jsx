@@ -912,45 +912,58 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setFichaEnResumen(null);
   };
 
-  const irAIngresar = () => {
-    const numero = caravanaBusqueda.trim();
-    setCaravana(numero);
-    setModo("nuevo");
-    setFichaOriginal(null);
-    setTipo(null);
-    setRaza("");
-    setColor("");
-    setEstablecimiento("");
-    setFechaNacimiento("");
-    setObservacionesAnimal("");
-    setPesoDestete205("");
-    setCastrado(false);
-    setGananciaDiariaSuplementacion("");
-    setGananciaDiariaVerdeo("");
-    setFechaVenta("");
-    setPesoVenta("");
-    setFechaInseminacion("");
-    setNombreInseminacion("");
-    setFechaToro("");
-    setEsRepasoToro(false);
-    setNombreToro("");
-    setObservacionesToro("");
-    setHistorialServicios([]);
-    setHistorialCrias([]);
-    setFechaTacto("");
-    setResultadoTacto(null);
-    setObservaciones("");
-    setFechaParicion("");
-    setTipoCria(null);
-    setCaravanaCria("");
-    setColorCria("");
-    setObservacionesParicion("");
-    setObservacionesCria("");
-    setResultadoCria(null);
-    setEstado("idle");
-    setPantalla("formulario");
-  };
+const irAIngresar = () => {
+  // 1. Asignamos la caravana ingresada en la búsqueda y definimos el modo "nuevo"
+  const numero = caravanaBusqueda ? caravanaBusqueda.trim() : "";
+  setCaravana(numero);
+  setModo("nuevo");
+  setFichaOriginal(null);
 
+  // 2. Limpiamos TODOS los datos generales del animal y de sus padres
+  setTipo(null);
+  setRaza("");
+  setColor("");
+  setEstablecimiento("");
+  setFechaNacimiento("");
+  setCaravanaMadreManual("");
+  setNombrePadreManual("");
+  setObservacionesAnimal("");
+  setPesoDestete205("");
+  setCastrado(false);
+  setGananciaDiariaSuplementacion("");
+  setGananciaDiariaVerdeo("");
+
+  // 3. Limpiamos datos de venta
+  setFechaVenta("");
+  setPesoVenta("");
+
+  // 4. Limpiamos la sección de servicios y tacto
+  setFechaInseminacion("");
+  setNombreInseminacion("");
+  setFechaToro("");
+  setEsRepasoToro(false);
+  setNombreToro("");
+  setObservacionesToro("");
+  setFechaTacto("");
+  setResultadoTacto(null);
+  setObservaciones("");
+
+  // 5. Limpiamos la sección de pariciones, crías e historiales
+  setFechaParicion("");
+  setTipoCria(null);
+  setCaravanaCria("");
+  setColorCria("");
+  setPesoNacer("");
+  setObservacionesParicion("");
+  setObservacionesCria("");
+  setResultadoCria(null);
+  setHistorialServicios([]);
+  setHistorialCrias([]);
+
+  // 6. Restablecemos estado y mostramos el formulario vacio
+  setEstado("idle");
+  setPantalla("formulario");
+};
   const volverABuscar = () => {
     setCaravanaBusqueda("");
     setResultadoBusqueda(null);
