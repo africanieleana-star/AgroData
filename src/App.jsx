@@ -2785,7 +2785,7 @@ function importarAnimalesDesdeExcel(archivo, sobrescribirTodos) {
           const tipoCriaExcel = normalizarTipoCriaExcel(fila.tipoCria || fila.TipoCria);
           const caravanaCriaExcel = (fila.caravanaCria || fila.CaravanaCria) ? String(fila.caravanaCria || fila.CaravanaCria).trim() : null;
           const pesoNacerExcel = (fila.pesoNacer || fila.PesoNacer) ? String(fila.pesoNacer || fila.PesoNacer).trim() : null;
-
+          const colorCriaExcel = (fila.colorCria || fila.ColorCria) ? String(fila.colorCria || fila.ColorCria).trim() : null;
           const paricionDesdeExcel = (fechaParicionExcel || tipoCriaExcel || caravanaCriaExcel) ? {
             fecha: fechaParicionExcel,
             tipoCria: tipoCriaExcel,
@@ -2816,11 +2816,12 @@ function importarAnimalesDesdeExcel(archivo, sobrescribirTodos) {
                   (c) => !c.caravana && c.fechaNacimiento === fechaParicionExcel && c.sexo === tipoCriaExcel
                 );
             if (!yaExiste) {
-              historialCriasFinal = [...historialCriasFinal, {
+               historialCriasFinal = [...historialCriasFinal, {
                 caravana: caravanaCriaExcel || null,
                 fechaNacimiento: fechaParicionExcel,
                 sexo: tipoCriaExcel,
                 pesoNacer: pesoNacerExcel ? `${pesoNacerExcel} kg` : null,
+                colorPelaje: colorCriaExcel,
                 nombrePadre: nombrePadreCria,
                 origen: origenCria,
                 fallecida: false,
@@ -2844,6 +2845,7 @@ function importarAnimalesDesdeExcel(archivo, sobrescribirTodos) {
                 caravana: caravanaCriaExcel,
                 tipo: tipoCriaExcel === "Macho" ? "Ternero" : tipoCriaExcel === "Hembra" ? "Ternera" : null,
                 raza: null,
+                color: colorCriaExcel,
                 fechaNacimiento: fechaParicionExcel,
                 observacionesAnimal: null,
                 esCria: true,
@@ -2857,6 +2859,7 @@ function importarAnimalesDesdeExcel(archivo, sobrescribirTodos) {
                   fechaNacimiento: fechaParicionExcel,
                   sexo: tipoCriaExcel,
                   pesoNacer: pesoNacerExcel ? `${pesoNacerExcel} kg` : null,
+                  colorPelaje: colorCriaExcel,
                   caravanaMadre: caravana,
                   nombrePadre: nombrePadreCria,
                   origenServicio: origenCria,
@@ -2871,6 +2874,7 @@ function importarAnimalesDesdeExcel(archivo, sobrescribirTodos) {
             caravana,
             tipo,
             raza: (fila.raza || fila.Raza) ? String(fila.raza || fila.Raza).trim() : null,
+            color: (fila.color || fila.Color) ? String(fila.color || fila.Color).trim() : null,
             fechaNacimiento: normalizarFechaExcel(fila.fechaNacimiento || fila.FechaNacimiento),
             caravanaMadre: (fila.caravanaMadre || fila.CaravanaMadre) ? String(fila.caravanaMadre || fila.CaravanaMadre).trim() : null,
             nombrePadre: (fila.nombrePadre || fila.NombrePadre) ? String(fila.nombrePadre || fila.NombrePadre).trim() : null,
