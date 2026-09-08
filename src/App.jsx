@@ -4249,6 +4249,7 @@ function PantallaResumen({ ficha, onVolver, onEditar }) {
           <div style={{ fontSize: 13, color: "#8A7A63", fontWeight: 600, marginTop: 4 }}>
             {ficha.tipo || "Sin categoría"}
             {ficha.raza ? ` · ${ficha.raza}` : ""}
+            {ficha.establecimiento ? ` · ${ficha.establecimiento}` : ""}
           </div>
         </div>
         <EtiquetaEstado estado={estado} />
