@@ -3204,6 +3204,7 @@ function PantallaListado({ onVolver, onVerFicha }) {
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState(null);
+  const [establecimientoFiltro, setEstablecimientoFiltro] = useState(null);
 
     const [importando, setImportando] = useState(false);
   const [mensajeImportacion, setMensajeImportacion] = useState(null);
@@ -3273,6 +3274,13 @@ function PantallaListado({ onVolver, onVerFicha }) {
     return TIPOS.map((t) => t.valor).filter((v) => presentes.has(v));
   }, [animales]);
 
+  const establecimientosPresentes = useMemo(() => {
+    const presentes = new Set(
+      animales.map((a) => (a.establecimiento || "").trim()).filter(Boolean)
+    );
+    return Array.from(presentes).sort((a, b) => a.localeCompare(b));
+  }, [animales]);
+
   const conteoPorCategoria = useMemo(() => {
     const conteo = {};
     animales.forEach((a) => {
@@ -3287,12 +3295,15 @@ function PantallaListado({ onVolver, onVerFicha }) {
     if (categoriaFiltro) {
       lista = lista.filter((a) => a.tipo === categoriaFiltro);
     }
+    if (establecimientoFiltro) {
+      lista = lista.filter((a) => (a.establecimiento || "").trim() === establecimientoFiltro);
+    }
     const texto = busqueda.trim().toLowerCase();
     if (texto) {
       lista = lista.filter((a) => (a.caravana || "").toLowerCase().includes(texto));
     }
     return [...lista].sort((a, b) => (a.caravana || "").localeCompare(b.caravana || ""));
-  }, [animales, busqueda, categoriaFiltro]);
+  }, [animales, busqueda, categoriaFiltro, establecimientoFiltro]);
 
   const eliminarAnimalDelListado = (caravanaABorrar) => {
     if (!window.confirm(`¿Estás segura de eliminar la ficha N° ${caravanaABorrar}? Esta acción no se puede deshacer.`)) return;
@@ -3546,6 +3557,39 @@ function PantallaListado({ onVolver, onVerFicha }) {
         </div>
       )}
 
+            {/* Filtro por establecimiento */}
+      {establecimientosPresentes.length > 0 && (
+        <div style={{ marginBottom: 18 }}>
+          <label
+            htmlFor="filtro-establecimiento"
+            style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#8A7A63", marginBottom: 6 }}
+          >
+            Filtrar por establecimiento
+          </label>
+          <select
+            id="filtro-establecimiento"
+            value={establecimientoFiltro || ""}
+            onChange={(e) => setEstablecimientoFiltro(e.target.value || null)}
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: "2px solid var(--borde)",
+              background: "#FFFDF8",
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: "var(--marron-oscuro)",
+            }}
+          >
+            <option value="">Todos los establecimientos</option>
+            {establecimientosPresentes.map((est) => (
+              <option key={est} value={est}>{est}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Lista de animales */}
       {cargando ? (
         <p style={{ fontSize: 13, color: "#8A7A63", textAlign: "center" }}>Cargando...</p>
@@ -3590,17 +3634,18 @@ function PantallaListado({ onVolver, onVerFicha }) {
                     cursor: "pointer",
                   }}
                 >
-                  <div>
+                   <div>
                     <div style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontWeight: 700, fontSize: 15.5, color: "var(--marron-oscuro)" }}>
                       N° {a.caravana}
                     </div>
                     <div style={{ fontSize: 12, color: "#8A7A63", fontWeight: 500, marginTop: 2 }}>
                       {a.tipo || "Sin categoría"}
+                      {a.establecimiento ? ` · ${a.establecimiento}` : ""}
                     </div>
                   </div>
                   <EtiquetaEstado estado={estado} />
                 </button>
-
+                
                 <button
                   type="button"
                   onClick={() => eliminarAnimalDelListado(a.caravana)}
