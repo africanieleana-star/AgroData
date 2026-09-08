@@ -3159,15 +3159,38 @@ function PantallaListado({ onVolver, onVerFicha }) {
   const [mensajeImportacion, setMensajeImportacion] = useState(null);
   const inputExcelRef = useRef(null);
 
-  const manejarArchivoExcel = async (e) => {
+   const manejarArchivoExcel = async (e) => {
     const archivo = e.target.files[0];
     e.target.value = ""; // permite volver a elegir el mismo archivo después
     if (!archivo) return;
 
+    // Antes de importar, contamos cuántas filas del Excel coinciden con
+    // caravanas que ya existen, para preguntar una sola vez qué hacer
+    // con todas ellas (en vez de un cartel por cada una).
+    let sobrescribirTodos = false;
+    try {
+      const buffer = await archivo.arrayBuffer();
+      const libroPreview = XLSX.read(buffer, { type: "array", cellDates: true });
+      const hojaPreview = libroPreview.Sheets[libroPreview.SheetNames[0]];
+      const filasPreview = XLSX.utils.sheet_to_json(hojaPreview, { defval: "" });
+      const caravanasExcel = filasPreview
+        .map((f) => String(f.caravana || f.Caravana || "").trim())
+        .filter(Boolean);
+      const duplicadas = caravanasExcel.filter((c) => leerAnimalPorCaravana(c));
+
+      if (duplicadas.length > 0) {
+        sobrescribirTodos = window.confirm(
+          `${duplicadas.length} de los animales del Excel ya existen en la app (por ejemplo: ${duplicadas.slice(0, 5).join(", ")}${duplicadas.length > 5 ? "..." : ""}).\n\n¿Querés SOBRESCRIBIR TODOS con los datos del Excel?\n\n(Aceptar = sobrescribir todos / Cancelar = omitir esos animales, se importan solo los nuevos)`
+        );
+      }
+    } catch (err) {
+      console.error("No se pudo pre-chequear duplicados:", err);
+    }
+
     setImportando(true);
     setMensajeImportacion(null);
     try {
-      const resumen = await importarAnimalesDesdeExcel(archivo);
+      const resumen = await importarAnimalesDesdeExcel(archivo, sobrescribirTodos);
       setAnimales(leerTodosLosAnimalesGuardados());
       let texto = `✅ ${resumen.creados} creado(s), ${resumen.actualizados} actualizado(s)`;
       if (resumen.omitidos > 0) texto += `, ${resumen.omitidos} omitido(s)`;
