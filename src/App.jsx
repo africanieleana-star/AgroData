@@ -2757,7 +2757,7 @@ function importarAnimalesDesdeExcel(archivo) {
             observaciones: null,
           } : null;
 
-          const fechaParicionExcel = normalizarFechaExcel(fila.fechaParicion || fila.FechaParicion);
+                    const fechaParicionExcel = normalizarFechaExcel(fila.fechaParicion || fila.FechaParicion);
           const tipoCriaExcel = normalizarTipoCriaExcel(fila.tipoCria || fila.TipoCria);
           const caravanaCriaExcel = (fila.caravanaCria || fila.CaravanaCria) ? String(fila.caravanaCria || fila.CaravanaCria).trim() : null;
           const pesoNacerExcel = (fila.pesoNacer || fila.PesoNacer) ? String(fila.pesoNacer || fila.PesoNacer).trim() : null;
@@ -2778,22 +2778,68 @@ function importarAnimalesDesdeExcel(archivo) {
             historialServiciosFinal = [...historialServiciosFinal, servicioDesdeExcel];
           }
 
-          // Historial de crías: si la fila trae una cría y todavía no está
-          // en el historial, se agrega.
+          const nombrePadreCria = nombreInsem || nombreToroExcel || "Sin registrar";
+          const origenCria = nombreInsem ? "Inseminación Artificial" : nombreToroExcel ? "Servicio Natural" : "Sin registrar";
+
+          // Historial de crías: se guarda si hay fecha de parición o tipo de
+          // cría cargados, tenga o no caravana propia (por ej. terneros que
+          // se venden sin caravana asignada).
           let historialCriasFinal = existente?.historialCrias || [];
-          if (paricionDesdeExcel && caravanaCriaExcel) {
-            const yaExiste = historialCriasFinal.some((c) => c.caravana === caravanaCriaExcel);
+          if (paricionDesdeExcel && (fechaParicionExcel || tipoCriaExcel)) {
+            const yaExiste = caravanaCriaExcel
+              ? historialCriasFinal.some((c) => c.caravana === caravanaCriaExcel)
+              : historialCriasFinal.some(
+                  (c) => !c.caravana && c.fechaNacimiento === fechaParicionExcel && c.sexo === tipoCriaExcel
+                );
             if (!yaExiste) {
               historialCriasFinal = [...historialCriasFinal, {
-                caravana: caravanaCriaExcel,
+                caravana: caravanaCriaExcel || null,
                 fechaNacimiento: fechaParicionExcel,
                 sexo: tipoCriaExcel,
                 pesoNacer: pesoNacerExcel ? `${pesoNacerExcel} kg` : null,
-                nombrePadre: nombreInsem || nombreToroExcel || "Sin registrar",
-                origen: nombreInsem ? "Inseminación Artificial" : nombreToroExcel ? "Servicio Natural" : "Sin registrar",
+                nombrePadre: nombrePadreCria,
+                origen: origenCria,
                 fallecida: false,
                 fechaFallecimiento: null,
               }];
+            }
+          }
+
+          // Si la cría tiene caravana propia, se crea/actualiza también su
+          // ficha individual, igual que hace el formulario manual. Solo se
+          // pisa si la ficha no existía o si ya era una cría de esta misma
+          // madre (para no sobrescribir la ficha de otro animal por error).
+          if (caravanaCriaExcel && caravanaCriaExcel !== caravana) {
+            const claveCria = `animal:${caravanaCriaExcel}`;
+            const existenteCria = leerAnimalPorCaravana(caravanaCriaExcel);
+            const puedeEscribirCria =
+              !existenteCria || (existenteCria.esCria && existenteCria.cria?.caravanaMadre === caravana);
+
+            if (puedeEscribirCria) {
+              const fichaCria = {
+                caravana: caravanaCriaExcel,
+                tipo: tipoCriaExcel === "Macho" ? "Ternero" : tipoCriaExcel === "Hembra" ? "Ternera" : null,
+                raza: null,
+                fechaNacimiento: fechaParicionExcel,
+                observacionesAnimal: null,
+                esCria: true,
+                fechaAlta: existenteCria?.fechaAlta || fechaAISO(new Date()),
+                fechaModificacion: existenteCria ? fechaAISO(new Date()) : null,
+                servicio: null,
+                tacto: null,
+                paricion: null,
+                fallecimiento: null,
+                cria: {
+                  fechaNacimiento: fechaParicionExcel,
+                  sexo: tipoCriaExcel,
+                  pesoNacer: pesoNacerExcel ? `${pesoNacerExcel} kg` : null,
+                  caravanaMadre: caravana,
+                  nombrePadre: nombrePadreCria,
+                  origenServicio: origenCria,
+                  observaciones: null,
+                },
+              };
+              localStorage.setItem(claveCria, JSON.stringify(fichaCria));
             }
           }
 
