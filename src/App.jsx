@@ -6122,7 +6122,7 @@ function PantallaFormulario({
                                 </div>
                               )}
 
-                              {/* VISTA DE SERVICIO CON TORO / REPASO */}
+                                                            {/* VISTA DE SERVICIO CON TORO / REPASO */}
                               {serv.toro && (
                                 <div
                                   style={{
@@ -6151,6 +6151,46 @@ function PantallaFormulario({
                                       ❌
                                     </button>
                                   </div>
+
+                                  {/* 🔽 LISTA DESPLEGABLE CON FECHA PROBABLE DE PARTO */}
+                                  {serv.toro.calculos && (
+                                    <details
+                                      style={{
+                                        marginTop: 8,
+                                        background: "#EFECE6",
+                                        padding: "8px 10px",
+                                        borderRadius: 8,
+                                        border: "1px solid #E0DCD3",
+                                      }}
+                                    >
+                                      <summary
+                                        style={{
+                                          cursor: "pointer",
+                                          fontWeight: "600",
+                                          color: "var(--verde-monte)",
+                                          fontSize: 12.5,
+                                          userSelect: "none",
+                                        }}
+                                      >
+                                        📅 Ver fecha estimada de parto
+                                      </summary>
+                                      <div
+                                        style={{
+                                          marginTop: 8,
+                                          paddingTop: 6,
+                                          borderTop: "1px solid #DCD7CD",
+                                          fontSize: 12,
+                                          lineHeight: 1.6,
+                                          color: "var(--marron-oscuro)",
+                                        }}
+                                      >
+                                        <div>
+                                          🍼 <strong>Parto probable:</strong> {serv.toro.calculos.partoDesde} — {serv.toro.calculos.partoHasta}{" "}
+                                          <span style={{ opacity: 0.75, fontSize: 11 }}>(probable)</span>
+                                        </div>
+                                      </div>
+                                    </details>
+                                  )}
                                 </div>
                               )}
                             </div>
