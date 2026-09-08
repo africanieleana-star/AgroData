@@ -530,6 +530,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [tipoCria, setTipoCria] = useState(null); // "Hembra" | "Macho" | null
   const [pesoNacer, setPesoNacer] = useState("");
   const [caravanaCria, setCaravanaCria] = useState("");
+  const [colorCria, setColorCria] = useState("");
   const [observacionesParicion, setObservacionesParicion] = useState("");
   const [criaFallecida, setCriaFallecida] = useState(false);
   const [fechaFallecimientoCria, setFechaFallecimientoCria] = useState("");
@@ -715,6 +716,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setTipoCria(null);
     setPesoNacer("");
     setCaravanaCria("");
+    setColorCria("");
     setObservacionesParicion("");
     setCriaFallecida(false);
     setFechaFallecimientoCria("");
@@ -938,6 +940,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setFechaParicion("");
     setTipoCria(null);
     setCaravanaCria("");
+    setColorCria("");
     setObservacionesParicion("");
     setObservacionesCria("");
     setResultadoCria(null);
@@ -1599,6 +1602,8 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
                 seleccionarTipoCria={seleccionarTipoCria}
                 caravanaCria={caravanaCria}
                 setCaravanaCria={setCaravanaCria}
+                colorCria={colorCria}
+                setColorCria={setColorCria}
                 observacionesParicion={observacionesParicion}
                 setObservacionesParicion={setObservacionesParicion}
                 proximoServicioSugerido={proximoServicioSugerido}
