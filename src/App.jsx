@@ -5271,6 +5271,8 @@ function PantallaFormulario({
   seleccionarTipoCria,
   caravanaCria,
   setCaravanaCria,
+  colorCria,
+  setColorCria,
   observacionesParicion,
   setObservacionesParicion,
   proximoServicioSugerido,
@@ -6395,6 +6397,15 @@ function PantallaFormulario({
             placeholder="Ej: 7810"
             valor={caravanaCria}
             onChange={setCaravanaCria}
+          />
+
+          <CampoTexto
+            id="color-cria"
+            etiqueta="Color de pelaje de la cría"
+            tipo="text"
+            placeholder="Ej: Negro, Colorado"
+            valor={colorCria}
+            onChange={setColorCria}
           />
 
           <div style={{ marginBottom: 12 }}>
