@@ -5416,7 +5416,7 @@ function PantallaFormulario({
 
       {/* Sección de Datos Básicos del Animal en Grilla */}
       <div className="grilla-formulario">
-        <CampoTexto
+                <CampoTexto
           id="raza"
           etiqueta="Raza"
           tipo="text"
@@ -5434,13 +5434,15 @@ function PantallaFormulario({
           onChange={setColor}
         />
 
-        <CampoTexto
-          id="fecha-nacimiento"
-          etiqueta="Fecha de nacimiento"
-          tipo="date"
-          valor={fechaNacimiento}
-          onChange={setFechaNacimiento}
-        />
+        <div className="columna-completa">
+          <CampoTexto
+            id="fecha-nacimiento"
+            etiqueta="Fecha de nacimiento"
+            tipo="date"
+            valor={fechaNacimiento}
+            onChange={setFechaNacimiento}
+          />
+        </div>
 
         <CampoTexto
           id="caravana-madre"
