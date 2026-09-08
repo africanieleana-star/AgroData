@@ -2732,11 +2732,22 @@ function importarAnimalesDesdeExcel(archivo, sobrescribirTodos) {
           const fechaToroExcel = normalizarFechaExcel(fila.fechaServicioToro || fila.FechaServicioToro);
           const nombreToroExcel = (fila.nombreToro || fila.NombreToro) ? String(fila.nombreToro || fila.NombreToro).trim() : null;
 
+                   // Se arman los cálculos con los mismos nombres de campo que usa
+          // el botón "Agregar al historial" del formulario (partoIaDesde /
+          // partoIaHasta), para que la pantalla de historial los muestre
+          // igual sin importar si el dato vino de Excel o cargado a mano.
+          const calculosInseminacionExcel = fechaInsem ? {
+            repasoSugerido: formatearFechaDDMMYYYY(sumarDiasISO(fechaInsem, 15)),
+            partoIaDesde: formatearFechaDDMMYYYY(sumarDiasISO(fechaInsem, 260)),
+            partoIaHasta: formatearFechaDDMMYYYY(sumarDiasISO(fechaInsem, 300)),
+            partoRepasoDesde: formatearFechaDDMMYYYY(sumarDiasISO(fechaInsem, 300)),
+          } : null;
+
           const servicioDesdeExcel = (fechaInsem || nombreInsem || fechaToroExcel || nombreToroExcel) ? {
             inseminacion: (fechaInsem || nombreInsem) ? {
               fecha: fechaInsem,
               nombre: nombreInsem,
-              calculos: fechaInsem ? calcularFechasInseminacion(fechaInsem) : null,
+              calculos: calculosInseminacionExcel,
             } : null,
             toro: (fechaToroExcel || nombreToroExcel) ? {
               fecha: fechaToroExcel,
