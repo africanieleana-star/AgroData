@@ -6578,6 +6578,7 @@ function PantallaFormulario({
                           fechaNacimiento: fechaParicion,
                           sexo: tipoCria,
                           pesoNacer: pesoNacer ? `${pesoNacer} kg` : null,
+                          colorPelaje: colorCria.trim() || null,
                           nombrePadre: padreCalculado,
                           origen: origenCalculado,
                           fallecida: Boolean(criaFallecida),
@@ -6614,10 +6615,11 @@ function PantallaFormulario({
                             fallecimiento: criaFallecida
                               ? { fecha: fechaFallecimientoCria.trim() || fechaParicion }
                               : null,
-                            cria: {
+                              cria: {
                               fechaNacimiento: fechaParicion,
                               sexo: tipoCria,
                               pesoNacer: pesoNacer ? `${pesoNacer} kg` : null,
+                              colorPelaje: colorCria.trim() || null,
                               caravanaMadre: caravana,
                               nombrePadre: padreCalculado,
                               origenServicio: origenCalculado,
@@ -6634,6 +6636,7 @@ function PantallaFormulario({
                         setFechaParicion("");
                         if (typeof seleccionarTipoCria === "function") seleccionarTipoCria(null);
                         setCaravanaCria("");
+                        setColorCria("");
                         if (typeof setObservacionesParicion === "function") setObservacionesParicion("");
                         setObservacionesCria("");
                         setPesoNacer("");
