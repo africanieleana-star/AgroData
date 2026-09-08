@@ -2884,6 +2884,9 @@ function importarAnimalesDesdeExcel(archivo, sobrescribirTodos) {
             tipo,
             raza: (fila.raza || fila.Raza) ? String(fila.raza || fila.Raza).trim() : null,
             color: (fila.color || fila.Color) ? String(fila.color || fila.Color).trim() : null,
+            establecimiento: (fila.establecimiento || fila.Establecimiento)
+              ? String(fila.establecimiento || fila.Establecimiento).trim()
+              : (existente?.establecimiento || null),
             fechaNacimiento: normalizarFechaExcel(fila.fechaNacimiento || fila.FechaNacimiento),
             caravanaMadre: (fila.caravanaMadre || fila.CaravanaMadre) ? String(fila.caravanaMadre || fila.CaravanaMadre).trim() : null,
             nombrePadre: (fila.nombrePadre || fila.NombrePadre) ? String(fila.nombrePadre || fila.NombrePadre).trim() : null,
@@ -2918,8 +2921,8 @@ function importarAnimalesDesdeExcel(archivo, sobrescribirTodos) {
 // para que el usuario sepa exactamente cómo tiene que completar los
 // datos antes de importarlos.
 function descargarPlantillaExcel() {
-  const encabezados = [
-    "caravana", "tipo", "raza", "color", "fechaNacimiento", "caravanaMadre", "nombrePadre", "observaciones",
+const encabezados = [
+    "caravana", "tipo", "raza", "color", "establecimiento", "fechaNacimiento", "caravanaMadre", "nombrePadre", "observaciones",
     "fechaInseminacion", "nombreInseminacion", "fechaServicioToro", "nombreToro",
     "fechaTacto", "resultadoTacto",
     "fechaParicion", "tipoCria", "caravanaCria", "pesoNacer", "colorCria",
@@ -2930,6 +2933,7 @@ function descargarPlantillaExcel() {
     tipo: "Vaca",
     raza: "Angus",
     color: "Negro",
+    establecimiento: "Campo Norte",
     fechaNacimiento: "2019-03-10",
     caravanaMadre: "011",
     nombrePadre: "La Joya",
@@ -2952,6 +2956,7 @@ function descargarPlantillaExcel() {
     tipo: "Ternero",
     raza: "",
     color: "Colorado",
+    establecimiento: "Campo La Marta",
     fechaNacimiento: "2024-08-20",
     caravanaMadre: "A047",
     nombrePadre: "La Joya",
