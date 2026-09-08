@@ -1281,7 +1281,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     tipo,
     raza,
     color,
-    establecimiento
+    establecimiento,
     fechaNacimiento,
     caravanaMadreManual,
     nombrePadreManual,
