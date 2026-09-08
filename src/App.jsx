@@ -1884,23 +1884,45 @@ function PantallaInicio({ onNavegar }) {
     return conteo;
   }, [animales]);
 
-  // Cálculo de Próximos Partos estimados en los próximos 30 días
+  // Cálculo de Próximos Partos: usa el mismo historial de servicios que
+  // el resto de la app (ventana real de gestación 260-300 días), no un
+  // campo suelto que nunca se guarda en la ficha.
   const proximosPartosCount = useMemo(() => {
     const hoy = new Date();
-    const dentroDe30Dias = new Date();
-    dentroDe30Dias.setDate(hoy.getDate() + 30);
+    let contador = 0;
 
-    return animales.filter((a) => {
-      if (!a.fechaInseminacion) return false;
-      const fechaBase = parseISO(a.fechaInseminacion);
-      if (!fechaBase) return false;
+    animales.forEach((a) => {
+      if (!APLICA_SERVICIO.includes(a.tipo)) return;
 
-      // Estimación estándar a 280 días
-      const fechaPartoEstimada = new Date(fechaBase);
-      fechaPartoEstimada.setDate(fechaPartoEstimada.getDate() + 280);
+      const yaParida =
+        (a.paricion && a.paricion.fecha) ||
+        (Array.isArray(a.historialCrias) && a.historialCrias.length > 0);
+      if (yaParida) return;
 
-      return fechaPartoEstimada >= hoy && fechaPartoEstimada <= dentroDe30Dias;
-    }).length;
+      const ultimoServicio =
+        Array.isArray(a.historialServicios) && a.historialServicios.length > 0
+          ? a.historialServicios[a.historialServicios.length - 1]
+          : a.servicio || null;
+
+      const fechaUltimoServicio = ultimoServicio?.inseminacion?.fecha || ultimoServicio?.toro?.fecha || null;
+      if (!fechaUltimoServicio) return;
+
+      const inicioVentana = sumarDiasISO(fechaUltimoServicio, 260);
+      const finVentana = sumarDiasISO(fechaUltimoServicio, 300);
+      if (!inicioVentana || !finVentana) return;
+
+      const diasHastaInicio = diasEntre(inicioVentana, hoy);
+      const diasHastaFin = diasEntre(finVentana, hoy);
+      if (diasHastaInicio === null || diasHastaFin === null) return;
+
+      // Cuenta si el parto probable arranca dentro de los próximos 30 días,
+      // o si ya está dentro de la ventana probable y todavía no parió.
+      if (diasHastaInicio <= 30 && diasHastaFin >= 0) {
+        contador += 1;
+      }
+    });
+
+    return contador;
   }, [animales]);
 
   // Conteo por categoría (Vaca, Toro, etc.)
