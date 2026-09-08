@@ -5062,7 +5062,7 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
       {/* 1. NIVEL SUPERIOR: MADRE Y PADRE */}
       <div style={{ display: "flex", gap: 16, justifyContent: "center", width: "100%", maxWidth: 420 }}>
 
-        {/* CAJA MADRE */}
+                {/* CAJA MADRE */}
         <div
           onClick={() => madreFicha && onVerFicha && onVerFicha(madreFicha)}
           style={{
@@ -5081,6 +5081,22 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
           <div style={{ fontSize: 14, fontWeight: 700, color: caravanaMadre ? "#0277BD" : "#B0B9C2" }}>
             {caravanaMadre ? `N° ${caravanaMadre}` : "Agregar"}
           </div>
+          {madreFicha?.fallecimiento?.fecha && (
+            <div
+              style={{
+                marginTop: 4,
+                fontSize: 10,
+                fontWeight: 700,
+                color: "#fff",
+                background: "var(--terracota)",
+                padding: "2px 8px",
+                borderRadius: 999,
+                display: "inline-block",
+              }}
+            >
+              ✝ Falleció
+            </div>
+          )}
         </div>
 
         {/* CAJA PADRE */}
@@ -5151,6 +5167,11 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
             const fichaCria = leerAnimalPorCaravana(cria.caravana);
             // Obtenemos el nombre del padre desde la ficha individual de la cría o desde su registro directo
             const padreCria = fichaCria?.nombrePadre || cria.padre || cria.nombrePadre;
+            // El fallecimiento puede haberse cargado en el historial de la madre (cria.fallecida)
+            // o directamente en la ficha propia del animal (checkbox "Este animal falleció").
+            // Se chequean las dos fuentes para no perder el dato.
+            const criaFallecio = Boolean(cria.fallecida) || Boolean(fichaCria?.fallecimiento?.fecha);
+            const fechaFallecimientoCriaMostrar = cria.fechaFallecimiento || fichaCria?.fallecimiento?.fecha || null;
 
             return (
               <div
@@ -5165,10 +5186,10 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
                   cursor: fichaCria ? "pointer" : "default",
                 }}
               >
-                {/* Caravana de la Cría */}
+              {/* Caravana de la Cría */}
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#637381" }}>
                   🐄 N° {cria.caravana || "Sin caravana"}
-                  {cria.fallecida && (
+                  {criaFallecio && (
                     <span
                       style={{
                         marginLeft: 6,
@@ -5197,11 +5218,11 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
                   </div>
                 )}
 
-                {/* Fecha de Fallecimiento (si aplica) */}
-                {cria.fallecida && (
+              {/* Fecha de Fallecimiento (si aplica) */}
+                {criaFallecio && (
                   <div style={{ fontSize: 10.5, color: "var(--terracota)", fontWeight: 700, marginTop: 2 }}>
-                    ✝ Falleció: {cria.fechaFallecimiento
-                      ? formatearFechaDDMMYYYY(parseISO(cria.fechaFallecimiento))
+                    ✝ Falleció: {fechaFallecimientoCriaMostrar
+                      ? formatearFechaDDMMYYYY(parseISO(fechaFallecimientoCriaMostrar))
                       : "sin fecha"}
                   </div>
                 )}
