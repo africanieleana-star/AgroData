@@ -481,6 +481,58 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [caravanaFormularioRecria, setCaravanaFormularioRecria] = useState(null);
   const [menuAbierto, setMenuAbierto] = useState(false);
 
+    // ============================================================
+  // Integración con el botón "Atrás" del navegador / celular
+  // ============================================================
+  // Sin esto, cada cambio de "pantalla" es invisible para el navegador,
+  // así que apretar "atrás" te saca directo de la app. Acá le avisamos
+  // al navegador de cada cambio (pushState) y, cuando aprieta "atrás",
+  // volvemos a la pantalla anterior en vez de salir (popstate).
+  const evitarPushHistorial = useRef(true); // true en el primer render, para no duplicar el estado inicial
+
+  useEffect(() => {
+    // Dejamos "inicio" como el primer paso guardado en el historial
+    window.history.replaceState({ pantalla: "inicio" }, "");
+
+    const alApretarAtras = (evento) => {
+      evitarPushHistorial.current = true; // este cambio no hay que re-empujarlo al historial
+      const estadoGuardado = evento.state || { pantalla: "inicio" };
+
+      setPantalla(estadoGuardado.pantalla || "inicio");
+
+      if (estadoGuardado.pantalla === "resumen" && estadoGuardado.fichaCaravana) {
+        const f = leerAnimalPorCaravana(estadoGuardado.fichaCaravana);
+        setFichaEnResumen(f || null);
+        setOrigenResumen(estadoGuardado.origenResumen || "listado");
+      } else {
+        setFichaEnResumen(null);
+      }
+
+      if (estadoGuardado.pantalla === "formulario-recria" && estadoGuardado.caravanaFormularioRecria) {
+        setCaravanaFormularioRecria(estadoGuardado.caravanaFormularioRecria);
+      }
+    };
+
+    window.addEventListener("popstate", alApretarAtras);
+    return () => window.removeEventListener("popstate", alApretarAtras);
+  }, []);
+
+  useEffect(() => {
+    if (evitarPushHistorial.current) {
+      evitarPushHistorial.current = false;
+      return;
+    }
+    window.history.pushState(
+      {
+        pantalla,
+        fichaCaravana: fichaEnResumen ? fichaEnResumen.caravana : null,
+        origenResumen,
+        caravanaFormularioRecria,
+      },
+      ""
+    );
+  }, [pantalla, fichaEnResumen, origenResumen, caravanaFormularioRecria]);
+
   // --- Búsqueda ---
   const [caravanaBusqueda, setCaravanaBusqueda] = useState("");
   const [buscando, setBuscando] = useState(false);
