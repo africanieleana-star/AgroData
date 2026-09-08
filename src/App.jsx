@@ -4253,7 +4253,6 @@ function PantallaResumen({ ficha, onVolver, onEditar }) {
           <div style={{ fontSize: 11, color: "#8A7A63", fontWeight: 600 }}>Madre</div>
           <div style={{ fontSize: 13.5, color: "var(--marron-oscuro)", fontWeight: 700, marginTop: 2 }}>
             {ficha.caravanaMadre || ficha.cria?.caravanaMadre || "Sin registrar"}
-          </div>
         </div>
         </div>
       </div>
