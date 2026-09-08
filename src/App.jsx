@@ -5737,13 +5737,22 @@ function PantallaFormulario({
               🐂 Servicio con Toro / Repaso
             </span>
 
-            <CampoTexto
+                        <CampoTexto
               id="fecha-servicio-toro"
               etiqueta="Fecha de Servicio"
               tipo="date"
               valor={fechaToro}
               onChange={setFechaToro}
             />
+
+            {fechaToro.trim() && (
+              <PanelCalculosToro
+                calculos={{
+                  partoDesde: formatearFechaDDMMYYYY(sumarDiasISO(fechaToro.trim(), 260)),
+                  partoHasta: formatearFechaDDMMYYYY(sumarDiasISO(fechaToro.trim(), 300)),
+                }}
+              />
+            )}
 
             <label
               style={{
@@ -7010,6 +7019,45 @@ function CampoTexto({ id, etiqueta, tipo = "text", valor, onChange, placeholder 
           color: "var(--marron-oscuro)",
         }}
       />
+    </div>
+  );
+}
+
+function PanelCalculosToro({ calculos }) {
+  return (
+    <div
+      style={{
+        background: "#EFEBDD",
+        border: "1px dashed var(--verde-salvia)",
+        borderRadius: 10,
+        padding: "12px 14px",
+        marginBottom: 14,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+        <CalendarClock size={15} color="var(--verde-monte)" />
+        <span
+          style={{
+            fontSize: 11.5,
+            fontWeight: 700,
+            color: "var(--verde-monte)",
+            textTransform: "uppercase",
+            letterSpacing: 0.4,
+          }}
+        >
+          Calculado automáticamente
+        </span>
+      </div>
+
+      <FilaCalculo
+        etiqueta="Parto probable"
+        valor={`${calculos.partoDesde} — ${calculos.partoHasta}`}
+        detalle="probable"
+      />
+
+      <p style={{ fontSize: 10.5, color: "#7A6C55", margin: "8px 0 0", lineHeight: 1.35 }}>
+        Estimado en base a la fecha de servicio con toro. No reemplaza el diagnóstico de un veterinario.
+      </p>
     </div>
   );
 }
