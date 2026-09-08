@@ -5671,11 +5671,15 @@ function PantallaFormulario({
                       };
                     }
 
-                    if (hayToro) {
+                                       if (hayToro) {
                       nuevoRegistro.toro = {
                         fecha: fechaToro,
                         nombre: typeof nombreToro !== "undefined" ? nombreToro : "",
-                        esRepasoToro: typeof esRepasoToro !== "undefined" ? esRepasoToro : false
+                        esRepasoToro: typeof esRepasoToro !== "undefined" ? esRepasoToro : false,
+                        calculos: {
+                          partoDesde: sumarDias(fechaToro, 260),
+                          partoHasta: sumarDias(fechaToro, 300),
+                        },
                       };
                     }
 
@@ -5851,11 +5855,21 @@ function PantallaFormulario({
                       };
                     }
 
-                    if (hayToro) {
+                                        if (hayToro) {
+                      const fTemp = new Date(fechaToro + "T00:00:00");
+                      const sumarDiasLocal = (dias) => {
+                        const f = new Date(fTemp);
+                        f.setDate(f.getDate() + dias);
+                        return f.toLocaleDateString("es-AR");
+                      };
                       nuevoRegistro.toro = {
                         fecha: fechaToro,
                         nombre: typeof nombreToro !== "undefined" ? nombreToro : "",
-                        esRepasoToro: typeof esRepasoToro !== "undefined" ? esRepasoToro : false
+                        esRepasoToro: typeof esRepasoToro !== "undefined" ? esRepasoToro : false,
+                        calculos: {
+                          partoDesde: sumarDiasLocal(260),
+                          partoHasta: sumarDiasLocal(300),
+                        },
                       };
                     }
 
