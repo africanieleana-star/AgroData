@@ -465,8 +465,24 @@ const ESTILOS_GLOBALES = `
       display: none;
     }
   }
-`;
 
+  /* ======================================================== */
+  /* 3. AJUSTES DEL HEADER PARA CELULARES ANGOSTOS             */
+  /* ======================================================== */
+  @media (max-width: 480px) {
+    .header-fecha-hora,
+    .header-separador {
+      display: none;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .header-cerrar-sesion {
+      padding: 6px 8px !important;
+      font-size: 10px !important;
+    }
+  }
+`;
 export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [pantalla, setPantalla] = useState("inicio"); // "inicio" | "buscar" | "formulario" | "guardado" | "listado" | "resumen" | "alertas"
   // Estado para la fecha y hora actual
@@ -1489,10 +1505,10 @@ const irAIngresar = () => {
                   </h1>
                 </button>
 
-                {/* LÍNEA SEPARADORA Y FECHA/HORA */}
-                <div style={{ width: "1px", height: "22px", background: "rgba(251, 247, 237, 0.3)", margin: "0 2px", flexShrink: 0 }} />
+                {/* LÍNEA SEPARADORA Y FECHA/HORA (se ocultan en celulares muy angostos) */}
+                <div className="header-separador" style={{ width: "1px", height: "22px", background: "rgba(251, 247, 237, 0.3)", margin: "0 2px", flexShrink: 0 }} />
 
-                <div style={{ color: "#FBF7ED", fontSize: 11, lineHeight: 1.1, fontWeight: 500, flexShrink: 0 }}>
+                <div className="header-fecha-hora" style={{ color: "#FBF7ED", fontSize: 11, lineHeight: 1.1, fontWeight: 500, flexShrink: 0 }}>
                   <div style={{ textTransform: "capitalize" }}>
                     {fechaHora.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "short" })}
                   </div>
@@ -1503,10 +1519,21 @@ const irAIngresar = () => {
               </div>
 
                            {/* Lado derecho: Bienvenida + Cerrar sesión */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                 {userEmail && (
-                  <span style={{ color: "#FBF7ED", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
-                    Hola, {capitalizar(userEmail.split("@")[0])}                  
+                  <span
+                    className="header-saludo"
+                    style={{
+                      color: "#FBF7ED",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      maxWidth: 110,
+                    }}
+                  >
+                    Hola, {capitalizar(userEmail.split("@")[0])}
                   </span>
                 )}
                 {onCerrarSesion && (
@@ -1514,6 +1541,7 @@ const irAIngresar = () => {
                     type="button"
                     onClick={onCerrarSesion}
                     title={userEmail ? `Salir de ${userEmail}` : "Cerrar sesión"}
+                    className="header-cerrar-sesion"
                     style={{
                       background: "rgba(0,0,0,0.15)",
                       border: "1px solid rgba(251,247,237,0.4)",
