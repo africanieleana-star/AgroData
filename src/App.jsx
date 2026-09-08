@@ -493,6 +493,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [fichaOriginal, setFichaOriginal] = useState(null);
   const [tipo, setTipo] = useState(null);
   const [raza, setRaza] = useState("");
+  const [color, setColor] = useState("");
   const [fechaNacimiento, setFechaNacimiento] = useState("");
   const [caravanaMadreManual, setCaravanaMadreManual] = useState("");
   const [nombrePadreManual, setNombrePadreManual] = useState("");
@@ -686,6 +687,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setFichaOriginal(null);
     setTipo(null);
     setRaza("");
+    setColor("");
     setFechaNacimiento("");
     setCaravanaMadreManual("");
     setNombrePadreManual("");
@@ -754,6 +756,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setFichaOriginal(f);
     setTipo(f.tipo || null);
     setRaza(f.raza || "");
+    setColor(f.color || "");
     setFechaNacimiento(f.fechaNacimiento || f.cria?.fechaNacimiento || "");
     setCaravanaMadreManual(f.caravanaMadre || f.cria?.caravanaMadre || "");
     setNombrePadreManual(f.nombrePadre || f.cria?.nombrePadre || "");
@@ -912,6 +915,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setFichaOriginal(null);
     setTipo(null);
     setRaza("");
+    setColor("");
     setFechaNacimiento("");
     setObservacionesAnimal("");
     setPesoDestete205("");
@@ -1111,10 +1115,11 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
           : [...historialCriasActualizado, nuevaCria];
       }
 
-      const ficha = {
+        const ficha = {
         caravana,
         tipo,
         raza: raza.trim() || null,
+        color: color.trim() || null,
         fechaNacimiento: fechaNacimiento || null,
         caravanaMadre: caravanaMadreManual.trim() || null,
         nombrePadre: nombrePadreManual.trim() || null,
@@ -1259,12 +1264,13 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
       console.error("Error al guardar:", e);
       setEstado("error");
     }
-  }, [
+    }, [
     listoParaGuardar,
     caravana,
     modo,
     tipo,
     raza,
+    color,
     fechaNacimiento,
     caravanaMadreManual,
     nombrePadreManual,
@@ -1553,6 +1559,8 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
                 tipo={tipo}
                 raza={raza}
                 setRaza={setRaza}
+                color={color}
+                setColor={setColor}
                 fechaNacimiento={fechaNacimiento}
                 setFechaNacimiento={setFechaNacimiento}
                 caravanaMadreManual={caravanaMadreManual}
@@ -5219,6 +5227,8 @@ function PantallaFormulario({
   setTipo,
   raza,
   setRaza,
+  color,
+  setColor,
   fechaNacimiento,
   setFechaNacimiento,
   caravanaMadreManual,
@@ -5413,6 +5423,15 @@ function PantallaFormulario({
           placeholder="Ej: Angus"
           valor={raza}
           onChange={setRaza}
+        />
+
+        <CampoTexto
+          id="color-pelaje"
+          etiqueta="Color de pelaje"
+          tipo="text"
+          placeholder="Ej: Negro, Colorado"
+          valor={color}
+          onChange={setColor}
         />
 
         <CampoTexto
