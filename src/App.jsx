@@ -5401,6 +5401,10 @@ function PantallaFormulario({
         Categoría <span style={{ color: "var(--terracota)" }}>*</span>
       </h3>
 
+      <p style={{ fontSize: 11.5, color: "#8A7A63", fontStyle: "italic", margin: "0 0 10px" }}>
+        💡 Recordá actualizar la categoría a medida que el animal crece (por ejemplo, de Ternera a Vaquillona, o de Ternero a Novillo).
+      </p>
+
       <div
         style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 24 }}
         role="radiogroup"
