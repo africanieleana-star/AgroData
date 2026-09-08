@@ -2695,12 +2695,14 @@ function normalizarResultadoTactoExcel(valor) {
   return null;
 }
 
-// Acepta "Hembra"/"Macho" en cualquier mayúscula/minúscula.
+// Acepta "Hembra"/"Macho" o "Ternera"/"Ternero", en cualquier
+// mayúscula/minúscula, y siempre devuelve "Hembra" o "Macho" (que es
+// el formato interno que usa el resto de la app).
 function normalizarTipoCriaExcel(valor) {
   if (!valor) return null;
   const texto = normalizarTexto(String(valor));
-  if (texto.includes("hembra")) return "Hembra";
-  if (texto.includes("macho")) return "Macho";
+  if (texto.includes("hembra") || texto.includes("ternera")) return "Hembra";
+  if (texto.includes("macho") || texto.includes("ternero")) return "Macho";
   return null;
 }
 
