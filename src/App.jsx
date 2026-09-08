@@ -2635,6 +2635,17 @@ function normalizarTipoExcel(valor) {
 // Excel (números de serie), y las devuelve siempre como AAAA-MM-DD.
 function normalizarFechaExcel(valor) {
   if (!valor) return null;
+
+  // Caso 1: Excel la reconoció como fecha real (lo más común y lo más confiable)
+  if (valor instanceof Date) {
+    if (isNaN(valor.getTime())) return null;
+    const yyyy = valor.getFullYear();
+    const mm = String(valor.getMonth() + 1).padStart(2, "0");
+    const dd = String(valor.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  // Caso 2: número de serie de Excel (por si llega sin convertir)
   if (typeof valor === "number") {
     const fecha = XLSX.SSF.parse_date_code(valor);
     if (!fecha) return null;
@@ -2642,6 +2653,8 @@ function normalizarFechaExcel(valor) {
     const dd = String(fecha.d).padStart(2, "0");
     return `${fecha.y}-${mm}-${dd}`;
   }
+
+  // Caso 3: texto escrito a mano (DD/MM/AAAA o AAAA-MM-DD)
   const texto = String(valor).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) return texto;
   const match = texto.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
@@ -2685,10 +2698,9 @@ function importarAnimalesDesdeExcel(archivo) {
     lector.onload = (e) => {
       try {
         const datos = new Uint8Array(e.target.result);
-        const libro = XLSX.read(datos, { type: "array", cellText: true });
+        const libro = XLSX.read(datos, { type: "array", cellDates: true });
         const primeraHoja = libro.Sheets[libro.SheetNames[0]];
-        const filas = XLSX.utils.sheet_to_json(primeraHoja, { defval: "", raw: false });
-
+        const filas = XLSX.utils.sheet_to_json(primeraHoja, { defval: "" });
         const resumen = { creados: 0, actualizados: 0, omitidos: 0, errores: [] };
 
         filas.forEach((fila, indice) => {
