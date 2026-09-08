@@ -1228,10 +1228,11 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
             }
 
             // 3. Creación de la ficha de la cría con los datos correctos
-            const fichaCria = {
+              const fichaCria = {
               caravana: paricion.caravanaCria,
               tipo: paricion.tipoCria === "Macho" ? "Ternero" : paricion.tipoCria === "Hembra" ? "Ternera" : null,
               raza: raza.trim() || null,
+              color: colorCria.trim() || null,
               fechaNacimiento: fechaNacimiento || null,
               observacionesAnimal: observacionesAnimal.trim() || null,
               esCria: true,
@@ -6601,9 +6602,10 @@ function PantallaFormulario({
                         // historial de crías de la madre (no se crea ficha aparte).
                         if (caravanaCria.trim()) {
                           const claveCria = `animal:${caravanaCria.trim()}`;
-                          const fichaCria = {
+                            const fichaCria = {
                             caravana: caravanaCria.trim(),
                             tipo: tipoCria === "Macho" ? "Ternero" : "Ternera",
+                            color: colorCria.trim() || null,
                             esCria: true,
                             fechaAlta: new Date().toISOString().slice(0, 10),
                             fechaModificacion: null,
