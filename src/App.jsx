@@ -31,6 +31,8 @@ import SyncStatus from "./SyncStatus";
 import BackupPanel from "./BackupPanel";
 
 import * as XLSX from "xlsx";
+import { db } from "src/firebase";
+import { doc, setDoc } from "firebase/firestore";
 
 const TIPOS = [
   { valor: "Vaca" },
@@ -2968,7 +2970,7 @@ function normalizarTipoCriaExcel(valor) {
 function importarAnimalesDesdeExcel(archivo, sobrescribirTodos) {
   return new Promise((resolve, reject) => {
     const lector = new FileReader();
-    lector.onload = (e) => {
+    lector.onload = async (e) => {
       try {
         const datos = new Uint8Array(e.target.result);
         const libro = XLSX.read(datos, { type: "array", cellDates: true });
@@ -2977,7 +2979,7 @@ function importarAnimalesDesdeExcel(archivo, sobrescribirTodos) {
 
         const resumen = { creados: 0, actualizados: 0, omitidos: 0, errores: [] };
 
-        filas.forEach((fila, indice) => {
+        for (const [indice, fila] of filas.entries()) {
           const numeroFila = indice + 2; // +2: la fila 1 del Excel es el encabezado
 
           const caravana = String(fila.caravana || fila.Caravana || "").trim();
@@ -3149,9 +3151,9 @@ function importarAnimalesDesdeExcel(archivo, sobrescribirTodos) {
             recria: existente?.recria || null,
           };
 
-          localStorage.setItem(`animal:${caravana}`, JSON.stringify(ficha));
+          await setDoc(doc(db, "animales", caravana), ficha);
           existente ? (resumen.actualizados += 1) : (resumen.creados += 1);
-        });
+        }
 
         emitirActualizacionDatos();
         resolve(resumen);
@@ -7245,8 +7247,7 @@ function PantallaFormulario({
                               observaciones: observacionesCria ? observacionesCria.trim() : null,
                             },
                           };
-                          localStorage.setItem(claveCria, JSON.stringify(fichaCria));
-                        }
+                          await setDoc(doc(db, "animales", caravanaCriaExcel), fichaCria);                        }
 
                         if (typeof setHistorialCrias === "function") {
                           setHistorialCrias(historialCriasActualizado);
