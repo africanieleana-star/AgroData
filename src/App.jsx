@@ -497,63 +497,41 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
 
 useEffect(() => {
   const sincronizarDatosOffline = async () => {
-    // Si no hay red o no hay usuario autenticado, no se ejecuta
     if (!navigator.onLine || !auth.currentUser) return;
 
     try {
       const user = auth.currentUser;
-      const clavesAEliminar = [];
 
       for (let i = 0; i < localStorage.length; i++) {
         const clave = localStorage.key(i);
+
         if (clave && clave.startsWith("animal:")) {
           const raw = localStorage.getItem(clave);
           if (raw) {
             const animal = JSON.parse(raw);
+
             if (animal && animal.caravana) {
-              // 1. Envía el animal pendiente a Firestore
               await setDoc(
                 doc(db, "usuarios", user.uid, "animales", String(animal.caravana).trim()),
                 animal,
                 { merge: true }
               );
-              // 2. Guarda la clave para limpiarla del teléfono una vez subida
-              clavesAEliminar.push(clave);
             }
           }
         }
       }
-
-      // 3. Limpia las copias temporales sincronizadas
-      clavesAEliminar.forEach((clave) => localStorage.removeItem(clave));
-
-      if (clavesAEliminar.length > 0) {
-        console.log("✅ Datos cargados offline sincronizados con éxito en Firebase.");
-        // Refresca la vista si existe la función de actualización
-        if (typeof emitirActualizacionDatos === "function") {
-          emitirActualizacionDatos();
-        }
-      }
+      console.log("✅ Datos cargados offline sincronizados con éxito en Firebase.");
     } catch (e) {
       console.error("Error al sincronizar datos offline:", e);
     }
   };
 
-  // Se ejecuta al conectarse a internet
   window.addEventListener("online", sincronizarDatosOffline);
+  sincronizarDatosOffline();
 
-  // Se ejecuta cuando Firebase confirma que el usuario inició sesión
-  const unsubscribeAuth = auth.onAuthStateChanged((user) => {
-    if (user) {
-      sincronizarDatosOffline();
-    }
-  });
-
-  return () => {
-    window.removeEventListener("online", sincronizarDatosOffline);
-    unsubscribeAuth();
-  };
+  return () => window.removeEventListener("online", sincronizarDatosOffline);
 }, []);
+
   useEffect(() => {
     const timer = setInterval(() => setFechaHora(new Date()), 1000);
     return () => clearInterval(timer);
