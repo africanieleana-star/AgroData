@@ -38,7 +38,7 @@ import { auth, db } from "./firebase";
 const TIPOS = [
   { valor: "Vaca" },
   { valor: "Vaquillona" },
-  { valor: "Toro", },
+  { valor: "Toro" },
   { valor: "Novillo" },
   { valor: "Ternera" },
   { valor: "Ternero" },
