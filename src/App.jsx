@@ -28,6 +28,7 @@ import {
 } from "recharts";
 
 import SyncStatus from "./SyncStatus";
+import BackupPanel from "./BackupPanel";
 
 import * as XLSX from "xlsx";
 
@@ -1419,6 +1420,7 @@ const irAIngresar = () => {
       <style>{ESTILOS_GLOBALES}</style>
       <Toast toast={toast} />
       <SyncStatus />
+      <BackupPanel />
       <ChatBot />
       <Analytics />
 
