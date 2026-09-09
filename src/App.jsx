@@ -98,8 +98,7 @@ function leerRegistrosSanidad() {
   try {
     const guardadas = JSON.parse(localStorage.getItem("tareas_manuales") || "[]");
     return guardadas.filter((t) => t.texto && t.texto.includes("💉 Sanidad:"));
-  }}
-  catch (e) {
+  } catch (e) {
     return [];
   }
 }
@@ -7304,7 +7303,7 @@ function PantallaFormulario({
                             ? `✅ Cría N° ${nuevaCria.caravana} agregada al historial correctamente.`
                             : `✅ Se anotó en el historial la cría fallecida (sin caravana) del ${formatearFechaDDMMYYYY(parseISO(fechaParicion))}.`
                         );
-                      } 
+                      }}
                     
                         catch (e) {
                         console.error(e);
