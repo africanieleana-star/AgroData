@@ -495,42 +495,42 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   // Estado para la fecha y hora actual
   const [fechaHora, setFechaHora] = useState(new Date());
 
-  useEffect(() => {
-    const sincronizarDatosOffline = async () => {
-      if (!navigator.onLine || !auth.currentUser) return;
+useEffect(() => {
+  const sincronizarDatosOffline = async () => {
+    if (!navigator.onLine || !auth.currentUser) return;
 
-      try {
-        const user = auth.currentUser;
+    try {
+      const user = auth.currentUser;
 
-        for (let i = 0; i < localStorage.length; i++) {
-          const clave = localStorage.key(i);
+      for (let i = 0; i < localStorage.length; i++) {
+        const clave = localStorage.key(i);
 
-          if (clave && clave.startsWith("animal:")) {
-            const raw = localStorage.getItem(clave);
-            if (raw) {
-              const animal = JSON.parse(raw);
+        if (clave && clave.startsWith("animal:")) {
+          const raw = localStorage.getItem(clave);
+          if (raw) {
+            const animal = JSON.parse(raw);
 
-              if (animal && animal.caravana) {
-                await setDoc(
-                  doc(db, "usuarios", user.uid, "animales", String(animal.caravana).trim()),
-                  animal,
-                  { merge: true }
-                );
-              }
+            if (animal && animal.caravana) {
+              await setDoc(
+                doc(db, "usuarios", user.uid, "animales", String(animal.caravana).trim()),
+                animal,
+                { merge: true }
+              );
             }
           }
         }
-        console.log("✅ Datos cargados offline sincronizados con éxito en Firebase.");
-      } catch (e) {
-        console.error("Error al sincronizar datos offline:", e);
       }
-    };
+      console.log("✅ Datos cargados offline sincronizados con éxito en Firebase.");
+    } catch (e) {
+      console.error("Error al sincronizar datos offline:", e);
+    }
+  };
 
-    window.addEventListener("online", sincronizarDatosOffline);
-    sincronizarDatosOffline();
+  window.addEventListener("online", sincronizarDatosOffline);
+  sincronizarDatosOffline();
 
-    return () => window.removeEventListener("online", sincronizarDatosOffline);
-  }, []);
+  return () => window.removeEventListener("online", sincronizarDatosOffline);
+}, []);
 
   useEffect(() => {
     const timer = setInterval(() => setFechaHora(new Date()), 1000);
@@ -7303,7 +7303,9 @@ function PantallaFormulario({
                             ? `✅ Cría N° ${nuevaCria.caravana} agregada al historial correctamente.`
                             : `✅ Se anotó en el historial la cría fallecida (sin caravana) del ${formatearFechaDDMMYYYY(parseISO(fechaParicion))}.`
                         );
-                      } catch (e) {
+                      } 
+                    
+                        catch (e) {
                         console.error(e);
                         alert("Ocurrió un error al agregar la cría al historial.");
                       }
