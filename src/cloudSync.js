@@ -137,12 +137,12 @@ async function limpiarBackupsViejos() {
 async function subirAhora() {
   if (!uidActual) return false;
 
-  if (typeof navigator !== "undefined" && navigator.onLine === false) {
-    fijarEstado("sin_conexion");
-    return false;
-  }
+  fijarEstado(
+    typeof navigator !== "undefined" && navigator.onLine === false
+      ? "sin_conexion"
+      : "guardando"
+  );
 
-  fijarEstado("guardando");
   try {
     const datos = leerTodoLocalStorage();
     await setDoc(doc(db, "usuarios", uidActual), {
