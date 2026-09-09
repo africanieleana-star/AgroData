@@ -45,10 +45,26 @@ export default function Root() {
     return () => desuscribir();
   }, []);
 
+  // Antes de cerrar sesión, espera (o fuerza) la confirmación de que el
+  // último cambio ya se guardó en la nube. Si no se pudo confirmar (por
+  // ejemplo, sin internet), avisa antes de arriesgarse a perder datos.
+  const manejarCerrarSesion = async () => {
+    const resultado = await detenerSincronizacion();
+    if (!resultado.exito) {
+      const seguir = window.confirm(
+        "No se pudo confirmar que tus últimos cambios se guardaron en la nube " +
+        "(¿estás sin internet?). Si cerrás sesión igual, podrías perder lo último " +
+        "que cargaste. ¿Cerrar sesión de todas formas?"
+      );
+      if (!seguir) return;
+    }
+    await signOut(auth);
+  };
+
   if (estado === "cargando") return <Cargando />;
   if (estado === "sin-sesion") return <Auth />;
 
   return (
-    <App userEmail={usuario?.email} onCerrarSesion={() => signOut(auth)} />
+    <App userEmail={usuario?.email} onCerrarSesion={manejarCerrarSesion} />
   );
 }
