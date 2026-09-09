@@ -295,6 +295,34 @@ export async function listarBackups() {
 }
 
 /**
+ * Devuelve los datos actuales de la app (los que hay ahora mismo en este
+ * dispositivo), sin las claves reservadas de Firebase. Sirve para ofrecer
+ * una descarga de respaldo real en la propia PC del usuario.
+ */
+export function obtenerDatosActuales() {
+  return leerTodoLocalStorage();
+}
+
+/**
+ * Devuelve los datos guardados en un backup puntual, SIN aplicarlos al
+ * dispositivo (a diferencia de restaurarBackup). Sirve para poder
+ * descargar cualquier copia vieja como archivo, sin tener que restaurarla
+ * primero.
+ */
+export async function obtenerDatosDeBackup(fecha) {
+  if (!uidActual) return null;
+  try {
+    const refBackup = doc(db, "usuarios", uidActual, "backups", fecha);
+    const snapshot = await getDoc(refBackup);
+    if (!snapshot.exists()) return null;
+    return snapshot.data().datos;
+  } catch (e) {
+    console.error("No se pudo obtener el backup para descargar:", e);
+    return null;
+  }
+}
+
+/**
  * Restaura el dispositivo actual a como estaban los datos en la fecha
  * indicada (formato "AAAA-MM-DD", el mismo id que devuelve listarBackups).
  * No toca la sesión de Firebase. Después de restaurar, sube esta versión

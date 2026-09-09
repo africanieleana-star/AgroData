@@ -1,5 +1,29 @@
 import React, { useState } from "react";
-import { listarBackups, restaurarBackup } from "./cloudSync";
+import { listarBackups, restaurarBackup, obtenerDatosActuales, obtenerDatosDeBackup } from "./cloudSync";
+
+// Arma y dispara la descarga de un archivo .json en la PC del usuario,
+// con los datos ya "desempaquetados" (cada ficha como objeto legible,
+// no como texto crudo) para que el archivo se pueda abrir y leer fácil.
+function descargarComoJSON(datos, nombreArchivo) {
+  const legible = {};
+  Object.keys(datos || {}).forEach((clave) => {
+    try {
+      legible[clave] = JSON.parse(datos[clave]);
+    } catch (e) {
+      legible[clave] = datos[clave]; // si no era JSON, se deja tal cual
+    }
+  });
+
+  const blob = new Blob([JSON.stringify(legible, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombreArchivo;
+  document.body.appendChild(enlace);
+  enlace.click();
+  document.body.removeChild(enlace);
+  URL.revokeObjectURL(url);
+}
 
 // Muestra la fecha AAAA-MM-DD en formato DD/MM/AAAA, más fácil de leer.
 function formatearFecha(fechaISO) {
@@ -7,12 +31,16 @@ function formatearFecha(fechaISO) {
   return `${dia}/${mes}/${anio}`;
 }
 
-function esHoy(fechaISO) {
+function fechaDeHoyISO() {
   const hoy = new Date();
   const yyyy = hoy.getFullYear();
   const mm = String(hoy.getMonth() + 1).padStart(2, "0");
   const dd = String(hoy.getDate()).padStart(2, "0");
-  return fechaISO === `${yyyy}-${mm}-${dd}`;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function esHoy(fechaISO) {
+  return fechaISO === fechaDeHoyISO();
 }
 
 // Botón flotante + ventana modal para ver y restaurar copias de seguridad
@@ -23,7 +51,25 @@ export default function BackupPanel() {
   const [cargando, setCargando] = useState(false);
   const [backups, setBackups] = useState([]);
   const [restaurandoFecha, setRestaurandoFecha] = useState(null);
+  const [descargandoFecha, setDescargandoFecha] = useState(null);
   const [mensaje, setMensaje] = useState(null);
+
+  const descargarActual = () => {
+    const datos = obtenerDatosActuales();
+    const hoy = fechaDeHoyISO();
+    descargarComoJSON(datos, `agrodata_respaldo_${hoy}.json`);
+  };
+
+  const descargarBackup = async (fecha) => {
+    setDescargandoFecha(fecha);
+    const datos = await obtenerDatosDeBackup(fecha);
+    if (datos) {
+      descargarComoJSON(datos, `agrodata_respaldo_${fecha}.json`);
+    } else {
+      setMensaje({ tipo: "error", texto: "⚠️ No se pudo descargar esa copia. Probá de nuevo." });
+    }
+    setDescargandoFecha(null);
+  };
 
   const abrirPanel = async () => {
     setAbierto(true);
@@ -138,10 +184,29 @@ export default function BackupPanel() {
                 ✕
               </button>
             </div>
-            <p style={{ fontSize: 12, color: "#8A7A63", margin: "0 0 16px", lineHeight: 1.4 }}>
+            <p style={{ fontSize: 12, color: "#8A7A63", margin: "0 0 14px", lineHeight: 1.4 }}>
               Se guarda una copia automática por día. Podés volver a cualquiera de los
               últimos 30 días si algo se cargó mal o se perdió.
             </p>
+
+            <button
+              type="button"
+              onClick={descargarActual}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1.5px solid var(--verde-monte, #3E4E2F)",
+                background: "#FFFDF8",
+                color: "var(--verde-monte, #3E4E2F)",
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: "pointer",
+                marginBottom: 16,
+              }}
+            >
+              ⬇️ Descargar todo lo que tengo cargado ahora (archivo .json)
+            </button>
 
             {mensaje && (
               <div
@@ -190,24 +255,45 @@ export default function BackupPanel() {
                         )}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => confirmarRestauracion(b.fecha)}
-                      disabled={restaurandoFecha === b.fecha}
-                      style={{
-                        padding: "7px 12px",
-                        borderRadius: 8,
-                        border: "none",
-                        background: "var(--marron-cuero, #8B5A2B)",
-                        color: "#FBF7ED",
-                        fontSize: 12,
-                        fontWeight: 700,
-                        cursor: restaurandoFecha === b.fecha ? "not-allowed" : "pointer",
-                        opacity: restaurandoFecha === b.fecha ? 0.6 : 1,
-                      }}
-                    >
-                      {restaurandoFecha === b.fecha ? "Restaurando..." : "Restaurar"}
-                    </button>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => descargarBackup(b.fecha)}
+                        disabled={descargandoFecha === b.fecha}
+                        title="Descargar esta copia (.json)"
+                        style={{
+                          padding: "7px 10px",
+                          borderRadius: 8,
+                          border: "1.5px solid var(--marron-cuero, #8B5A2B)",
+                          background: "#FFFDF8",
+                          color: "var(--marron-cuero-oscuro, #714823)",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: descargandoFecha === b.fecha ? "not-allowed" : "pointer",
+                          opacity: descargandoFecha === b.fecha ? 0.6 : 1,
+                        }}
+                      >
+                        {descargandoFecha === b.fecha ? "..." : "⬇️"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => confirmarRestauracion(b.fecha)}
+                        disabled={restaurandoFecha === b.fecha}
+                        style={{
+                          padding: "7px 12px",
+                          borderRadius: 8,
+                          border: "none",
+                          background: "var(--marron-cuero, #8B5A2B)",
+                          color: "#FBF7ED",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: restaurandoFecha === b.fecha ? "not-allowed" : "pointer",
+                          opacity: restaurandoFecha === b.fecha ? 0.6 : 1,
+                        }}
+                      >
+                        {restaurandoFecha === b.fecha ? "Restaurando..." : "Restaurar"}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
