@@ -9,10 +9,15 @@
 //  - Nunca toca las claves de sesión de Firebase Auth ("firebase:...").
 //  - Reintenta solo si falla la subida, y avisa si no se pudo confirmar.
 //  - El logout espera la confirmación antes de borrar el dispositivo.
-//  - NUEVO: además del documento "vivo", guarda una copia de cada día
-//    en usuarios/{uid}/backups/{AAAA-MM-DD}, para poder volver atrás si
-//    algo se corrompe o se borra por error. Se conservan los últimos 30
-//    días; los más viejos se eliminan solos.
+//  - Guarda una copia de cada día en usuarios/{uid}/backups/{AAAA-MM-DD},
+//    para poder volver atrás si algo se corrompe o se borra por error.
+//    Se conservan los últimos 30 días; los más viejos se eliminan solos.
+//  - NUEVO: cada operación contra el servidor tiene un tiempo máximo de
+//    espera (15 segundos). Si la red no contesta ni con éxito ni con
+//    error dentro de ese tiempo (por ejemplo, por un firewall o una red
+//    restringida que bloquea la conexión sin avisar), se lo trata como
+//    un error y se reintenta más tarde, en vez de quedarse mostrando
+//    "Guardando..." para siempre.
 // -----------------------------------------------------------------------
 
 import {
@@ -44,6 +49,28 @@ let intentosFallidos = 0;
 const ESPERAS_REINTENTO = [3000, 8000, 20000, 45000]; // 3s, 8s, 20s, 45s...
 
 const DIAS_DE_RETENCION_BACKUPS = 30;
+
+// Tiempo máximo que se espera una respuesta del servidor antes de darse
+// por vencido y tratarlo como un error (para poder reintentar en vez de
+// quedarse esperando para siempre).
+const TIEMPO_MAXIMO_ESPERA_MS = 15000; // 15 segundos
+
+// Envuelve cualquier operación contra Firestore para que, si no responde
+// dentro del tiempo máximo, se la considere fallida (en vez de quedarse
+// esperando indefinidamente). La operación original puede seguir
+// resolviéndose "en segundo plano" más tarde; simplemente dejamos de
+// esperarla acá.
+function conTiempoLimite(promesaOriginal, ms = TIEMPO_MAXIMO_ESPERA_MS) {
+  return Promise.race([
+    promesaOriginal,
+    new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Tiempo de espera agotado conectando con el servidor")),
+        ms
+      )
+    ),
+  ]);
+}
 
 // Claves que NUNCA hay que subir, borrar ni pisar: son internas de
 // Firebase (por ejemplo, la sesión de Firebase Auth).
@@ -112,7 +139,7 @@ async function actualizarBackupDeHoy(datos) {
   try {
     const fecha = fechaDeHoyISO();
     const refBackup = doc(db, "usuarios", uidActual, "backups", fecha);
-    await setDoc(refBackup, { datos, guardado: new Date().toISOString() });
+    await conTiempoLimite(setDoc(refBackup, { datos, guardado: new Date().toISOString() }));
     limpiarBackupsViejos(); // no bloqueante, no hace falta esperarlo
   } catch (e) {
     console.error("No se pudo actualizar el backup del día:", e);
@@ -126,7 +153,7 @@ async function limpiarBackupsViejos() {
   try {
     const refColeccion = collection(db, "usuarios", uidActual, "backups");
     const q = query(refColeccion, orderBy("guardado", "desc"));
-    const snapshot = await getDocs(q);
+    const snapshot = await conTiempoLimite(getDocs(q));
     const sobrantes = snapshot.docs.slice(DIAS_DE_RETENCION_BACKUPS);
     await Promise.all(sobrantes.map((d) => deleteDoc(d.ref)));
   } catch (e) {
@@ -145,10 +172,12 @@ async function subirAhora() {
 
   try {
     const datos = leerTodoLocalStorage();
-    await setDoc(doc(db, "usuarios", uidActual), {
-      datos,
-      actualizado: new Date().toISOString(),
-    });
+    await conTiempoLimite(
+      setDoc(doc(db, "usuarios", uidActual), {
+        datos,
+        actualizado: new Date().toISOString(),
+      })
+    );
     pendienteDeSubir = false;
     intentosFallidos = 0;
     fijarEstado("sincronizado");
@@ -226,7 +255,7 @@ export async function iniciarSincronizacion(uid) {
   fijarEstado("guardando");
   try {
     const referencia = doc(db, "usuarios", uid);
-    const snapshot = await getDoc(referencia);
+    const snapshot = await conTiempoLimite(getDoc(referencia));
 
     if (snapshot.exists() && snapshot.data().datos) {
       borrarSoloDatosDeApp();
@@ -236,10 +265,12 @@ export async function iniciarSincronizacion(uid) {
       });
     } else {
       const datosLocales = leerTodoLocalStorage();
-      await setDoc(referencia, {
-        datos: datosLocales,
-        actualizado: new Date().toISOString(),
-      });
+      await conTiempoLimite(
+        setDoc(referencia, {
+          datos: datosLocales,
+          actualizado: new Date().toISOString(),
+        })
+      );
     }
     fijarEstado("sincronizado");
   } catch (e) {
@@ -286,7 +317,7 @@ export async function listarBackups() {
   try {
     const refColeccion = collection(db, "usuarios", uidActual, "backups");
     const q = query(refColeccion, orderBy("guardado", "desc"), limitarConsulta(DIAS_DE_RETENCION_BACKUPS));
-    const snapshot = await getDocs(q);
+    const snapshot = await conTiempoLimite(getDocs(q));
     return snapshot.docs.map((d) => ({ fecha: d.id, guardado: d.data().guardado }));
   } catch (e) {
     console.error("No se pudieron listar los backups:", e);
@@ -313,7 +344,7 @@ export async function obtenerDatosDeBackup(fecha) {
   if (!uidActual) return null;
   try {
     const refBackup = doc(db, "usuarios", uidActual, "backups", fecha);
-    const snapshot = await getDoc(refBackup);
+    const snapshot = await conTiempoLimite(getDoc(refBackup));
     if (!snapshot.exists()) return null;
     return snapshot.data().datos;
   } catch (e) {
@@ -334,7 +365,7 @@ export async function restaurarBackup(fecha) {
   if (!uidActual) return { exito: false };
   try {
     const refBackup = doc(db, "usuarios", uidActual, "backups", fecha);
-    const snapshot = await getDoc(refBackup);
+    const snapshot = await conTiempoLimite(getDoc(refBackup));
     if (!snapshot.exists()) return { exito: false };
 
     const datosBackup = snapshot.data().datos;
