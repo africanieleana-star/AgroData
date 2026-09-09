@@ -27,6 +27,8 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, Legend,
 } from "recharts";
 
+import SyncStatus from "./SyncStatus";
+
 import * as XLSX from "xlsx";
 
 const TIPOS = [
@@ -1416,6 +1418,7 @@ const irAIngresar = () => {
     >
       <style>{ESTILOS_GLOBALES}</style>
       <Toast toast={toast} />
+      <SyncStatus />
       <ChatBot />
       <Analytics />
 
