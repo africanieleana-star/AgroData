@@ -70,8 +70,8 @@ export default function BackupPanel() {
         title="Copias de seguridad"
         style={{
           position: "fixed",
-          bottom: 16,
-          left: 190,
+          bottom: 58,
+          left: 16,
           zIndex: 250,
           display: "flex",
           alignItems: "center",
