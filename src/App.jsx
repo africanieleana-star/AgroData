@@ -98,7 +98,8 @@ function leerRegistrosSanidad() {
   try {
     const guardadas = JSON.parse(localStorage.getItem("tareas_manuales") || "[]");
     return guardadas.filter((t) => t.texto && t.texto.includes("💉 Sanidad:"));
-  } catch (e) {
+  }}
+  catch (e) {
     return [];
   }
 }
