@@ -1,30 +1,15 @@
 // -----------------------------------------------------------------------
-// SINCRONIZADOR CON LA NUBE (versión con protecciones anti-pérdida de datos)
+// SINCRONIZADOR CON LA NUBE (con protección de las claves de sesión)
 // -----------------------------------------------------------------------
 // La app (App.jsx) sigue guardando todo con localStorage, exactamente
 // igual que antes. Este archivo "espía" cada guardado y sube una copia
 // completa a Firestore, asociada al uid del usuario logueado.
 //
-// NOVEDADES respecto a la versión anterior:
-//
-//  1. Estado de sincronización visible y consultable ("guardando",
-//     "sincronizado", "error", "sin conexión"), para que la app pueda
-//     mostrarle al usuario si sus datos están realmente a salvo.
-//
-//  2. Reintentos automáticos con espera creciente si falla la subida
-//     (por ejemplo, sin internet), en vez de fallar en silencio.
-//
-//  3. Si se pierde la conexión, se reintenta solo apenas vuelve internet
-//     (evento 'online' del navegador).
-//
-//  4. detenerSincronizacion() ahora es asíncrona: si hay una subida
-//     pendiente, ESPERA a que termine (o lo intenta con fuerza) antes
-//     de limpiar el dispositivo. Devuelve si se pudo confirmar el
-//     guardado o no, para que la pantalla de logout pueda avisarle al
-//     usuario si hiciera falta.
-//
-//  5. Aviso del navegador si el usuario intenta cerrar la pestaña con
-//     cambios sin confirmar en la nube (beforeunload).
+// IMPORTANTE: Firebase Auth también usa localStorage para guardar su
+// propia sesión (claves que empiezan con "firebase:"). Este archivo
+// NUNCA toca esas claves al subir, borrar o restaurar datos — solo
+// sincroniza los datos propios de la app (fichas de animales, tareas,
+// etc.). Si se llegaran a pisar esas claves, la sesión se corta sola.
 // -----------------------------------------------------------------------
 
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -46,6 +31,15 @@ let pendienteDeSubir = false;
 // los reintentos y no bombardear Firestore si hay un problema persistente).
 let intentosFallidos = 0;
 const ESPERAS_REINTENTO = [3000, 8000, 20000, 45000]; // 3s, 8s, 20s, 45s...
+
+// Claves que NUNCA hay que subir, borrar ni pisar: son internas de
+// Firebase (por ejemplo, la sesión de Firebase Auth). Si se llegaran a
+// tocar, se puede cortar la sesión del usuario sin que haga nada.
+const PREFIJOS_RESERVADOS = ["firebase:", "firebaseLocalStorageDb", "firebase-heartbeat"];
+
+function esClaveReservada(clave) {
+  return PREFIJOS_RESERVADOS.some((prefijo) => clave.startsWith(prefijo));
+}
 
 // Estado actual, consultable desde la UI.
 // "sincronizado" | "guardando" | "error" | "sin_conexion" | "inactivo"
@@ -78,14 +72,26 @@ export function subscribeEstadoSync(callback) {
   return () => listeners.delete(callback);
 }
 
-// Junta todo lo que hay en localStorage en un solo objeto para subirlo entero.
+// Junta todo lo que hay en localStorage en un solo objeto para subirlo
+// entero, EXCLUYENDO las claves reservadas de Firebase.
 function leerTodoLocalStorage() {
   const copia = {};
   for (let i = 0; i < localStorage.length; i++) {
     const clave = localStorage.key(i);
+    if (esClaveReservada(clave)) continue;
     copia[clave] = localStorage.getItem(clave);
   }
   return copia;
+}
+
+// Borra únicamente las claves de la app (todas menos las reservadas de
+// Firebase), para no pisar la sesión que Firebase Auth acaba de escribir.
+function borrarSoloDatosDeApp() {
+  const claves = [];
+  for (let i = 0; i < localStorage.length; i++) claves.push(localStorage.key(i));
+  claves.forEach((clave) => {
+    if (!esClaveReservada(clave)) originalRemoveItem(clave);
+  });
 }
 
 // Intenta subir ahora mismo (sin esperar el debounce). Devuelve true/false
@@ -140,20 +146,29 @@ function programarSubida() {
   }, 1000);
 }
 
-// A partir de acá, cada vez que App.jsx llame a localStorage.setItem o
-// .removeItem, además de guardar localmente, se dispara la subida a la nube.
+// A partir de acá, cada vez que App.jsx (o Firebase) llame a
+// localStorage.setItem / .removeItem, se guarda igual que siempre, pero
+// solo se dispara la subida a la nube si la clave NO es reservada.
 localStorage.setItem = function (clave, valor) {
   originalSetItem(clave, valor);
-  programarSubida();
+  if (!esClaveReservada(clave)) programarSubida();
 };
 
 localStorage.removeItem = function (clave) {
   originalRemoveItem(clave);
-  programarSubida();
+  if (!esClaveReservada(clave)) programarSubida();
 };
 
 localStorage.clear = function () {
+  // Si algo llama a clear() a lo bruto, igual protegemos la sesión:
+  // guardamos las claves reservadas, limpiamos todo, y las reponemos.
+  const reservadas = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const clave = localStorage.key(i);
+    if (esClaveReservada(clave)) reservadas[clave] = localStorage.getItem(clave);
+  }
   originalClear();
+  Object.keys(reservadas).forEach((clave) => originalSetItem(clave, reservadas[clave]));
   programarSubida();
 };
 
@@ -181,7 +196,8 @@ if (typeof window !== "undefined") {
 
 /**
  * Se llama justo después de loguearse. Trae los datos guardados en la nube
- * para esa cuenta y los vuelca en el localStorage de este dispositivo.
+ * para esa cuenta y los vuelca en el localStorage de este dispositivo, SIN
+ * tocar la sesión de Firebase Auth que se acaba de escribir.
  */
 export async function iniciarSincronizacion(uid) {
   uidActual = uid;
@@ -193,11 +209,12 @@ export async function iniciarSincronizacion(uid) {
 
     if (snapshot.exists() && snapshot.data().datos) {
       // Ya hay datos en la nube para esta cuenta: los usamos como fuente
-      // de verdad y reemplazan lo que hubiera en este dispositivo.
-      originalClear();
+      // de verdad y reemplazan lo que hubiera en este dispositivo (menos
+      // la sesión de Firebase, que no se toca).
+      borrarSoloDatosDeApp();
       const datosNube = snapshot.data().datos;
       Object.keys(datosNube).forEach((clave) => {
-        originalSetItem(clave, datosNube[clave]);
+        if (!esClaveReservada(clave)) originalSetItem(clave, datosNube[clave]);
       });
     } else {
       // Primera vez que esta cuenta se loguea: subimos lo que ya hubiera
@@ -219,35 +236,16 @@ export async function iniciarSincronizacion(uid) {
 }
 
 /**
- * Se llama al cerrar sesión. A diferencia de la versión anterior, ahora
- * ESPERA (o fuerza) a que cualquier cambio pendiente se confirme guardado
- * en la nube antes de borrar el dispositivo. Si después de varios
- * intentos no se pudo confirmar (por ejemplo, sin internet), NO borra
- * nada y devuelve { exito: false } para que la pantalla de logout pueda
- * avisarle al usuario en vez de arriesgarse a perder datos.
- *
- * Uso sugerido en App.jsx:
- *
- *   const manejarCerrarSesion = async () => {
- *     const resultado = await detenerSincronizacion();
- *     if (!resultado.exito) {
- *       const seguir = window.confirm(
- *         "No se pudo confirmar que tus últimos cambios se guardaron en " +
- *         "la nube (¿estás sin internet?). Si cerrás sesión igual, podrías " +
- *         "perder lo último que cargaste. ¿Cerrar sesión de todas formas?"
- *       );
- *       if (!seguir) return;
- *     }
- *     await signOut(auth);
- *     // ... resto del logout (redirigir a login, etc.)
- *   };
+ * Se llama al cerrar sesión. Espera (o fuerza) a que cualquier cambio
+ * pendiente se confirme guardado en la nube antes de borrar el
+ * dispositivo (sin tocar la sesión de Firebase, que se cierra aparte
+ * con signOut). Si no se pudo confirmar el guardado, NO borra nada y
+ * devuelve { exito: false } para que la pantalla de logout pueda avisar.
  */
 export async function detenerSincronizacion() {
   let exito = true;
 
   if (pendienteDeSubir && uidActual) {
-    // Intentamos confirmar el guardado hasta 3 veces antes de rendirnos,
-    // dándole al usuario la mejor chance de no perder nada.
     for (let intento = 0; intento < 3 && pendienteDeSubir; intento++) {
       // eslint-disable-next-line no-await-in-loop
       exito = await subirAhora();
@@ -263,7 +261,7 @@ export async function detenerSincronizacion() {
     uidActual = null;
     pendienteDeSubir = false;
     intentosFallidos = 0;
-    originalClear();
+    borrarSoloDatosDeApp();
     fijarEstado("inactivo");
   }
 
