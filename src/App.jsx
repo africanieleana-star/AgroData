@@ -9,7 +9,7 @@ import {
   Search,
   ArrowLeft,
   List, 
-  X,
+  X, 
   Menu,
   Home,
   GitFork, 
