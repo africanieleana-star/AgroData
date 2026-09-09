@@ -4351,16 +4351,12 @@ function PantallaFormularioRecria({ caravana, onVolver }) {
     setCargando(false);
   }, [caravana]);
 
-  const guardar = () => {
+const guardar = async () => {
     if (!ficha) return;
     setGuardando(true);
+
     try {
-      const clave = `animal:${caravana}`;
-      const raw = localStorage.getItem(clave);
-      const actual = raw ? JSON.parse(raw) : { ...ficha };
-
-      actual.fechaNacimiento = fechaNacimiento.trim() || null;
-
+      // 1. Armamos los datos actualizados
       const tieneDatosRecria = Boolean(
         pesoDestete205 ||
         estadoAnimal ||
@@ -4370,30 +4366,55 @@ function PantallaFormularioRecria({ caravana, onVolver }) {
         pesoVenta
       );
 
-      actual.recria = tieneDatosRecria
+      const recriaDatos = tieneDatosRecria
         ? {
-          pesoDestete205: pesoDestete205 || null,
-          castrado: estadoAnimal === "Castrado" ? true : estadoAnimal === "Entero" ? false : null,
-          gananciaDiariaSuplementacion: gananciaDiariaSuplementacion || null,
-          gananciaDiariaVerdeo: gananciaDiariaVerdeo || null,
-          fechaVenta: fechaVenta.trim() || null,
-          pesoVenta: pesoVenta || null,
-        }
+            pesoDestete205: pesoDestete205 || null,
+            castrado: estadoAnimal === "Castrado" ? true : estadoAnimal === "Entero" ? false : null,
+            gananciaDiariaSuplementacion: gananciaDiariaSuplementacion || null,
+            gananciaDiariaVerdeo: gananciaDiariaVerdeo || null,
+            fechaVenta: fechaVenta.trim() || null,
+            pesoVenta: pesoVenta || null,
+          }
         : null;
 
+      const actual = {
+        ...ficha,
+        fechaNacimiento: fechaNacimiento.trim() || null,
+        recria: recriaDatos,
+        fechaUltimaModificacion: new Date().toISOString(),
+      };
+
+      // 2. Guardamos localmente para soporte sin conexión
+      const clave = `animal:${caravana}`;
       localStorage.setItem(clave, JSON.stringify(actual));
+
+      // 3. Enviamos a Firebase
+      const user = auth.currentUser;
+      if (user) {
+        await setDoc(
+          doc(db, "usuarios", user.uid, "animales", String(caravana).trim()),
+          {
+            fechaNacimiento: actual.fechaNacimiento,
+            recria: recriaDatos,
+            fechaUltimaModificacion: actual.fechaUltimaModificacion,
+          },
+          { merge: true }
+        );
+      }
+
       setFicha(actual);
-      emitirActualizacionDatos();
+      if (typeof emitirActualizacionDatos === "function") {
+        emitirActualizacionDatos();
+      }
       setGuardadoOk(true);
       setTimeout(() => setGuardadoOk(false), 2500);
     } catch (e) {
-      console.error(e);
-      alert("No se pudo guardar la ficha de recría.");
+      console.error("Error al guardar ficha de recría:", e);
+      alert("No se pudo guardar la ficha de recría en la nube.");
     } finally {
       setGuardando(false);
     }
   };
-
   const cajaEstilo = {
     background: "var(--crema)",
     border: "1px solid var(--borde)",
