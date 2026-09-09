@@ -16,4 +16,28 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = getFirestore(app);ç
+
+import { initializeApp } from "firebase/app";
+import { 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager 
+} from "firebase/firestore";
+
+const firebaseConfig = {
+  apiKey: "TU_API_KEY",
+  authDomain: "TU_AUTH_DOMAIN",
+  projectId: "TU_PROJECT_ID",
+  // ... resto de tu configuración
+};
+
+// 1. Inicializa la app
+const app = initializeApp(firebaseConfig);
+
+// 2. Inicializa Firestore CON soporte Offline habilitado
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
