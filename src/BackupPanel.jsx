@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { listarBackups, restaurarBackup, obtenerDatosActuales, obtenerDatosDeBackup } from "./cloudSync";
+import { listarBackups, restaurarBackup, obtenerDatosActuales, obtenerDatosDeBackup, recuperarAnimalesDesdeSubcoleccion } from "./cloudSync";
 
 // Arma y dispara la descarga de un archivo .json en la PC del usuario,
 // con los datos ya "desempaquetados" (cada ficha como objeto legible,
@@ -53,6 +53,35 @@ export default function BackupPanel() {
   const [restaurandoFecha, setRestaurandoFecha] = useState(null);
   const [descargandoFecha, setDescargandoFecha] = useState(null);
   const [mensaje, setMensaje] = useState(null);
+
+    const [recuperandoAnimales, setRecuperandoAnimales] = useState(false);
+
+  const recuperarDesdeAnimales = async () => {
+    if (
+      !window.confirm(
+        "Esto va a traer todas las fichas guardadas en Firebase (colección 'animales') " +
+          "y cargarlas en este dispositivo. Si ya tenés alguna ficha local con la misma " +
+          "caravana, se va a reemplazar por la versión de Firebase.\n\n¿Continuar?"
+      )
+    )
+      return;
+
+    setRecuperandoAnimales(true);
+    setMensaje(null);
+    const resultado = await recuperarAnimalesDesdeSubcoleccion();
+    setRecuperandoAnimales(false);
+
+    if (resultado.error) {
+      setMensaje({ tipo: "error", texto: `⚠️ ${resultado.error}` });
+      return;
+    }
+
+    setMensaje({
+      tipo: "exito",
+      texto: `✅ Se recuperaron ${resultado.recuperados} animal(es). Recargando la página...`,
+    });
+    setTimeout(() => window.location.reload(), 1500);
+  };
 
   const descargarActual = () => {
     const datos = obtenerDatosActuales();
@@ -205,9 +234,32 @@ export default function BackupPanel() {
                 marginBottom: 16,
               }}
             >
+            >
               ⬇️ Descargar todo lo que tengo cargado ahora (archivo .json)
             </button>
 
+            <button
+              type="button"
+              onClick={recuperarDesdeAnimales}
+              disabled={recuperandoAnimales}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1.5px solid var(--marron-cuero, #8B5A2B)",
+                background: "#FFFDF8",
+                color: "var(--marron-cuero-oscuro, #714823)",
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: recuperandoAnimales ? "not-allowed" : "pointer",
+                marginBottom: 16,
+                opacity: recuperandoAnimales ? 0.6 : 1,
+              }}
+            >
+              {recuperandoAnimales ? "Recuperando..." : "🔄 Recuperar animales desde Firebase (emergencia)"}
+            </button>
+
+            {mensaje && (
             {mensaje && (
               <div
                 style={{
