@@ -32,9 +32,6 @@ import BackupPanel from "./BackupPanel";
 
 import * as XLSX from "xlsx";
 
-import { doc, setDoc } from "firebase/firestore";
-import { auth, db } from "./firebase";
-
 const TIPOS = [
   { valor: "Vaca" },
   { valor: "Vaquillona" },
@@ -4387,25 +4384,18 @@ const guardar = async () => {
         fechaUltimaModificacion: new Date().toISOString(),
       };
 
-      // 2. Guardamos localmente para soporte sin conexión
+      // Guardamos en localStorage; cloudSync.js detecta este cambio solo
+      // (porque envuelve localStorage.setItem) y lo sube a Firestore al
+      // documento único que sí se lee al iniciar sesión. Antes acá también
+      // se escribía directo a una subcolección aparte, pero esa copia
+      // nunca se leía de vuelta en ningún lado: quedaba "guardada" pero
+      // invisible para la app. Se saca para no duplicar escrituras sin
+      // sentido.
       const clave = `animal:${caravana}`;
       localStorage.setItem(clave, JSON.stringify(actual));
 
-      // 3. Enviamos a Firebase
-      const user = auth.currentUser;
-      if (user) {
-        await setDoc(
-          doc(db, "usuarios", user.uid, "animales", String(caravana).trim()),
-          {
-            fechaNacimiento: actual.fechaNacimiento,
-            recria: recriaDatos,
-            fechaUltimaModificacion: actual.fechaUltimaModificacion,
-          },
-          { merge: true }
-        );
-      }
-
       setFicha(actual);
+      
       if (typeof emitirActualizacionDatos === "function") {
         emitirActualizacionDatos();
       }
