@@ -234,7 +234,6 @@ export default function BackupPanel() {
                 marginBottom: 16,
               }}
             >
-            >
               ⬇️ Descargar todo lo que tengo cargado ahora (archivo .json)
             </button>
 
@@ -260,8 +259,7 @@ export default function BackupPanel() {
             </button>
 
             {mensaje && (
-            {mensaje && (
-              <div
+            <div
                 style={{
                   background: mensaje.tipo === "error" ? "#FDECEA" : "#EAF3E4",
                   border: `1px solid ${mensaje.tipo === "error" ? "#C62828" : "var(--verde-exito, #4F6B3A)"}`,
