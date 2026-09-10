@@ -27,8 +27,6 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, Legend,
 } from "recharts";
 
-import { doc, setDoc, collection, getDocs } from "firebase/firestore";
-import { auth, db } from "./firebase";
 
 import SyncStatus from "./SyncStatus";
 import BackupPanel from "./BackupPanel";
@@ -1877,66 +1875,6 @@ function PantallaInicio({ onNavegar }) {
   const [tareasSanidad, setTareasSanidad] = useState([]);
   const [ventas, setVentas] = useState([]);
 
-// 🔄 SINCRONIZADOR AUTOMÁTICO DE TODO EL SISTEMA (OFFLINE -> ONLINE)
-useEffect(() => {
-  const sincronizarTodoOffline = async () => {
-    // Si no hay internet o no hay un usuario logueado, se detiene
-    if (!navigator.onLine || !auth.currentUser) return;
-
-    try {
-      const user = auth.currentUser;
-
-      // Recorremos TODO lo que esté guardado en el navegador/celular
-      for (let i = 0; i < localStorage.length; i++) {
-        const clave = localStorage.key(i);
-        if (!clave) continue;
-
-        const raw = localStorage.getItem(clave);
-        if (!raw) continue;
-
-        let contenido;
-        try {
-          contenido = JSON.parse(raw);
-        } catch (e) {
-          contenido = raw; // Si no es un JSON, lo guarda como texto plano
-        }
-
-        // A) Sincronizar Fichas de Animales
-        if (clave.startsWith("animal:")) {
-          if (contenido && contenido.caravana) {
-            await setDoc(
-              doc(db, "usuarios", user.uid, "animales", String(contenido.caravana).trim()),
-              contenido,
-              { merge: true }
-            );
-          }
-        } 
-        // B) Sincronizar Tareas, Sanidad, Configuración o cualquier otra clave
-        else {
-          // Limpiamos caracteres no permitidos para el nombre en Firebase
-          const claveLimpia = clave.replace(/[:/.#$[\]]/g, "_");
-          
-          await setDoc(
-            doc(db, "usuarios", user.uid, "datos_generales", claveLimpia),
-            { valor: contenido, fechaGuardado: new Date().toISOString() },
-            { merge: true }
-          );
-        }
-      }
-      console.log("✅ TODO el sistema (animales, tareas y datos) se respaldó con éxito en Firebase.");
-    } catch (e) {
-      console.error("Error al respaldar datos en la nube:", e);
-    }
-  };
-
-  // Se activa al recuperar la señal de internet
-  window.addEventListener("online", sincronizarTodoOffline);
-
-  // Se activa una vez al abrir o iniciar sesión por si recuperó conexión recién
-  sincronizarTodoOffline();
-
-  return () => window.removeEventListener("online", sincronizarTodoOffline);
-}, []);
 
   // 📥 CARGA DE DATOS PARA EL DASHBOARD DE INICIO
   // Sin este efecto, "animales", "tareasSanidad" y "ventas" quedaban
