@@ -495,43 +495,6 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   // Estado para la fecha y hora actual
   const [fechaHora, setFechaHora] = useState(new Date());
 
-useEffect(() => {
-  const sincronizarDatosOffline = async () => {
-    if (!navigator.onLine || !auth.currentUser) return;
-
-    try {
-      const user = auth.currentUser;
-
-      for (let i = 0; i < localStorage.length; i++) {
-        const clave = localStorage.key(i);
-
-        if (clave && clave.startsWith("animal:")) {
-          const raw = localStorage.getItem(clave);
-          if (raw) {
-            const animal = JSON.parse(raw);
-
-            if (animal && animal.caravana) {
-              await setDoc(
-                doc(db, "usuarios", user.uid, "animales", String(animal.caravana).trim()),
-                animal,
-                { merge: true }
-              );
-            }
-          }
-        }
-      }
-      console.log("✅ Datos cargados offline sincronizados con éxito en Firebase.");
-    } catch (e) {
-      console.error("Error al sincronizar datos offline:", e);
-    }
-  };
-
-  window.addEventListener("online", sincronizarDatosOffline);
-  sincronizarDatosOffline();
-
-  return () => window.removeEventListener("online", sincronizarDatosOffline);
-}, []);
-
   useEffect(() => {
     const timer = setInterval(() => setFechaHora(new Date()), 1000);
     return () => clearInterval(timer);
