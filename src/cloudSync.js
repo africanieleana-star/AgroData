@@ -210,9 +210,36 @@ function programarSubida() {
   }, 1000);
 }
 
+// --- Respaldo individual por animal (además del documento completo) ---
+// Cada vez que se guarda o borra una ficha "animal:<caravana>", se sube
+// (con debounce) SOLO esa ficha a usuarios/{uid}/animales/{caravana}.
+// Esto alimenta al botón de emergencia "Recuperar animales desde Firebase"
+// sin tener que recorrer todo localStorage cada vez.
+const timeoutsAnimales = {};
+
+function programarSubidaAnimal(caravana, valorJSON) {
+  if (!sincronizacionActiva || !uidActual || restaurando) return;
+  clearTimeout(timeoutsAnimales[caravana]);
+  timeoutsAnimales[caravana] = setTimeout(async () => {
+    try {
+      const contenido = JSON.parse(valorJSON);
+      await conTiempoLimite(
+        setDoc(doc(db, "usuarios", uidActual, "animales", caravana), contenido, { merge: true })
+      );
+    } catch (e) {
+      console.error(`No se pudo respaldar el animal ${caravana} en Firebase:`, e);
+    }
+  }, 1500);
+}
+
 localStorage.setItem = function (clave, valor) {
   originalSetItem(clave, valor);
-  if (!esClaveReservada(clave)) programarSubida();
+  if (!esClaveReservada(clave)) {
+    programarSubida();
+    if (clave.startsWith("animal:")) {
+      programarSubidaAnimal(clave.slice("animal:".length), valor);
+    }
+  }
 };
 
 localStorage.removeItem = function (clave) {
