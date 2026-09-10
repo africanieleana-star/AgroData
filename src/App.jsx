@@ -492,6 +492,45 @@ const ESTILOS_GLOBALES = `
 `;
 export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [pantalla, setPantalla] = useState("inicio"); // "inicio" | "buscar" | "formulario" | "guardado" | "listado" | "resumen" | "alertas"
+  
+  // PASO C: Restauración Anti-Caché desde Firebase al iniciar la App
+  useEffect(() => {
+    const restaurarDesdeFirebase = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "respaldos"));
+        querySnapshot.forEach((docSnap) => {
+          if (docSnap.id === "backup_completo") {
+            const data = docSnap.data();
+            
+            // Restaurar animales
+            if (Array.isArray(data.animales)) {
+              data.animales.forEach((anim) => {
+                if (anim && anim.caravana) {
+                  localStorage.setItem(`animal:${anim.caravana}`, JSON.stringify(anim));
+                }
+              });
+            }
+
+            // Restaurar tareas manuales y ventas
+            if (Array.isArray(data.tareas)) {
+              localStorage.setItem("tareas_manuales", JSON.stringify(data.tareas));
+            }
+            if (Array.isArray(data.ventas)) {
+              localStorage.setItem("ventas_agrodata", JSON.stringify(data.ventas));
+            }
+
+            // Notificar a los componentes para refrescar los datos cargados
+            window.dispatchEvent(new Event("agrodata:actualizado"));
+          }
+        });
+      } catch (error) {
+        console.error("Error al restaurar desde Firebase al iniciar:", error);
+      }
+    };
+
+    restaurarDesdeFirebase();
+  }, []);
+  
   // Estado para la fecha y hora actual
   const [fechaHora, setFechaHora] = useState(new Date());
 
@@ -1838,17 +1877,66 @@ function PantallaInicio({ onNavegar }) {
   const [tareasSanidad, setTareasSanidad] = useState([]);
   const [ventas, setVentas] = useState([]);
 
-  useEffect(() => {
-    const cargar = () => {
-      setAnimales(leerAnimalesActivos());
-      setTareasSanidad(leerRegistrosSanidad());
-      setVentas(leerVentas());
-    };
-    cargar();
-    setCargando(false);
-    window.addEventListener("agrodata:actualizado", cargar);
-    return () => window.removeEventListener("agrodata:actualizado", cargar);
-  }, []);
+// 🔄 SINCRONIZADOR AUTOMÁTICO DE TODO EL SISTEMA (OFFLINE -> ONLINE)
+useEffect(() => {
+  const sincronizarTodoOffline = async () => {
+    // Si no hay internet o no hay un usuario logueado, se detiene
+    if (!navigator.onLine || !auth.currentUser) return;
+
+    try {
+      const user = auth.currentUser;
+
+      // Recorremos TODO lo que esté guardado en el navegador/celular
+      for (let i = 0; i < localStorage.length; i++) {
+        const clave = localStorage.key(i);
+        if (!clave) continue;
+
+        const raw = localStorage.getItem(clave);
+        if (!raw) continue;
+
+        let contenido;
+        try {
+          contenido = JSON.parse(raw);
+        } catch (e) {
+          contenido = raw; // Si no es un JSON, lo guarda como texto plano
+        }
+
+        // A) Sincronizar Fichas de Animales
+        if (clave.startsWith("animal:")) {
+          if (contenido && contenido.caravana) {
+            await setDoc(
+              doc(db, "usuarios", user.uid, "animales", String(contenido.caravana).trim()),
+              contenido,
+              { merge: true }
+            );
+          }
+        } 
+        // B) Sincronizar Tareas, Sanidad, Configuración o cualquier otra clave
+        else {
+          // Limpiamos caracteres no permitidos para el nombre en Firebase
+          const claveLimpia = clave.replace(/[:/.#$[\]]/g, "_");
+          
+          await setDoc(
+            doc(db, "usuarios", user.uid, "datos_generales", claveLimpia),
+            { valor: contenido, fechaGuardado: new Date().toISOString() },
+            { merge: true }
+          );
+        }
+      }
+      console.log("✅ TODO el sistema (animales, tareas y datos) se respaldó con éxito en Firebase.");
+    } catch (e) {
+      console.error("Error al respaldar datos en la nube:", e);
+    }
+  };
+
+  // Se activa al recuperar la señal de internet
+  window.addEventListener("online", sincronizarTodoOffline);
+
+  // Se activa una vez al abrir o iniciar sesión por si recuperó conexión recién
+  sincronizarTodoOffline();
+
+  return () => window.removeEventListener("online", sincronizarTodoOffline);
+}, []);
 
   const tareasSanidadDelMes = useMemo(() => {
     const hoy = new Date();
