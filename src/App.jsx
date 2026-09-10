@@ -27,6 +27,9 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, Legend,
 } from "recharts";
 
+import { doc, setDoc, collection, getDocs } from "firebase/firestore";
+import { auth, db } from "./firebase";
+
 import SyncStatus from "./SyncStatus";
 import BackupPanel from "./BackupPanel";
 
