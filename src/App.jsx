@@ -1938,6 +1938,26 @@ useEffect(() => {
   return () => window.removeEventListener("online", sincronizarTodoOffline);
 }, []);
 
+  // 📥 CARGA DE DATOS PARA EL DASHBOARD DE INICIO
+  // Sin este efecto, "animales", "tareasSanidad" y "ventas" quedaban
+  // siempre vacíos y "cargando" nunca pasaba a false: por eso todas las
+  // tarjetas del Inicio mostraban "..." aunque ya hubiera datos importados.
+  useEffect(() => {
+    const cargarDatosInicio = () => {
+      setAnimales(leerAnimalesActivos());
+      setTareasSanidad(leerRegistrosSanidad());
+      setVentas(leerVentas());
+      setCargando(false);
+    };
+
+    cargarDatosInicio();
+
+    // Se vuelve a cargar solo cuando algo cambia (nueva ficha, importación
+    // de Excel, venta registrada, etc.), sin que haga falta recargar la página.
+    window.addEventListener("agrodata:actualizado", cargarDatosInicio);
+    return () => window.removeEventListener("agrodata:actualizado", cargarDatosInicio);
+  }, []);
+
   const tareasSanidadDelMes = useMemo(() => {
     const hoy = new Date();
     const mesActual = hoy.getMonth();
@@ -7330,6 +7350,7 @@ function PantallaFormulario({
                             },
                           };
                                         localStorage.setItem(claveCria, JSON.stringify(fichaCria));
+                        }
                         if (typeof setHistorialCrias === "function") {
                           setHistorialCrias(historialCriasActualizado);
                         }
@@ -7347,9 +7368,7 @@ function PantallaFormulario({
                             ? `✅ Cría N° ${nuevaCria.caravana} agregada al historial correctamente.`
                             : `✅ Se anotó en el historial la cría fallecida (sin caravana) del ${formatearFechaDDMMYYYY(parseISO(fechaParicion))}.`
                         );
-                      }}
-                    
-                        catch (e) {
+                      } catch (e) {
                         console.error(e);
                         alert("Ocurrió un error al agregar la cría al historial.");
                       }
