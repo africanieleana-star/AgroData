@@ -247,6 +247,22 @@ if (typeof window !== "undefined") {
       e.returnValue = "";
     }
   });
+
+  // En el celular, cambiar de app o apagar la pantalla NO dispara
+  // "beforeunload" de forma confiable. "visibilitychange" (y "pagehide"
+  // como respaldo) sí se disparan siempre que la pestaña deja de estar
+  // visible, así que ahí forzamos la subida pendiente sin esperar el
+  // debounce de 1 segundo.
+  const forzarSubidaSiHacePendiente = () => {
+    if (sincronizacionActiva && pendienteDeSubir) {
+      clearTimeout(timeoutGuardado);
+      subirAhora();
+    }
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") forzarSubidaSiHacePendiente();
+  });
+  window.addEventListener("pagehide", forzarSubidaSiHacePendiente);
 }
 
 export async function iniciarSincronizacion(uid) {
