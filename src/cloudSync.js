@@ -384,3 +384,32 @@ export async function restaurarBackup(fecha) {
     return { exito: false };
   }
 }
+
+/**
+ * Recuperación de emergencia: trae las fichas guardadas en
+ * usuarios/{uid}/animales (el otro sistema de sincronización, por
+ * animal individual) y las carga en este dispositivo como
+ * "animal:<caravana>". Se usa cuando el documento "vivo" principal
+ * quedó vacío pero esta subcolección sí tiene datos.
+ */
+export async function recuperarAnimalesDesdeSubcoleccion() {
+  if (!uidActual) return { recuperados: 0, error: "No hay sesión activa." };
+  try {
+    const refColeccion = collection(db, "usuarios", uidActual, "animales");
+    const snapshot = await getDocs(refColeccion);
+    let recuperados = 0;
+    snapshot.forEach((docSnap) => {
+      const animal = docSnap.data();
+      const caravana = (animal && animal.caravana) || docSnap.id;
+      if (caravana) {
+        originalSetItem(`animal:${caravana}`, JSON.stringify(animal));
+        recuperados += 1;
+      }
+    });
+    if (recuperados > 0) programarSubida(); // para que también quede subido al documento principal
+    return { recuperados };
+  } catch (e) {
+    console.error("No se pudo recuperar desde la subcolección de animales:", e);
+    return { recuperados: 0, error: "No se pudo conectar con Firebase." };
+  }
+}
