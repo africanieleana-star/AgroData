@@ -293,6 +293,12 @@ if (typeof window !== "undefined") {
 }
 
 export async function iniciarSincronizacion(uid) {
+  // Antes que nada, borramos lo que haya quedado en este dispositivo de
+  // una sesión anterior. Así, si algo falla más abajo al traer los datos
+  // de la nube (por un problema de red), la persona ve la app vacía en
+  // vez de ver por error los datos de otra persona.
+  borrarSoloDatosDeApp();
+
   uidActual = uid;
   restaurando = true;
   fijarEstado("guardando");
@@ -339,14 +345,17 @@ export async function detenerSincronizacion() {
     }
   }
 
-  if (exito) {
-    sincronizacionActiva = false;
-    uidActual = null;
-    pendienteDeSubir = false;
-    intentosFallidos = 0;
-    borrarSoloDatosDeApp();
-    fijarEstado("inactivo");
-  }
+  // Pase lo que pase con la subida, cerramos la sesión y borramos los
+  // datos locales. Nunca hay que dejar los datos de una cuenta cargados
+  // en el dispositivo al cerrar sesión: si se queda algo, el próximo
+  // usuario que entre en este mismo dispositivo lo vería como si fuera
+  // suyo.
+  sincronizacionActiva = false;
+  uidActual = null;
+  pendienteDeSubir = false;
+  intentosFallidos = 0;
+  borrarSoloDatosDeApp();
+  fijarEstado("inactivo");
 
   return { exito };
 }
