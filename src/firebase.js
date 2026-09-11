@@ -1,12 +1,15 @@
 // Conexión con Firebase: acá se inicializa el proyecto y se exportan
-// las tres piezas que usa el resto de la app: "app", "auth" (login) y "db" (base de datos con soporte offline).
+// las tres piezas que usa el resto de la app: "app", "auth" (login) y "db" (base de datos).
+//
+// NOTA: se sacó la caché persistente offline (persistentLocalCache) porque
+// esa caché, guardada en el navegador (IndexedDB), se estaba trabando con
+// una cola de escrituras pendientes que nunca lograba confirmarse, y eso
+// dejaba la app colgada en "Guardando..." sin importar qué usuario entrara.
+// Con este cambio, Firestore funciona en modo normal (necesita conexión a
+// internet para guardar), pero se elimina esa causa de traba.
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { 
-  initializeFirestore, 
-  persistentLocalCache, 
-  persistentMultipleTabManager 
-} from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 
 // Mantenés tus credenciales reales exactamente como las tenés
 const firebaseConfig = {
@@ -24,9 +27,5 @@ const app = initializeApp(firebaseConfig);
 // 2. Inicializa Autenticación (Login)
 export const auth = getAuth(app);
 
-// 3. Inicializa Firestore CON soporte Offline habilitado (reemplaza a getFirestore)
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  })
-});
+// 3. Inicializa Firestore (sin caché persistente offline)
+export const db = getFirestore(app);
