@@ -491,44 +491,6 @@ const ESTILOS_GLOBALES = `
 export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [pantalla, setPantalla] = useState("inicio"); // "inicio" | "buscar" | "formulario" | "guardado" | "listado" | "resumen" | "alertas"
   
-  // PASO C: Restauración Anti-Caché desde Firebase al iniciar la App
-  useEffect(() => {
-    const restaurarDesdeFirebase = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, "respaldos"));
-        querySnapshot.forEach((docSnap) => {
-          if (docSnap.id === "backup_completo") {
-            const data = docSnap.data();
-            
-            // Restaurar animales
-            if (Array.isArray(data.animales)) {
-              data.animales.forEach((anim) => {
-                if (anim && anim.caravana) {
-                  localStorage.setItem(`animal:${anim.caravana}`, JSON.stringify(anim));
-                }
-              });
-            }
-
-            // Restaurar tareas manuales y ventas
-            if (Array.isArray(data.tareas)) {
-              localStorage.setItem("tareas_manuales", JSON.stringify(data.tareas));
-            }
-            if (Array.isArray(data.ventas)) {
-              localStorage.setItem("ventas_agrodata", JSON.stringify(data.ventas));
-            }
-
-            // Notificar a los componentes para refrescar los datos cargados
-            window.dispatchEvent(new Event("agrodata:actualizado"));
-          }
-        });
-      } catch (error) {
-        console.error("Error al restaurar desde Firebase al iniciar:", error);
-      }
-    };
-
-    restaurarDesdeFirebase();
-  }, []);
-  
   // Estado para la fecha y hora actual
   const [fechaHora, setFechaHora] = useState(new Date());
 
