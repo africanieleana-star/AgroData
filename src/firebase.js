@@ -7,18 +7,17 @@
 // que se abría la pantalla de Inicio, y eso saturaba la cola de subida
 // de Firestore, dejando la app trabada en "Guardando...".
 //
-// Ahora que ese código se eliminó, volvemos a activar la caché
-// persistente (persistentLocalCache), porque es la herramienta que da
-// Firebase específicamente para el uso offline: guarda los cambios en
-// el dispositivo cuando no hay señal, y los sincroniza solo -de forma
-// confiable- apenas vuelve la conexión, sin depender de que nuestro
-// propio código adivine bien cuándo volvió internet.
+// Después la volvimos a activar con "persistentMultipleTabManager"
+// (para que funcione bien con varias pestañas abiertas a la vez), pero
+// esa pieza volvió a trabar la app en "Guardando..." para siempre,
+// incluso en redes distintas y en modo incógnito. Como esta app se usa
+// normalmente en una sola pestaña, se saca esa pieza y se deja el
+// guardado offline simple, que es más estable.
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import {
   initializeFirestore,
   persistentLocalCache,
-  persistentMultipleTabManager,
 } from "firebase/firestore";
 
 // Mantenés tus credenciales reales exactamente como las tenés
@@ -37,9 +36,8 @@ const app = initializeApp(firebaseConfig);
 // 2. Inicializa Autenticación (Login)
 export const auth = getAuth(app);
 
-// 3. Inicializa Firestore CON soporte offline habilitado
+// 3. Inicializa Firestore CON soporte offline habilitado (una sola
+// pestaña por vez; suficiente para el uso normal de esta app)
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-  }),
+  localCache: persistentLocalCache(),
 });
