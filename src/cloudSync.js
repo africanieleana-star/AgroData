@@ -74,7 +74,7 @@ function conTiempoLimite(promesaOriginal, ms = TIEMPO_MAXIMO_ESPERA_MS) {
 
 // Claves que NUNCA hay que subir, borrar ni pisar: son internas de
 // Firebase (por ejemplo, la sesión de Firebase Auth).
-const PREFIJOS_RESERVADOS = ["firebase:", "firebaseLocalStorageDb", "firebase-heartbeat"];
+const PREFIJOS_RESERVADOS = ["firebase:", "firebaseLocalStorageDb", "firebase-heartbeat", "agrodata:cuentaActual"];
 
 function esClaveReservada(clave) {
   return PREFIJOS_RESERVADOS.some((prefijo) => clave.startsWith(prefijo));
