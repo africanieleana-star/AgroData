@@ -310,11 +310,18 @@ if (typeof window !== "undefined") {
 }
 
 export async function iniciarSincronizacion(uid) {
-  // Antes que nada, borramos lo que haya quedado en este dispositivo de
-  // una sesión anterior. Así, si algo falla más abajo al traer los datos
-  // de la nube (por un problema de red), la persona ve la app vacía en
-  // vez de ver por error los datos de otra persona.
-  borrarSoloDatosDeApp();
+  // Antes de tocar nada, nos fijamos de quién eran los datos que ya
+  // están guardados en este dispositivo (si es que había alguno).
+  const cuentaAnterior = localStorage.getItem("agrodata:cuentaActual");
+
+  // Solo borramos de entrada si esos datos son de OTRA cuenta distinta
+  // a la que acaba de entrar. Si es la misma cuenta (por ejemplo,
+  // volviste a entrar después de borrar caché, o simplemente recargaste
+  // la página), NO se borra nada todavía: primero se intenta traer lo
+  // de la nube, y solo se reemplaza si esa traída sale bien.
+  if (cuentaAnterior && cuentaAnterior !== uid) {
+    borrarSoloDatosDeApp();
+  }
 
   uidActual = uid;
   restaurando = true;
@@ -324,12 +331,18 @@ export async function iniciarSincronizacion(uid) {
     const snapshot = await conTiempoLimite(getDoc(referencia));
 
     if (snapshot.exists() && snapshot.data().datos) {
+      // Hay datos en la nube: esos son los que valen. Recién acá se
+      // reemplaza lo que había en el dispositivo.
       borrarSoloDatosDeApp();
       const datosNube = snapshot.data().datos;
       Object.keys(datosNube).forEach((clave) => {
         if (!esClaveReservada(clave)) originalSetItem(clave, datosNube[clave]);
       });
-    } else {
+    } else if (!cuentaAnterior || cuentaAnterior === uid) {
+      // Todavía no hay nada guardado en la nube para esta cuenta, pero
+      // lo que hay en el dispositivo es de esta misma cuenta (o es la
+      // primera vez que se usa este dispositivo). Lo subimos tal cual
+      // para crear el documento inicial en la nube.
       const datosLocales = leerTodoLocalStorage();
       await conTiempoLimite(
         setDoc(referencia, {
@@ -338,16 +351,23 @@ export async function iniciarSincronizacion(uid) {
         })
       );
     }
+    // (Si los datos locales eran de OTRA cuenta y todavía no hay nada
+    // en la nube para la cuenta nueva, no se sube nada: ya se limpió
+    // arriba, y se arranca con la app vacía hasta que se cargue algo.)
+
+    originalSetItem("agrodata:cuentaActual", uid);
     fijarEstado("sincronizado");
   } catch (e) {
     console.error("No se pudo traer los datos de la nube:", e);
     fijarEstado("error");
+    // Importante: si falló la conexión, NO se toca más el localStorage.
+    // Si esos datos ya eran de esta misma cuenta, quedan tal cual están
+    // (se van a terminar de sincronizar solos cuando vuelva la conexión).
   } finally {
     restaurando = false;
     sincronizacionActiva = true;
   }
 }
-
 export async function detenerSincronizacion() {
   let exito = true;
 
