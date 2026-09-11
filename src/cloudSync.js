@@ -284,8 +284,13 @@ if (typeof window !== "undefined") {
   });
   setInterval(reintentarSiHaceFalta, 20000);
 
+  
   window.addEventListener("beforeunload", (e) => {
-    ...
+    if (sincronizacionActiva && pendienteDeSubir) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+  });
 
   // En el celular, cambiar de app o apagar la pantalla NO dispara
   // "beforeunload" de forma confiable. "visibilitychange" (y "pagehide"
