@@ -268,12 +268,24 @@ if (typeof window !== "undefined") {
   window.addEventListener("offline", () => {
     if (sincronizacionActiva) fijarEstado("sin_conexion");
   });
-  window.addEventListener("beforeunload", (e) => {
-    if (sincronizacionActiva && pendienteDeSubir) {
-      e.preventDefault();
-      e.returnValue = "";
+
+  // Respaldo por si el navegador no avisa bien que volvió la conexión
+  // (el evento "online" no siempre es confiable): cada vez que la
+  // pestaña vuelve a estar visible, o cada 20 segundos mientras hay
+  // algo pendiente, se reintenta por las dudas.
+  const reintentarSiHaceFalta = () => {
+    if (pendienteDeSubir && sincronizacionActiva && navigator.onLine) {
+      intentosFallidos = 0;
+      subirAhora();
     }
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") reintentarSiHaceFalta();
   });
+  setInterval(reintentarSiHaceFalta, 20000);
+
+  window.addEventListener("beforeunload", (e) => {
+    ...
 
   // En el celular, cambiar de app o apagar la pantalla NO dispara
   // "beforeunload" de forma confiable. "visibilitychange" (y "pagehide"
