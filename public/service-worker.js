@@ -21,6 +21,15 @@
 const CACHE_NAME = "agrodata-v3"; // subido de v2 a v3 para forzar la actualización en todos los dispositivos
 const urlsToCache = ["/", "/index.html"];
 
+// Permite que la página le pida al Service Worker nuevo que se active
+// de inmediato, sin esperar a que se cierren todas las pestañas/instancias
+// de la app abiertas con la versión vieja.
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.tipo === "SALTAR_ESPERA") {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener("install", (event) => {
   // No espera a que se cierren las pestañas viejas: instala esta versión
   // nueva de una vez.
