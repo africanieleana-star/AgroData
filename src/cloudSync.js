@@ -164,11 +164,16 @@ async function limpiarBackupsViejos() {
 async function subirAhora() {
   if (!uidActual) return false;
 
-  fijarEstado(
-    typeof navigator !== "undefined" && navigator.onLine === false
-      ? "sin_conexion"
-      : "guardando"
-  );
+  // Si sabemos que no hay conexión, ni siquiera intentamos escribir.
+  // Esto evita que se acumulen "intentos fantasma" esperando de fondo,
+  // que después pueden llegar fuera de orden y pisar un guardado más
+  // nuevo con uno más viejo.
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    fijarEstado("sin_conexion");
+    return false;
+  }
+
+  fijarEstado("guardando");
 
   try {
     const datos = leerTodoLocalStorage();
@@ -221,6 +226,7 @@ function programarSubidaAnimal(caravana, valorJSON) {
   if (!sincronizacionActiva || !uidActual || restaurando) return;
   clearTimeout(timeoutsAnimales[caravana]);
   timeoutsAnimales[caravana] = setTimeout(async () => {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     try {
       const contenido = JSON.parse(valorJSON);
       await conTiempoLimite(
