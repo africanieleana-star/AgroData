@@ -1,23 +1,24 @@
 // -----------------------------------------------------------------------
 // SERVICE WORKER de AgroData
 // -----------------------------------------------------------------------
-// "network-first": siempre intenta traer la versión más nueva del
-// servidor primero, y solo si no hay conexión a internet usa la copia
-// guardada. Sube el número de versión (CACHE_NAME) cada vez que se
-// cambia este archivo, para que el navegador instale la versión nueva
-// y borre las cachés viejas solo.
+// Sigue siendo "network-first" (siempre intenta traer la versión más
+// nueva de la app primero, y solo si no hay internet usa la copia
+// guardada). La diferencia clave respecto a la versión anterior:
 //
-// IMPORTANTE: Solo interviene en pedidos GET de este mismo sitio (HTML,
-// JS, CSS, imágenes propias). Cualquier otro pedido (POST, o a otros
-// dominios como firestore.googleapis.com) se deja pasar directo, sin
-// tocar. Esto es necesario porque la API de caché del navegador no
-// soporta guardar respuestas de pedidos POST, y Firestore usa POST para
-// mantener la conexión en tiempo real: si el service worker intentaba
-// meterse ahí, rompía el guardado en la nube (quedaba trabado en
-// "Guardando...").
+//  - AHORA SOLO INTERVIENE en pedidos GET hacia nuestro propio dominio
+//    (los archivos de la app: HTML, JS, CSS, imágenes).
+//  - Todo lo demás (Firestore, Firebase Auth, Analytics, o cualquier
+//    pedido POST) se deja pasar de largo, SIN TOCARLO.
+//
+// Por qué importa esto: antes, el Service Worker interceptaba también
+// los pedidos que Firestore hace para sincronizar tus datos en la nube.
+// Como esos pedidos son POST (no GET), el intento de "cachearlos" fallaba
+// en silencio y podía dejar la sincronización trabada en el celular,
+// aunque en la PC no se notara. Ahora Firestore maneja su propia
+// conexión sin que el Service Worker se meta en el medio.
 // -----------------------------------------------------------------------
 
-const CACHE_NAME = "agrodata-v3";
+const CACHE_NAME = "agrodata-v3"; // subido de v2 a v3 para forzar la actualización en todos los dispositivos
 const urlsToCache = ["/", "/index.html"];
 
 self.addEventListener("install", (event) => {
@@ -45,28 +46,38 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // Solo intervenimos pedidos GET de nuestro propio sitio.
-  // Todo lo demás (POST, pedidos a firestore.googleapis.com, etc.)
-  // pasa directo sin tocar.
-  const esGet = event.request.method === "GET";
-  const esMismoOrigen = event.request.url.startsWith(self.location.origin);
-  if (!esGet || !esMismoOrigen) {
-    return; // deja que el navegador maneje el pedido normalmente
+  const req = event.request;
+
+  // Chequeamos si el pedido es hacia nuestro propio dominio (mismo origen).
+  let mismoOrigen = false;
+  try {
+    mismoOrigen = new URL(req.url).origin === self.location.origin;
+  } catch (e) {
+    mismoOrigen = false;
+  }
+
+  // Si NO es un GET a nuestro propio dominio (por ejemplo: Firestore,
+  // Firebase Auth, Analytics, o cualquier pedido a otro servidor), no
+  // hacemos nada y dejamos que el navegador lo maneje directamente.
+  // Esto es crítico para que la sincronización con la nube funcione bien
+  // en el celular.
+  if (req.method !== "GET" || !mismoOrigen) {
+    return;
   }
 
   event.respondWith(
-    fetch(event.request)
+    fetch(req)
       .then((respuestaDeRed) => {
         // Si trajo la respuesta de internet con éxito, guarda una copia
         // fresca en caché (por si se necesita sin conexión más adelante)
         // y la devuelve.
         const copia = respuestaDeRed.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copia));
+        caches.open(CACHE_NAME).then((cache) => cache.put(req, copia));
         return respuestaDeRed;
       })
       .catch(() => {
         // Sin conexión: como último recurso, usa lo que haya guardado.
-        return caches.match(event.request);
+        return caches.match(req);
       })
   );
 });
