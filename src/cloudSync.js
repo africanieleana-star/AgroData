@@ -13,21 +13,16 @@
 //    para poder volver atrás si algo se corrompe o se borra por error.
 //    Se conservan los últimos 30 días; los más viejos se eliminan solos.
 //  - Cada operación contra el servidor tiene un tiempo máximo de espera
-//    (15 segundos). Si la red no contesta ni con éxito ni con error
-//    dentro de ese tiempo, se lo trata como un error y se reintenta más
-//    tarde, en vez de quedarse mostrando "Guardando..." para siempre.
-//  - Si el dispositivo está sin conexión, NO se intenta escribir en la
-//    nube (ni el documento principal ni el respaldo por animal). Esto
-//    evita que se acumulen "intentos fantasma" de subida que, al volver
-//    la señal, puedan llegar fuera de orden y pisar un guardado más
-//    nuevo con uno más viejo.
-//  - "Hay algo pendiente de subir" se guarda también en el propio
-//    dispositivo (no solo en la memoria del navegador). Esto es clave
-//    en celulares: si la app se pausa o se cierra sola mientras está
-//    sin señal (algo común al minimizar la app o activar modo avión),
-//    al volver a abrirla la app se acuerda de que había un cambio sin
-//    subir y lo sube primero, en vez de traer la versión vieja de la
-//    nube y taparlo por error.
+//    (15 segundos), para no quedarse mostrando "Guardando..." para
+//    siempre si la red no contesta.
+//  - NUEVO: además de escuchar el evento "online" del navegador (que en
+//    celulares no siempre se dispara al recuperar señal, sobre todo si
+//    la app estuvo en segundo plano), ahora también reintenta subir:
+//      1) cada vez que la app vuelve a estar visible/en primer plano
+//         (visibilitychange, focus), y
+//      2) con un chequeo periódico de respaldo cada 20 segundos.
+//    Esto asegura que, apenas vuelva la señal en el celular, los
+//    cambios cargados offline se suban solos, igual que en la PC.
 // -----------------------------------------------------------------------
 
 import {
@@ -53,10 +48,6 @@ let restaurando = false;
 let timeoutGuardado = null;
 
 // Hay un cambio local que todavía no se confirmó guardado en la nube.
-// (Este valor en memoria es solo para uso inmediato dentro de la misma
-// sesión de la pestaña; la versión que realmente sobrevive a que la app
-// se cierre está guardada en localStorage, en la clave
-// "agrodata:pendienteSubir".)
 let pendienteDeSubir = false;
 
 let intentosFallidos = 0;
@@ -87,14 +78,8 @@ function conTiempoLimite(promesaOriginal, ms = TIEMPO_MAXIMO_ESPERA_MS) {
 }
 
 // Claves que NUNCA hay que subir, borrar ni pisar: son internas de
-// Firebase o del propio mecanismo de sincronización.
-const PREFIJOS_RESERVADOS = [
-  "firebase:",
-  "firebaseLocalStorageDb",
-  "firebase-heartbeat",
-  "agrodata:cuentaActual",
-  "agrodata:pendienteSubir",
-];
+// Firebase (por ejemplo, la sesión de Firebase Auth).
+const PREFIJOS_RESERVADOS = ["firebase:", "firebaseLocalStorageDb", "firebase-heartbeat"];
 
 function esClaveReservada(clave) {
   return PREFIJOS_RESERVADOS.some((prefijo) => clave.startsWith(prefijo));
@@ -184,15 +169,11 @@ async function limpiarBackupsViejos() {
 async function subirAhora() {
   if (!uidActual) return false;
 
-  // Si sabemos que no hay conexión, ni siquiera intentamos escribir.
-  // Esto evita "intentos fantasma" que después pueden llegar fuera de
-  // orden y pisar un guardado más nuevo con uno más viejo.
-  if (typeof navigator !== "undefined" && navigator.onLine === false) {
-    fijarEstado("sin_conexion");
-    return false;
-  }
-
-  fijarEstado("guardando");
+  fijarEstado(
+    typeof navigator !== "undefined" && navigator.onLine === false
+      ? "sin_conexion"
+      : "guardando"
+  );
 
   try {
     const datos = leerTodoLocalStorage();
@@ -203,7 +184,6 @@ async function subirAhora() {
       })
     );
     pendienteDeSubir = false;
-    originalRemoveItem("agrodata:pendienteSubir"); // ya no queda nada pendiente en este dispositivo
     intentosFallidos = 0;
     fijarEstado("sincronizado");
     actualizarBackupDeHoy(datos); // no bloqueante: no retrasa la confirmación al usuario
@@ -228,10 +208,6 @@ function programarReintento() {
 function programarSubida() {
   if (!sincronizacionActiva || !uidActual || restaurando) return;
   pendienteDeSubir = true;
-  // Se guarda también en el dispositivo (no solo en memoria), para que
-  // sobreviva si la app se cierra o se pausa antes de terminar de subir
-  // (algo frecuente en celulares).
-  originalSetItem("agrodata:pendienteSubir", "1");
   fijarEstado("guardando");
   clearTimeout(timeoutGuardado);
   timeoutGuardado = setTimeout(() => {
@@ -239,40 +215,9 @@ function programarSubida() {
   }, 1000);
 }
 
-// --- Respaldo individual por animal (además del documento completo) ---
-// Cada vez que se guarda o borra una ficha "animal:<caravana>", se sube
-// (con debounce) SOLO esa ficha a usuarios/{uid}/animales/{caravana}.
-// Esto alimenta al botón de emergencia "Recuperar animales desde Firebase"
-// sin tener que recorrer todo localStorage cada vez.
-const timeoutsAnimales = {};
-
-function programarSubidaAnimal(caravana, valorJSON) {
-  if (!sincronizacionActiva || !uidActual || restaurando) return;
-  clearTimeout(timeoutsAnimales[caravana]);
-  timeoutsAnimales[caravana] = setTimeout(async () => {
-    // Si no hay conexión en el momento de intentar, no escribimos nada:
-    // el respaldo general (documento completo) ya se encarga de subir
-    // este dato apenas vuelva la señal.
-    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-    try {
-      const contenido = JSON.parse(valorJSON);
-      await conTiempoLimite(
-        setDoc(doc(db, "usuarios", uidActual, "animales", caravana), contenido, { merge: true })
-      );
-    } catch (e) {
-      console.error(`No se pudo respaldar el animal ${caravana} en Firebase:`, e);
-    }
-  }, 1500);
-}
-
 localStorage.setItem = function (clave, valor) {
   originalSetItem(clave, valor);
-  if (!esClaveReservada(clave)) {
-    programarSubida();
-    if (clave.startsWith("animal:")) {
-      programarSubidaAnimal(clave.slice("animal:".length), valor);
-    }
-  }
+  if (!esClaveReservada(clave)) programarSubida();
 };
 
 localStorage.removeItem = function (clave) {
@@ -292,42 +237,18 @@ localStorage.clear = function () {
 };
 
 if (typeof window !== "undefined") {
+  // Intenta subir de inmediato apenas el navegador avisa que volvió la
+  // señal. Es la vía principal, pero en el celular no siempre se
+  // dispara (ver los respaldos más abajo).
   window.addEventListener("online", () => {
-    if (!sincronizacionActiva) return;
-    if (pendienteDeSubir) {
+    if (pendienteDeSubir && sincronizacionActiva) {
       intentosFallidos = 0;
       subirAhora();
-    } else if (estadoActual === "sin_conexion") {
-      // No hay nada pendiente de subir: si el cartelito había quedado
-      // marcado como "sin conexión", lo corregimos para que muestre
-      // que ya estamos online y todo está guardado.
-      fijarEstado("sincronizado");
     }
   });
   window.addEventListener("offline", () => {
     if (sincronizacionActiva) fijarEstado("sin_conexion");
   });
-
-  // Respaldo por si el navegador no avisa bien que volvió la conexión
-  // (el evento "online" no siempre es confiable): cada vez que la
-  // pestaña vuelve a estar visible, o cada 20 segundos, se revisa el
-  // estado de la conexión y se corrige el cartelito o se reintenta la
-  // subida si hace falta.
-  const reintentarSiHaceFalta = () => {
-    if (!sincronizacionActiva || !navigator.onLine) return;
-    if (pendienteDeSubir) {
-      intentosFallidos = 0;
-      subirAhora();
-    } else if (estadoActual === "sin_conexion") {
-      fijarEstado("sincronizado");
-    }
-  };
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") reintentarSiHaceFalta();
-  });
-  setInterval(reintentarSiHaceFalta, 20000);
-
-  
   window.addEventListener("beforeunload", (e) => {
     if (sincronizacionActiva && pendienteDeSubir) {
       e.preventDefault();
@@ -350,41 +271,48 @@ if (typeof window !== "undefined") {
     if (document.visibilityState === "hidden") forzarSubidaSiHacePendiente();
   });
   window.addEventListener("pagehide", forzarSubidaSiHacePendiente);
+
+  // ---------------------------------------------------------------
+  // RESPALDOS PARA RECONEXIÓN CONFIABLE EN CELULAR
+  // ---------------------------------------------------------------
+  // 1) Cuando la app vuelve a estar visible (el usuario reabre la app
+  //    o vuelve de otra pantalla del celular), reintentamos subir si
+  //    había algo pendiente. Esto cubre el caso típico: cargaste un
+  //    ternero sin señal, minimizaste la app, y cuando la volvés a
+  //    abrir con wifi ya disponible, se sube solo.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && pendienteDeSubir && sincronizacionActiva) {
+      intentosFallidos = 0;
+      subirAhora();
+    }
+  });
+
+  // 2) Lo mismo cuando la ventana/pestaña recupera el foco (cubre
+  //    algunos navegadores/casos que "visibilitychange" no dispara).
+  window.addEventListener("focus", () => {
+    if (pendienteDeSubir && sincronizacionActiva) {
+      intentosFallidos = 0;
+      subirAhora();
+    }
+  });
+
+  // 3) Chequeo periódico de respaldo: cada 20 segundos, si hay algo
+  //    pendiente de subir y el navegador dice que hay conexión, se
+  //    reintenta. Es la red de seguridad final para cuando ninguno de
+  //    los eventos anteriores se disparó (pasa en algunos celulares
+  //    con Android/iOS al volver de segundo plano).
+  setInterval(() => {
+    if (pendienteDeSubir && sincronizacionActiva && navigator.onLine) {
+      subirAhora();
+    }
+  }, 20000);
 }
 
 export async function iniciarSincronizacion(uid) {
-  const cuentaAnterior = localStorage.getItem("agrodata:cuentaActual");
-
-  // ¿Quedaron cambios de una sesión anterior EN ESTE DISPOSITIVO que
-  // todavía no se habían confirmado como subidos? (por ejemplo, se
-  // cargó algo sin señal y la app se cerró, se pausó, o el celular la
-  // "mató" en segundo plano, antes de que volviera la conexión).
-  const habiaPendienteSinSubir = localStorage.getItem("agrodata:pendienteSubir") === "1";
-
-  // Solo borramos de entrada si esos datos son de OTRA cuenta distinta
-  // a la que acaba de entrar. Si es la misma cuenta, NO se borra nada
-  // todavía.
-  if (cuentaAnterior && cuentaAnterior !== uid) {
-    borrarSoloDatosDeApp();
-    originalRemoveItem("agrodata:pendienteSubir");
-  }
-
   uidActual = uid;
   restaurando = true;
   fijarEstado("guardando");
-
   try {
-    if (cuentaAnterior === uid && habiaPendienteSinSubir) {
-      // Hay cambios locales de la misma cuenta que todavía no se
-      // confirmaron subidos. NO tocamos el localStorage ni traemos
-      // nada de la nube (eso taparía el cambio pendiente con una
-      // versión más vieja). Dejamos que la subida normal lo suba.
-      pendienteDeSubir = true;
-      originalSetItem("agrodata:cuentaActual", uid);
-      subirAhora(); // intento inmediato; si no hay señal, sigue reintentando solo
-      return;
-    }
-
     const referencia = doc(db, "usuarios", uid);
     const snapshot = await conTiempoLimite(getDoc(referencia));
 
@@ -394,7 +322,7 @@ export async function iniciarSincronizacion(uid) {
       Object.keys(datosNube).forEach((clave) => {
         if (!esClaveReservada(clave)) originalSetItem(clave, datosNube[clave]);
       });
-    } else if (!cuentaAnterior || cuentaAnterior === uid) {
+    } else {
       const datosLocales = leerTodoLocalStorage();
       await conTiempoLimite(
         setDoc(referencia, {
@@ -403,8 +331,6 @@ export async function iniciarSincronizacion(uid) {
         })
       );
     }
-
-    originalSetItem("agrodata:cuentaActual", uid);
     fijarEstado("sincronizado");
   } catch (e) {
     console.error("No se pudo traer los datos de la nube:", e);
@@ -429,18 +355,14 @@ export async function detenerSincronizacion() {
     }
   }
 
-  // Pase lo que pase con la subida, cerramos la sesión y borramos los
-  // datos locales. Nunca hay que dejar los datos de una cuenta cargados
-  // en el dispositivo al cerrar sesión: si se queda algo, el próximo
-  // usuario que entre en este mismo dispositivo lo vería como si fuera
-  // suyo.
-  sincronizacionActiva = false;
-  uidActual = null;
-  pendienteDeSubir = false;
-  intentosFallidos = 0;
-  borrarSoloDatosDeApp();
-  originalRemoveItem("agrodata:pendienteSubir");
-  fijarEstado("inactivo");
+  if (exito) {
+    sincronizacionActiva = false;
+    uidActual = null;
+    pendienteDeSubir = false;
+    intentosFallidos = 0;
+    borrarSoloDatosDeApp();
+    fijarEstado("inactivo");
+  }
 
   return { exito };
 }
