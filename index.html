@@ -12,14 +12,64 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- Script para activar el Service Worker en el navegador -->
+    <!-- Registro del Service Worker, forzando que siempre chequee la
+         versión más nueva en el servidor (updateViaCache: 'none') y
+         pidiéndole al navegador que revise si hay una actualización
+         apenas carga la página. Esto evita que un celular se quede
+         "pegado" para siempre con una versión vieja y rota del
+         Service Worker. -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/service-worker.js');
+          navigator.serviceWorker
+            .register('/service-worker.js', { updateViaCache: 'none' })
+            .then((registro) => {
+              // Fuerza un chequeo de actualización ahora mismo.
+              registro.update();
+
+              // Si ya había un Service Worker esperando para activarse
+              // (una versión nueva instalada pero no tomada todavía),
+              // le pedimos que se salte la espera.
+              if (registro.waiting) {
+                registro.waiting.postMessage({ tipo: 'SALTAR_ESPERA' });
+              }
+
+              registro.addEventListener('updatefound', () => {
+                const nuevoWorker = registro.installing;
+                if (!nuevoWorker) return;
+                nuevoWorker.addEventListener('statechange', () => {
+                  if (nuevoWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    nuevoWorker.postMessage({ tipo: 'SALTAR_ESPERA' });
+                  }
+                });
+              });
+            })
+            .catch((err) => console.error('Error registrando el Service Worker:', err));
+
+          // Cuando el Service Worker activo cambia (se actualizó a una
+          // versión nueva), recargamos la página una sola vez para que
+          // la app quede corriendo con el código nuevo.
+          let yaRecargo = false;
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (yaRecargo) return;
+            yaRecargo = true;
+            window.location.reload();
+          });
+        });
+
+        // Cada vez que la app vuelve a primer plano, le pedimos al
+        // navegador que revise si hay una versión nueva del Service
+        // Worker en el servidor. Así, aunque el celular haya quedado
+        // con una versión vieja, apenas se abre la app con conexión
+        // se actualiza sola.
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            navigator.serviceWorker.getRegistration().then((registro) => {
+              if (registro) registro.update();
+            });
+          }
         });
       }
     </script>
   </body>
 </html>
-
