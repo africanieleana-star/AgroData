@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { listarBackups, restaurarBackup, obtenerDatosActuales, obtenerDatosDeBackup, recuperarAnimalesDesdeSubcoleccion } from "./cloudSync";
+import * as XLSX from "xlsx";
 
 // Arma y dispara la descarga de un archivo .json en la PC del usuario,
 // con los datos ya "desempaquetados" (cada ficha como objeto legible,
@@ -31,6 +32,103 @@ function formatearFecha(fechaISO) {
   return `${dia}/${mes}/${anio}`;
 }
 
+// Arma y descarga un Excel (.xlsx) con tres hojas —Animales, Sanidad y
+// Ventas— leyendo directo de localStorage. Solo se listan los campos
+// que están realmente cargados; nada se inventa ni se completa.
+function descargarComoExcel(nombreArchivo) {
+  const animales = [];
+  const ventasFilas = [];
+  let sanidad = [];
+
+  // --- Animales ---
+  for (let i = 0; i < localStorage.length; i++) {
+    const clave = localStorage.key(i);
+    if (!clave || !clave.startsWith("animal:")) continue;
+    let f;
+    try {
+      f = JSON.parse(localStorage.getItem(clave));
+    } catch (e) {
+      continue;
+    }
+    if (!f) continue;
+    animales.push({
+      Caravana: f.caravana || "",
+      Tipo: f.tipo || "",
+      Raza: f.raza || "",
+      Color: f.color || "",
+      Establecimiento: f.establecimiento || "",
+      "Fecha nacimiento": f.fechaNacimiento || "",
+      "Caravana madre": f.caravanaMadre || "",
+      "Nombre padre": f.nombrePadre || "",
+      Vendido: f.vendido ? "Sí" : "No",
+      "Fecha de venta": (f.vendido && f.vendido.fecha) || "",
+      Fallecido: f.fallecimiento && f.fallecimiento.fecha ? "Sí" : "No",
+      "Fecha fallecimiento": (f.fallecimiento && f.fallecimiento.fecha) || "",
+      "Último tacto": (f.tacto && f.tacto.fecha) || "",
+      "Resultado tacto": (f.tacto && f.tacto.resultado) || "",
+      "Fecha parición": (f.paricion && f.paricion.fecha) || "",
+      "Caravana cría": (f.paricion && f.paricion.caravanaCria) || "",
+      Observaciones: f.observacionesAnimal || "",
+    });
+  }
+
+  // --- Sanidad ---
+  try {
+    const tareas = JSON.parse(localStorage.getItem("tareas_manuales") || "[]");
+    sanidad = tareas
+      .filter((t) => t.texto && t.texto.includes("💉 Sanidad:"))
+      .map((t) => ({
+        Fecha: t.fecha || "",
+        Tarea: t.texto || "",
+        Completada: t.completada ? "Sí" : "No",
+      }));
+  } catch (e) {
+    sanidad = [];
+  }
+
+  // --- Ventas ---
+  try {
+    const ventas = JSON.parse(localStorage.getItem("agrodata_ventas") || "[]");
+    const numero = (v) => {
+      if (!v) return null;
+      const n = parseFloat(String(v).replace(",", "."));
+      return isNaN(n) ? null : n;
+    };
+    ventas.forEach((venta) => {
+      const porUnidad = numero(venta.precioPorUnidad);
+      const porKilo = numero(venta.precioPorKilo);
+      const kilos = numero(venta.cantidadKilos);
+      let monto = null;
+      if (porUnidad !== null) monto = porUnidad * ((venta.animales && venta.animales.length) || 1);
+      else if (porKilo !== null && kilos !== null) monto = porKilo * kilos;
+
+      (venta.animales || []).forEach((caravana) => {
+        ventasFilas.push({
+          Caravana: caravana,
+          "Fecha de venta": venta.fecha || "",
+          "Precio por kilo": venta.precioPorKilo || "",
+          "Precio por unidad": venta.precioPorUnidad || "",
+          "Cantidad de kilos": venta.cantidadKilos || "",
+          "Monto total de la venta": monto !== null ? monto : "",
+          "Pago a 30 días": venta.fechaPago30 || "",
+          "Pago a 60 días": venta.fechaPago60 || "",
+          "Pago a 90 días": venta.fechaPago90 || "",
+          Observaciones: venta.observaciones || "",
+        });
+      });
+    });
+  } catch (e) {
+    // no había ventas cargadas, se deja vacío
+  }
+
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(animales), "Animales");
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(sanidad), "Sanidad");
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(ventasFilas), "Ventas");
+  XLSX.writeFile(libro, nombreArchivo);
+}
+
+
 function fechaDeHoyISO() {
   const hoy = new Date();
   const yyyy = hoy.getFullYear();
@@ -52,6 +150,7 @@ export default function BackupPanel() {
   const [backups, setBackups] = useState([]);
   const [restaurandoFecha, setRestaurandoFecha] = useState(null);
   const [descargandoFecha, setDescargandoFecha] = useState(null);
+  const [descargandoExcel, setDescargandoExcel] = useState(false);
   const [mensaje, setMensaje] = useState(null);
 
     const [recuperandoAnimales, setRecuperandoAnimales] = useState(false);
@@ -83,11 +182,16 @@ export default function BackupPanel() {
     setTimeout(() => window.location.reload(), 1500);
   };
 
-  const descargarActual = () => {
-    const datos = obtenerDatosActuales();
+const descargarExcelActual = () => {
+  setDescargandoExcel(true);
+  try {
     const hoy = fechaDeHoyISO();
-    descargarComoJSON(datos, `agrodata_respaldo_${hoy}.json`);
-  };
+    descargarComoExcel(`agrodata_datos_${hoy}.xlsx`);
+  } finally {
+    setDescargandoExcel(false);
+  }
+};
+  
 
   const descargarBackup = async (fecha) => {
     setDescargandoFecha(fecha);
@@ -218,24 +322,45 @@ export default function BackupPanel() {
               últimos 30 días si algo se cargó mal o se perdió.
             </p>
 
-            <button
-              type="button"
-              onClick={descargarActual}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1.5px solid var(--verde-monte, #3E4E2F)",
-                background: "#FFFDF8",
-                color: "var(--verde-monte, #3E4E2F)",
-                fontSize: 12.5,
-                fontWeight: 700,
-                cursor: "pointer",
-                marginBottom: 16,
-              }}
-            >
-              ⬇️ Descargar todo lo que tengo cargado ahora (archivo .json)
-            </button>
+<button
+  type="button"
+  onClick={descargarActual}
+  style={{
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1.5px solid var(--verde-monte, #3E4E2F)",
+    background: "#FFFDF8",
+    color: "var(--verde-monte, #3E4E2F)",
+    fontSize: 12.5,
+    fontWeight: 700,
+    cursor: "pointer",
+    marginBottom: 16,
+  }}
+>
+  ⬇️ Descargar todo lo que tengo cargado ahora (archivo .json)
+</button>
+
+<button
+  type="button"
+  onClick={descargarExcelActual}
+  disabled={descargandoExcel}
+  style={{
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1.5px solid var(--marron-cuero, #8B5A2B)",
+    background: "#FFFDF8",
+    color: "var(--marron-cuero-oscuro, #714823)",
+    fontSize: 12.5,
+    fontWeight: 700,
+    cursor: descargandoExcel ? "not-allowed" : "pointer",
+    marginBottom: 16,
+    opacity: descargandoExcel ? 0.6 : 1,
+  }}
+>
+  {descargandoExcel ? "Generando..." : "📊 Descargar todo en Excel (.xlsx)"}
+</button>
 
             <button
               type="button"
