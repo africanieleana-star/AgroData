@@ -182,6 +182,12 @@ export default function BackupPanel() {
     setTimeout(() => window.location.reload(), 1500);
   };
 
+const descargarActual = () => {
+  const datos = obtenerDatosActuales();
+  const hoy = fechaDeHoyISO();
+  descargarComoJSON(datos, `agrodata_respaldo_${hoy}.json`);
+};
+
 const descargarExcelActual = () => {
   setDescargandoExcel(true);
   try {
@@ -191,7 +197,6 @@ const descargarExcelActual = () => {
     setDescargandoExcel(false);
   }
 };
-  
 
   const descargarBackup = async (fecha) => {
     setDescargandoFecha(fecha);
