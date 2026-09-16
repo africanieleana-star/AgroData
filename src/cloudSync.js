@@ -604,3 +604,23 @@ export async function limpiarAnimalesHuerfanos() {
     return { eliminados: 0, error: "No se pudo conectar con Firebase." };
   }
 }
+}
+
+import { getCountFromServer } from "firebase/firestore";
+
+/**
+ * Devuelve la cantidad exacta de documentos en usuarios/{uid}/animales,
+ * sin traerlos todos (solo pide el conteo a Firestore). Útil para
+ * verificar rápido que la migración subió la cantidad esperada.
+ */
+export async function contarAnimalesEnFirebase() {
+  if (!uidActual) return { cantidad: null, error: "No hay sesión activa." };
+  try {
+    const refColeccion = collection(db, "usuarios", uidActual, "animales");
+    const snapshot = await conTiempoLimite(getCountFromServer(refColeccion));
+    return { cantidad: snapshot.data().count };
+  } catch (e) {
+    console.error("No se pudo contar los animales:", e);
+    return { cantidad: null, error: "No se pudo conectar con Firebase." };
+  }
+}
