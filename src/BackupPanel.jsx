@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { listarBackups, restaurarBackup, obtenerDatosActuales, obtenerDatosDeBackup, recuperarAnimalesDesdeSubcoleccion, limpiarAnimalesHuerfanos } from "./cloudSync";import * as XLSX from "xlsx";
+import { listarBackups, restaurarBackup, obtenerDatosActuales, obtenerDatosDeBackup, recuperarAnimalesDesdeSubcoleccion, limpiarAnimalesHuerfanos, migrarTodosLosAnimalesAhora } from "./cloudSync";
 
 // Arma y dispara la descarga de un archivo .json en la PC del usuario,
 // con los datos ya "desempaquetados" (cada ficha como objeto legible,
@@ -154,6 +154,31 @@ export default function BackupPanel() {
 
     const [recuperandoAnimales, setRecuperandoAnimales] = useState(false);
   const [limpiandoHuerfanos, setLimpiandoHuerfanos] = useState(false);
+  const [migrandoTodos, setMigrandoTodos] = useState(false);
+
+  const migrarTodos = async () => {
+    if (
+      !window.confirm(
+        "Esto va a subir a Firebase TODOS tus animales actuales, uno por uno, para asegurarnos de que ninguno se haya quedado sin sincronizar. Con 139 animales puede tardar un ratito.\n\n¿Continuar?"
+      )
+    )
+      return;
+
+    setMigrandoTodos(true);
+    setMensaje(null);
+    const resultado = await migrarTodosLosAnimalesAhora();
+    setMigrandoTodos(false);
+
+    if (resultado.error) {
+      setMensaje({ tipo: "error", texto: `⚠️ ${resultado.error}` });
+      return;
+    }
+
+    setMensaje({
+      tipo: "exito",
+      texto: `✅ Se subieron ${resultado.subidos} de ${resultado.total} animal(es) a Firebase.`,
+    });
+  };
 
   const limpiarHuerfanos = async () => {
     if (
@@ -350,6 +375,27 @@ const descargarExcelActual = () => {
               Se guarda una copia automática por día. Podés volver a cualquiera de los
               últimos 30 días si algo se cargó mal o se perdió.
             </p>
+
+<button
+  type="button"
+  onClick={migrarTodos}
+  disabled={migrandoTodos}
+  style={{
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1.5px solid var(--marron-cuero, #8B5A2B)",
+    background: "#EFEBDD",
+    color: "var(--marron-cuero-oscuro, #714823)",
+    fontSize: 12.5,
+    fontWeight: 700,
+    cursor: migrandoTodos ? "not-allowed" : "pointer",
+    marginBottom: 16,
+    opacity: migrandoTodos ? 0.6 : 1,
+  }}
+>
+  {migrandoTodos ? "Subiendo animales..." : "📤 Subir todos mis animales a Firebase (una vez)"}
+</button>
 
 <button
   type="button"
