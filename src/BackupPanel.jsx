@@ -378,28 +378,8 @@ const descargarExcelActual = () => {
 
 <button
   type="button"
-  onClick={migrarTodos}
-  disabled={migrandoTodos}
-  style={{
-    width: "100%",
-    padding: "10px 12px",
-    borderRadius: 10,
-    border: "1.5px solid var(--marron-cuero, #8B5A2B)",
-    background: "#EFEBDD",
-    color: "var(--marron-cuero-oscuro, #714823)",
-    fontSize: 12.5,
-    fontWeight: 700,
-    cursor: migrandoTodos ? "not-allowed" : "pointer",
-    marginBottom: 16,
-    opacity: migrandoTodos ? 0.6 : 1,
-  }}
->
-  {migrandoTodos ? "Subiendo animales..." : "📤 Subir todos mis animales a Firebase (una vez)"}
-</button>
-
-<button
-  type="button"
   onClick={descargarActual}
+  
   style={{
     width: "100%",
     padding: "10px 12px",
