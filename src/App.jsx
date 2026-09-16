@@ -4698,6 +4698,7 @@ function obtenerProximaAccion(ficha) {
 function PantallaResumen({ ficha, onVolver, onEditar, onVerFicha }) {
   const estado = estadoReproductivoDe(ficha);
   const proximaAccion = obtenerProximaAccion(ficha);
+  const [fotoAmpliada, setFotoAmpliada] = useState(null);
 
   const ultimoServicio =
     Array.isArray(ficha.historialServicios) && ficha.historialServicios.length > 0
@@ -4750,21 +4751,63 @@ function PantallaResumen({ ficha, onVolver, onEditar, onVerFicha }) {
         <EtiquetaEstado estado={estado} />
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        <div style={{ flex: 1, background: "#F5F2EC", borderRadius: 10, padding: "10px 12px" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+        <div style={{ flex: 1, minWidth: 100, background: "#F5F2EC", borderRadius: 10, padding: "10px 12px" }}>
           <div style={{ fontSize: 11, color: "#8A7A63", fontWeight: 600 }}>Nacimiento</div>
           <div style={{ fontSize: 13.5, color: "var(--marron-oscuro)", fontWeight: 700, marginTop: 2 }}>
             {ficha.fechaNacimiento ? formatearFechaDDMMYYYY(parseISO(ficha.fechaNacimiento)) : "Sin registrar"}
           </div>
         </div>
-        <div style={{ flex: 1, background: "#F5F2EC", borderRadius: 10, padding: "10px 12px" }}>
+        <div style={{ flex: 1, minWidth: 100, background: "#F5F2EC", borderRadius: 10, padding: "10px 12px" }}>
           <div style={{ fontSize: 11, color: "#8A7A63", fontWeight: 600 }}>Madre</div>
           <div style={{ fontSize: 13.5, color: "var(--marron-oscuro)", fontWeight: 700, marginTop: 2 }}>
             {ficha.caravanaMadre || ficha.cria?.caravanaMadre || "Sin registrar"}
+          </div>
         </div>
+        <div style={{ flex: 1, minWidth: 100, background: "#F5F2EC", borderRadius: 10, padding: "10px 12px" }}>
+          <div style={{ fontSize: 11, color: "#8A7A63", fontWeight: 600 }}>Padre</div>
+          <div style={{ fontSize: 13.5, color: "var(--marron-oscuro)", fontWeight: 700, marginTop: 2 }}>
+            {ficha.nombrePadre || ficha.cria?.nombrePadre || "Sin registrar"}
+          </div>
         </div>
       </div>
 
+      {Array.isArray(ficha.imagenes) && ficha.imagenes.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: "var(--verde-salvia)",
+              textTransform: "uppercase",
+              letterSpacing: 0.4,
+              marginBottom: 8,
+            }}
+          >
+            Fotos del animal
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {ficha.imagenes.map((src, idx) => (
+              <img
+                key={idx}
+                src={src}
+                alt={`Foto ${idx + 1} de la N° ${ficha.caravana}`}
+                onClick={() => setFotoAmpliada(src)}
+                style={{
+                  width: 84,
+                  height: 84,
+                  objectFit: "cover",
+                  borderRadius: 10,
+                  border: "2px solid var(--borde)",
+                  cursor: "zoom-in",
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {fotoAmpliada && <VisorImagenModal src={fotoAmpliada} onCerrar={() => setFotoAmpliada(null)} />}
       {proximaAccion && (
         <div
           style={{
