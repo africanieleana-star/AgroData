@@ -35,6 +35,7 @@ import {
   query,
   orderBy,
   limit as limitarConsulta,
+  getCountFromServer,
 } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -603,7 +604,6 @@ export async function limpiarAnimalesHuerfanos() {
     console.error("No se pudo limpiar animales huérfanos:", e);
     return { eliminados: 0, error: "No se pudo conectar con Firebase." };
   }
-}
 }
 
 import { getCountFromServer } from "firebase/firestore";
