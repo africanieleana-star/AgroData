@@ -529,6 +529,52 @@ export async function recuperarAnimalesDesdeSubcoleccion() {
 }
 
 /**
+ * Migración de arranque: sube a la subcolección usuarios/{uid}/animales
+ * TODOS los animales que existen ahora mismo en este dispositivo, sin
+ * esperar a que se editen uno por uno. Sirve para "ponerse al día" con
+ * animales que fueron cargados antes de que existiera la subida
+ * individual (Etapa 1), como pasó con algunos toros.
+ */
+export async function migrarTodosLosAnimalesAhora() {
+  if (!uidActual) return { subidos: 0, total: 0, error: "No hay sesión activa." };
+  try {
+    const claves = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const clave = localStorage.key(i);
+      if (clave && clave.startsWith("animal:")) claves.push(clave);
+    }
+
+    let subidos = 0;
+    for (const clave of claves) {
+      let datos;
+      try {
+        datos = JSON.parse(localStorage.getItem(clave));
+      } catch (e) {
+        continue; // ficha corrupta, se omite
+      }
+      if (!datos) continue;
+
+      const caravana = clave.slice("animal:".length);
+      try {
+        const ref = doc(db, "usuarios", uidActual, "animales", caravana);
+        // eslint-disable-next-line no-await-in-loop
+        await conTiempoLimite(
+          setDoc(ref, { ...datos, actualizado: new Date().toISOString() })
+        );
+        subidos += 1;
+      } catch (e) {
+        console.error(`No se pudo subir el animal ${caravana}:`, e);
+      }
+    }
+
+    return { subidos, total: claves.length };
+  } catch (e) {
+    console.error("No se pudo migrar los animales:", e);
+    return { subidos: 0, total: 0, error: "No se pudo conectar con Firebase." };
+  }
+}
+
+/**
  * Limpieza de huérfanos: compara los animales que existen ahora mismo en
  * este dispositivo (localStorage) contra los documentos individuales que
  * hay en usuarios/{uid}/animales, y borra de Firebase los que ya no
