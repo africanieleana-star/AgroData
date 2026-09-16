@@ -126,6 +126,35 @@ function capitalizar(texto) {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
+// Comprime una foto antes de guardarla (la achica a 1000px de ancho máximo
+// y la convierte a JPEG liviano), para que no ocupe mucho espacio en el
+// almacenamiento local ni en la nube.
+function comprimirImagen(archivo, maxAncho = 1000, calidad = 0.72) {
+  return new Promise((resolve, reject) => {
+    const lector = new FileReader();
+    lector.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxAncho) {
+          height = Math.round((height * maxAncho) / width);
+          width = maxAncho;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", calidad));
+      };
+      img.onerror = () => reject(new Error("No se pudo leer la imagen."));
+      img.src = e.target.result;
+    };
+    lector.onerror = () => reject(new Error("No se pudo leer el archivo."));
+    lector.readAsDataURL(archivo);
+  });
+}
+
 // 🌟 PEGAR AQUÍ LA CALCULADORA AUTOMÁTICA DE PADRE Y ORIGEN
 const determinarPadreYOrigen = (historialServicios, fechaNacimientoStr) => {
   if (!historialServicios || !Array.isArray(historialServicios) || !fechaNacimientoStr) {
@@ -574,8 +603,9 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [nombrePadreManual, setNombrePadreManual] = useState("");
   const [observacionesAnimal, setObservacionesAnimal] = useState("");
 
-    const [fallecio, setFallecio] = useState(false);
+  const [fallecio, setFallecio] = useState(false);
   const [fechaFallecimiento, setFechaFallecimiento] = useState("");
+  const [imagenes, setImagenes] = useState([]); // fotos del animal (array de dataURL)
 
   // Datos de Recría (solo aplican a Terneros / Terneras)
   const [pesoDestete205, setPesoDestete205] = useState("");
@@ -770,6 +800,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setObservacionesAnimal("");
     setFallecio(false);
     setFechaFallecimiento("");
+    setImagenes([]);
     setPesoDestete205("");
     setCastrado(false);
     setGananciaDiariaSuplementacion("");
@@ -839,13 +870,16 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setCaravanaMadreManual(f.caravanaMadre || f.cria?.caravanaMadre || "");
     setNombrePadreManual(f.nombrePadre || f.cria?.nombrePadre || "");
     setObservacionesAnimal(f.observacionesAnimal || "");
-        if (f.fallecimiento && f.fallecimiento.fecha) {
+    
+      if (f.fallecimiento && f.fallecimiento.fecha) {
       setFallecio(true);
       setFechaFallecimiento(f.fallecimiento.fecha);
     } else {
       setFallecio(false);
       setFechaFallecimiento("");
     }
+
+    setImagenes(Array.isArray(f.imagenes) ? f.imagenes : []);
 
     if (f.recria) {
       setPesoDestete205(f.recria.pesoDestete205 || "");
@@ -1033,6 +1067,8 @@ const irAIngresar = () => {
   setResultadoCria(null);
   setHistorialServicios([]);
   setHistorialCrias([]);
+  setImagenes([]);
+
 
   // 6. Restablecemos estado y mostramos el formulario vacio
   setEstado("idle");
@@ -1228,6 +1264,7 @@ const irAIngresar = () => {
         paricion,
         fallecimiento,
         recria,
+        imagenes,
       };
 
       localStorage.setItem(clave, JSON.stringify(ficha));
@@ -1407,6 +1444,7 @@ const irAIngresar = () => {
     gananciaDiariaVerdeo,
     fechaVenta,
     pesoVenta,
+    imagenes,
   ]);
 
   return (
@@ -1754,6 +1792,8 @@ const irAIngresar = () => {
                 setFechaVenta={setFechaVenta}
                 pesoVenta={pesoVenta}
                 setPesoVenta={setPesoVenta}
+                imagenes={imagenes}
+                setImagenes={setImagenes}
               />
             )}
 
@@ -5848,6 +5888,8 @@ function PantallaFormulario({
   setFechaVenta,
   pesoVenta,
   setPesoVenta,
+  imagenes,
+  setImagenes,
 }) {
   const enEdicion = modo === "edicion";
 
@@ -6101,6 +6143,8 @@ function PantallaFormulario({
             />
           )}
         </div>
+
+        <GaleriaFotosAnimal imagenes={imagenes} setImagenes={setImagenes} />
       </div>
             
 
@@ -7583,6 +7627,269 @@ function Aviso({ texto }) {
     >
       <AlertTriangle size={18} color="var(--terracota)" style={{ flexShrink: 0, marginTop: 2 }} />
       <p style={{ margin: 0, fontSize: 13.5, color: "var(--marron-oscuro)", lineHeight: 1.4 }}>{texto}</p>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- */
+/* Fotos del animal: galería con miniaturas + visor con zoom         */
+/* ---------------------------------------------------------------- */
+
+function VisorImagenModal({ src, onCerrar }) {
+  const [escala, setEscala] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const arrastrando = useRef(false);
+  const ultimoPunto = useRef({ x: 0, y: 0 });
+
+  const cambiarZoom = (delta) => {
+    setEscala((actual) => {
+      const nuevo = Math.min(4, Math.max(1, actual + delta));
+      if (nuevo === 1) setPos({ x: 0, y: 0 });
+      return nuevo;
+    });
+  };
+
+  const alHacerClickImagen = () => {
+    if (escala === 1) cambiarZoom(1.5);
+    else cambiarZoom(-(escala - 1));
+  };
+
+  const alRuedaMouse = (e) => {
+    e.preventDefault();
+    cambiarZoom(e.deltaY < 0 ? 0.3 : -0.3);
+  };
+
+  const iniciarArrastre = (x, y) => {
+    if (escala === 1) return;
+    arrastrando.current = true;
+    ultimoPunto.current = { x, y };
+  };
+  const moverArrastre = (x, y) => {
+    if (!arrastrando.current) return;
+    const dx = x - ultimoPunto.current.x;
+    const dy = y - ultimoPunto.current.y;
+    ultimoPunto.current = { x, y };
+    setPos((p) => ({ x: p.x + dx, y: p.y + dy }));
+  };
+  const terminarArrastre = () => {
+    arrastrando.current = false;
+  };
+
+  return (
+    <div
+      onClick={onCerrar}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.9)",
+        zIndex: 500,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        touchAction: "none",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onCerrar}
+        style={{
+          position: "absolute",
+          top: 16,
+          right: 16,
+          background: "rgba(255,255,255,0.15)",
+          border: "none",
+          color: "#fff",
+          borderRadius: "50%",
+          width: 40,
+          height: 40,
+          fontSize: 20,
+          cursor: "pointer",
+        }}
+      >
+        ✕
+      </button>
+
+      <div
+        style={{ position: "absolute", bottom: 20, display: "flex", gap: 10 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button type="button" onClick={() => cambiarZoom(-0.5)} style={ESTILO_BOTON_ZOOM}>−</button>
+        <button type="button" onClick={() => cambiarZoom(0.5)} style={ESTILO_BOTON_ZOOM}>+</button>
+      </div>
+
+      <img
+        src={src}
+        alt="Foto del animal ampliada"
+        onClick={(e) => {
+          e.stopPropagation();
+          alHacerClickImagen();
+        }}
+        onWheel={alRuedaMouse}
+        onMouseDown={(e) => iniciarArrastre(e.clientX, e.clientY)}
+        onMouseMove={(e) => moverArrastre(e.clientX, e.clientY)}
+        onMouseUp={terminarArrastre}
+        onMouseLeave={terminarArrastre}
+        onTouchStart={(e) => {
+          const t = e.touches[0];
+          iniciarArrastre(t.clientX, t.clientY);
+        }}
+        onTouchMove={(e) => {
+          const t = e.touches[0];
+          moverArrastre(t.clientX, t.clientY);
+        }}
+        onTouchEnd={terminarArrastre}
+        style={{
+          maxWidth: "92vw",
+          maxHeight: "92vh",
+          objectFit: "contain",
+          transform: `scale(${escala}) translate(${pos.x / escala}px, ${pos.y / escala}px)`,
+          cursor: escala === 1 ? "zoom-in" : "grab",
+          userSelect: "none",
+        }}
+      />
+    </div>
+  );
+}
+
+const ESTILO_BOTON_ZOOM = {
+  width: 44,
+  height: 44,
+  borderRadius: "50%",
+  border: "none",
+  background: "rgba(255,255,255,0.15)",
+  color: "#fff",
+  fontSize: 22,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+function GaleriaFotosAnimal({ imagenes, setImagenes }) {
+  const inputRef = useRef(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const [fotoAmpliada, setFotoAmpliada] = useState(null);
+
+  const manejarSeleccion = async (e) => {
+    const archivos = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (archivos.length === 0) return;
+    setSubiendo(true);
+    try {
+      const nuevas = [];
+      for (const archivo of archivos) {
+        if (!archivo.type.startsWith("image/")) continue;
+        const dataUrl = await comprimirImagen(archivo);
+        nuevas.push(dataUrl);
+      }
+      setImagenes((actual) => [...actual, ...nuevas]);
+    } catch (err) {
+      alert("No se pudo cargar alguna de las imágenes.");
+    } finally {
+      setSubiendo(false);
+    }
+  };
+
+  const eliminarFoto = (indice) => {
+    setImagenes((actual) => actual.filter((_, i) => i !== indice));
+  };
+
+  return (
+    <div className="columna-completa" style={{ marginBottom: 8 }}>
+      <label
+        style={{
+          display: "block",
+          fontSize: 13,
+          fontWeight: 600,
+          color: "var(--marron-oscuro)",
+          marginBottom: 8,
+        }}
+      >
+        Fotos del animal
+      </label>
+
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        ref={inputRef}
+        onChange={manejarSeleccion}
+        style={{ display: "none" }}
+      />
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+        {imagenes.map((src, idx) => (
+          <div key={idx} style={{ position: "relative", width: 74, height: 74 }}>
+            <img
+              src={src}
+              alt={`Foto ${idx + 1}`}
+              onClick={() => setFotoAmpliada(src)}
+              style={{
+                width: 74,
+                height: 74,
+                objectFit: "cover",
+                borderRadius: 10,
+                border: "2px solid var(--borde)",
+                cursor: "zoom-in",
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => eliminarFoto(idx)}
+              title="Eliminar foto"
+              style={{
+                position: "absolute",
+                top: -6,
+                right: -6,
+                width: 22,
+                height: 22,
+                borderRadius: "50%",
+                background: "var(--terracota)",
+                color: "#FBF7ED",
+                border: "2px solid var(--crema)",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          onClick={() => inputRef.current && inputRef.current.click()}
+          disabled={subiendo}
+          style={{
+            width: 74,
+            height: 74,
+            borderRadius: 10,
+            border: "2px dashed var(--verde-salvia)",
+            background: "#FFFDF8",
+            color: "var(--verde-monte)",
+            cursor: subiendo ? "not-allowed" : "pointer",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 2,
+            fontSize: 11,
+            fontWeight: 600,
+          }}
+        >
+          {subiendo ? <Loader2 size={18} className="animate-spin" /> : <PlusCircle size={18} />}
+          {subiendo ? "..." : "Agregar"}
+        </button>
+      </div>
+
+      <p style={{ fontSize: 11, color: "#8A7A63", margin: 0 }}>
+        Tocá una foto para verla más grande y hacer zoom (rueda del mouse, botones +/− o pellizcar en el celular).
+      </p>
+
+      {fotoAmpliada && <VisorImagenModal src={fotoAmpliada} onCerrar={() => setFotoAmpliada(null)} />}
     </div>
   );
 }
