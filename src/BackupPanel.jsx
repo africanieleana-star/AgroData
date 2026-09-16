@@ -412,26 +412,6 @@ const descargarExcelActual = () => {
               {recuperandoAnimales ? "Recuperando..." : "🔄 Recuperar animales desde Firebase (emergencia)"}
             </button>
 
-            <button
-              type="button"
-              onClick={limpiarHuerfanos}
-              disabled={limpiandoHuerfanos}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1.5px solid var(--terracota, #A8452F)",
-                background: "#FFFDF8",
-                color: "var(--terracota, #A8452F)",
-                fontSize: 12.5,
-                fontWeight: 700,
-                cursor: limpiandoHuerfanos ? "not-allowed" : "pointer",
-                marginBottom: 16,
-                opacity: limpiandoHuerfanos ? 0.6 : 1,
-              }}
-            >
-              {limpiandoHuerfanos ? "Limpiando..." : "🧹 Limpiar animales de baja (huérfanos)"}
-            </button>
 
             {mensaje && (
             <div
