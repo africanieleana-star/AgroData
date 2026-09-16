@@ -215,14 +215,69 @@ function programarSubida() {
   }, 1000);
 }
 
+// -----------------------------------------------------------------------
+// ETAPA 1 DE LA MIGRACIÓN: además del documento único de siempre, cada
+// animal se sube TAMBIÉN a su propio documento chico en
+// usuarios/{uid}/animales/{caravana}. No reemplaza nada todavía — es una
+// subida "en paralelo" para poder migrar la lectura más adelante sin
+// perder el sistema que ya funciona.
+// -----------------------------------------------------------------------
+const timeoutsIndividuales = new Map();
+
+function programarSubidaIndividual(caravana, datos) {
+  if (!sincronizacionActiva || !uidActual || restaurando) return;
+  const timeoutExistente = timeoutsIndividuales.get(caravana);
+  if (timeoutExistente) clearTimeout(timeoutExistente);
+
+  const nuevoTimeout = setTimeout(async () => {
+    timeoutsIndividuales.delete(caravana);
+    try {
+      const ref = doc(db, "usuarios", uidActual, "animales", caravana);
+      await conTiempoLimite(
+        setDoc(ref, { ...datos, actualizado: new Date().toISOString() })
+      );
+    } catch (e) {
+      console.error(`No se pudo subir el animal individual ${caravana}:`, e);
+    }
+  }, 1000);
+
+  timeoutsIndividuales.set(caravana, nuevoTimeout);
+}
+
+function borrarAnimalIndividual(caravana) {
+  if (!sincronizacionActiva || !uidActual) return;
+  const ref = doc(db, "usuarios", uidActual, "animales", caravana);
+  deleteDoc(ref).catch((e) =>
+    console.error(`No se pudo borrar el animal individual ${caravana}:`, e)
+  );
+}
+
 localStorage.setItem = function (clave, valor) {
   originalSetItem(clave, valor);
-  if (!esClaveReservada(clave)) programarSubida();
+  if (esClaveReservada(clave)) return;
+
+  programarSubida();
+
+  if (clave.startsWith("animal:")) {
+    try {
+      const caravana = clave.slice("animal:".length);
+      const datos = JSON.parse(valor);
+      programarSubidaIndividual(caravana, datos);
+    } catch (e) {
+      // el valor no era JSON válido; no se sube individualmente
+    }
+  }
 };
 
 localStorage.removeItem = function (clave) {
   originalRemoveItem(clave);
-  if (!esClaveReservada(clave)) programarSubida();
+  if (esClaveReservada(clave)) return;
+
+  programarSubida();
+
+  if (clave.startsWith("animal:")) {
+    borrarAnimalIndividual(clave.slice("animal:".length));
+  }
 };
 
 localStorage.clear = function () {
@@ -470,5 +525,36 @@ export async function recuperarAnimalesDesdeSubcoleccion() {
   } catch (e) {
     console.error("No se pudo recuperar desde la subcolección de animales:", e);
     return { recuperados: 0, error: "No se pudo conectar con Firebase." };
+  }
+}
+
+/**
+ * Limpieza de huérfanos: compara los animales que existen ahora mismo en
+ * este dispositivo (localStorage) contra los documentos individuales que
+ * hay en usuarios/{uid}/animales, y borra de Firebase los que ya no
+ * existen localmente (animales dados de baja antes de que existiera el
+ * borrado automático, o restos de pruebas anteriores).
+ */
+export async function limpiarAnimalesHuerfanos() {
+  if (!uidActual) return { eliminados: 0, error: "No hay sesión activa." };
+  try {
+    const caravanasLocales = new Set();
+    for (let i = 0; i < localStorage.length; i++) {
+      const clave = localStorage.key(i);
+      if (clave && clave.startsWith("animal:")) {
+        caravanasLocales.add(clave.slice("animal:".length));
+      }
+    }
+
+    const refColeccion = collection(db, "usuarios", uidActual, "animales");
+    const snapshot = await getDocs(refColeccion);
+    const huerfanos = snapshot.docs.filter((d) => !caravanasLocales.has(d.id));
+
+    await Promise.all(huerfanos.map((d) => deleteDoc(d.ref)));
+
+    return { eliminados: huerfanos.length };
+  } catch (e) {
+    console.error("No se pudo limpiar animales huérfanos:", e);
+    return { eliminados: 0, error: "No se pudo conectar con Firebase." };
   }
 }
