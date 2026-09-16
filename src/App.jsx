@@ -7806,6 +7806,8 @@ const ESTILO_BOTON_ZOOM = {
   cursor: "pointer",
 };
 
+const LIMITE_FOTOS_POR_ANIMAL = 4;
+
 function GaleriaFotosAnimal({ imagenes, setImagenes }) {
   const inputRef = useRef(null);
   const [subiendo, setSubiendo] = useState(false);
@@ -7815,10 +7817,22 @@ function GaleriaFotosAnimal({ imagenes, setImagenes }) {
     const archivos = Array.from(e.target.files || []);
     e.target.value = "";
     if (archivos.length === 0) return;
+
+    const espacioDisponible = LIMITE_FOTOS_POR_ANIMAL - imagenes.length;
+    if (espacioDisponible <= 0) {
+      alert(`Este animal ya tiene el máximo de ${LIMITE_FOTOS_POR_ANIMAL} fotos. Borrá alguna para agregar otra.`);
+      return;
+    }
+
+    const archivosAProcesar = archivos.slice(0, espacioDisponible);
+    if (archivos.length > espacioDisponible) {
+      alert(`Solo se pueden agregar ${espacioDisponible} foto(s) más (máximo ${LIMITE_FOTOS_POR_ANIMAL} por animal). Se cargaron las primeras.`);
+    }
+
     setSubiendo(true);
     try {
       const nuevas = [];
-      for (const archivo of archivos) {
+      for (const archivo of archivosAProcesar) {
         if (!archivo.type.startsWith("image/")) continue;
         const dataUrl = await comprimirImagen(archivo);
         nuevas.push(dataUrl);
@@ -7902,34 +7916,36 @@ function GaleriaFotosAnimal({ imagenes, setImagenes }) {
           </div>
         ))}
 
-        <button
-          type="button"
-          onClick={() => inputRef.current && inputRef.current.click()}
-          disabled={subiendo}
-          style={{
-            width: 74,
-            height: 74,
-            borderRadius: 10,
-            border: "2px dashed var(--verde-salvia)",
-            background: "#FFFDF8",
-            color: "var(--verde-monte)",
-            cursor: subiendo ? "not-allowed" : "pointer",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 2,
-            fontSize: 11,
-            fontWeight: 600,
-          }}
-        >
-          {subiendo ? <Loader2 size={18} className="animate-spin" /> : <PlusCircle size={18} />}
-          {subiendo ? "..." : "Agregar"}
-        </button>
+        {imagenes.length < LIMITE_FOTOS_POR_ANIMAL && (
+          <button
+            type="button"
+            onClick={() => inputRef.current && inputRef.current.click()}
+            disabled={subiendo}
+            style={{
+              width: 74,
+              height: 74,
+              borderRadius: 10,
+              border: "2px dashed var(--verde-salvia)",
+              background: "#FFFDF8",
+              color: "var(--verde-monte)",
+              cursor: subiendo ? "not-allowed" : "pointer",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 2,
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          >
+            {subiendo ? <Loader2 size={18} className="animate-spin" /> : <PlusCircle size={18} />}
+            {subiendo ? "..." : "Agregar"}
+          </button>
+        )}
       </div>
 
       <p style={{ fontSize: 11, color: "#8A7A63", margin: 0 }}>
-        Tocá una foto para verla más grande y hacer zoom (rueda del mouse, botones +/− o pellizcar en el celular).
+        Tocá una foto para verla más grande y hacer zoom · Máximo {LIMITE_FOTOS_POR_ANIMAL} fotos por animal.
       </p>
 
       {fotoAmpliada && <VisorImagenModal src={fotoAmpliada} onCerrar={() => setFotoAmpliada(null)} />}
