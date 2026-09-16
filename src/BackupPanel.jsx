@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { listarBackups, restaurarBackup, obtenerDatosActuales, obtenerDatosDeBackup, recuperarAnimalesDesdeSubcoleccion } from "./cloudSync";
-import * as XLSX from "xlsx";
+import { listarBackups, restaurarBackup, obtenerDatosActuales, obtenerDatosDeBackup, recuperarAnimalesDesdeSubcoleccion, limpiarAnimalesHuerfanos } from "./cloudSync";import * as XLSX from "xlsx";
 
 // Arma y dispara la descarga de un archivo .json en la PC del usuario,
 // con los datos ya "desempaquetados" (cada ficha como objeto legible,
@@ -154,6 +153,31 @@ export default function BackupPanel() {
   const [mensaje, setMensaje] = useState(null);
 
     const [recuperandoAnimales, setRecuperandoAnimales] = useState(false);
+  const [limpiandoHuerfanos, setLimpiandoHuerfanos] = useState(false);
+
+  const limpiarHuerfanos = async () => {
+    if (
+      !window.confirm(
+        "Esto va a revisar la colección 'animales' de Firebase y borrar los que ya no existen en este dispositivo (por ejemplo, animales dados de baja hace tiempo).\n\n¿Continuar?"
+      )
+    )
+      return;
+
+    setLimpiandoHuerfanos(true);
+    setMensaje(null);
+    const resultado = await limpiarAnimalesHuerfanos();
+    setLimpiandoHuerfanos(false);
+
+    if (resultado.error) {
+      setMensaje({ tipo: "error", texto: `⚠️ ${resultado.error}` });
+      return;
+    }
+
+    setMensaje({
+      tipo: "exito",
+      texto: `✅ Se eliminaron ${resultado.eliminados} animal(es) huérfano(s) de Firebase.`,
+    });
+  };
 
   const recuperarDesdeAnimales = async () => {
     if (
@@ -386,6 +410,27 @@ const descargarExcelActual = () => {
               }}
             >
               {recuperandoAnimales ? "Recuperando..." : "🔄 Recuperar animales desde Firebase (emergencia)"}
+            </button>
+
+            <button
+              type="button"
+              onClick={limpiarHuerfanos}
+              disabled={limpiandoHuerfanos}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1.5px solid var(--terracota, #A8452F)",
+                background: "#FFFDF8",
+                color: "var(--terracota, #A8452F)",
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: limpiandoHuerfanos ? "not-allowed" : "pointer",
+                marginBottom: 16,
+                opacity: limpiandoHuerfanos ? 0.6 : 1,
+              }}
+            >
+              {limpiandoHuerfanos ? "Limpiando..." : "🧹 Limpiar animales de baja (huérfanos)"}
             </button>
 
             {mensaje && (
