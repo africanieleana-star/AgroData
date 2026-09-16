@@ -606,8 +606,6 @@ export async function limpiarAnimalesHuerfanos() {
   }
 }
 
-import { getCountFromServer } from "firebase/firestore";
-
 /**
  * Devuelve la cantidad exacta de documentos en usuarios/{uid}/animales,
  * sin traerlos todos (solo pide el conteo a Firestore). Útil para
