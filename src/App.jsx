@@ -9048,7 +9048,7 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
           position: "fixed",
           top: "65px",
           left: 0,
-          bottom: 100,
+          bottom: 90,
           width: esMobile ? (abierto ? 220 : 0) : (expandido ? 220 : 60),
           background: "#FBF7ED",
           borderRight: esMobile && !abierto ? "none" : "2px solid var(--borde, #e0d8c3)",
