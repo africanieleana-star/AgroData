@@ -38,6 +38,7 @@ import {
   getCountFromServer,
   runTransaction,
 } from "firebase/firestore";
+import { db } from "./firebase";
 
 const originalSetItem = localStorage.setItem.bind(localStorage);
 const originalRemoveItem = localStorage.removeItem.bind(localStorage);
