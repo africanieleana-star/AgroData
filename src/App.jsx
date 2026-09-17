@@ -9048,7 +9048,7 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
           position: "fixed",
           top: "65px",
           left: 0,
-          bottom: 0,
+          bottom: 110,
           width: esMobile ? (abierto ? 220 : 0) : (expandido ? 220 : 60),
           background: "#FBF7ED",
           borderRight: esMobile && !abierto ? "none" : "2px solid var(--borde, #e0d8c3)",
@@ -9155,8 +9155,10 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
             style={{
               borderTop: "1px solid var(--borde, #e0d8c3)",
               paddingTop: 10,
+              paddingBottom: 4,
               fontSize: 11,
               color: "#8A7A63",
+              lineHeight: 1.3,
             }}
           >
             AgroData — Eleana Africani
