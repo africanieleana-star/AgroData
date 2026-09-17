@@ -36,8 +36,8 @@ import {
   orderBy,
   limit as limitarConsulta,
   getCountFromServer,
+  runTransaction,
 } from "firebase/firestore";
-import { db } from "./firebase";
 
 const originalSetItem = localStorage.setItem.bind(localStorage);
 const originalRemoveItem = localStorage.removeItem.bind(localStorage);
@@ -47,6 +47,8 @@ let uidActual = null;
 let sincronizacionActiva = false;
 let restaurando = false;
 let timeoutGuardado = null;
+let ultimaVersionConocida = null; // guarda cuál fue la última versión que SÉ que es la mía
+class ConflictoVersionError extends Error {}
 
 // Hay un cambio local que todavía no se confirmó guardado en la nube.
 let pendienteDeSubir = false;
@@ -177,32 +179,40 @@ async function subirAhora() {
   );
 
   try {
+    const referencia = doc(db, "usuarios", uidActual);
     const datos = leerTodoLocalStorage();
+    const nuevaMarca = new Date().toISOString();
+
     await conTiempoLimite(
-      setDoc(doc(db, "usuarios", uidActual), {
-        datos,
-        actualizado: new Date().toISOString(),
+      runTransaction(db, async (transaction) => {
+        const snapshotActual = await transaction.get(referencia);
+        const versionEnNube = snapshotActual.exists() ? snapshotActual.data().actualizado : null;
+
+        if (ultimaVersionConocida && versionEnNube && versionEnNube !== ultimaVersionConocida) {
+          throw new ConflictoVersionError();
+        }
+
+        transaction.set(referencia, { datos, actualizado: nuevaMarca });
       })
     );
+
+    ultimaVersionConocida = nuevaMarca;
     pendienteDeSubir = false;
     intentosFallidos = 0;
     fijarEstado("sincronizado");
-
-    // 🔍 TEMPORAL: solo para verificar que la migración subió los 139
-    // animales esperados. Sacar esta línea después de confirmarlo.
-    contarAnimalesEnFirebase().then((r) => {
-      if (r.cantidad !== null) {
-        console.log(`📊 Animales en Firebase (usuarios/${uid}/animales):`, r.cantidad);
-      } else {
-        console.log("📊 No se pudo obtener el conteo:", r.error);
-      }
-    });
+    actualizarBackupDeHoy(datos);
+    return true;
   } catch (e) {
-    console.error("No se pudo traer los datos de la nube:", e);
+    if (e instanceof ConflictoVersionError) {
+      console.warn("Otro dispositivo guardó datos más nuevos. No se sobrescribió nada.");
+      fijarEstado("conflicto_dispositivo");
+      pendienteDeSubir = false;
+      return false;
+    }
+    console.error("No se pudo sincronizar con la nube:", e);
     fijarEstado("error");
-  } finally {
-    restaurando = false;
-    sincronizacionActiva = true;
+    programarReintento();
+    return false;
   }
 }
 
@@ -387,14 +397,17 @@ export async function iniciarSincronizacion(uid) {
       Object.keys(datosNube).forEach((clave) => {
         if (!esClaveReservada(clave)) originalSetItem(clave, datosNube[clave]);
       });
+      ultimaVersionConocida = snapshot.data().actualizado || null;
     } else {
       const datosLocales = leerTodoLocalStorage();
+      const marcaInicial = new Date().toISOString();
       await conTiempoLimite(
         setDoc(referencia, {
           datos: datosLocales,
-          actualizado: new Date().toISOString(),
+          actualizado: marcaInicial,
         })
       );
+      ultimaVersionConocida = marcaInicial;
     }
     fijarEstado("sincronizado");
   } catch (e) {
@@ -423,6 +436,7 @@ export async function detenerSincronizacion() {
   if (exito) {
     sincronizacionActiva = false;
     uidActual = null;
+    ultimaVersionConocida = null;
     pendienteDeSubir = false;
     intentosFallidos = 0;
     borrarSoloDatosDeApp();
