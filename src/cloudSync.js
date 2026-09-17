@@ -187,13 +187,22 @@ async function subirAhora() {
     pendienteDeSubir = false;
     intentosFallidos = 0;
     fijarEstado("sincronizado");
-    actualizarBackupDeHoy(datos); // no bloqueante: no retrasa la confirmación al usuario
-    return true;
+
+    // 🔍 TEMPORAL: solo para verificar que la migración subió los 139
+    // animales esperados. Sacar esta línea después de confirmarlo.
+    contarAnimalesEnFirebase().then((r) => {
+      if (r.cantidad !== null) {
+        console.log(`📊 Animales en Firebase (usuarios/${uid}/animales):`, r.cantidad);
+      } else {
+        console.log("📊 No se pudo obtener el conteo:", r.error);
+      }
+    });
   } catch (e) {
-    console.error("No se pudo sincronizar con la nube:", e);
+    console.error("No se pudo traer los datos de la nube:", e);
     fijarEstado("error");
-    programarReintento();
-    return false;
+  } finally {
+    restaurando = false;
+    sincronizacionActiva = true;
   }
 }
 
