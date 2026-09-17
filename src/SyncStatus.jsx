@@ -19,12 +19,16 @@ export default function SyncStatus() {
     guardando: { texto: "Guardando...", color: "var(--marron-cuero)", icono: "☁️" },
     error: { texto: "No se pudo guardar, reintentando...", color: "var(--terracota)", icono: "⚠️" },
     sin_conexion: { texto: "Sin conexión, guardando cuando vuelva", color: "var(--terracota)", icono: "📡" },
+    conflicto_dispositivo: { texto: "Otro dispositivo guardó cambios nuevos. Tocá para recargar.", color: "var(--terracota)", icono: "🔁" },
   };
 
   const { texto, color, icono } = CONFIG[estado] || CONFIG.guardando;
 
   return (
     <div
+      onClick={() => {
+        if (estado === "conflicto_dispositivo") window.location.reload();
+      }}
       style={{
         position: "fixed",
         bottom: 16,
@@ -43,6 +47,7 @@ export default function SyncStatus() {
         fontWeight: 600,
         color,
         maxWidth: "70vw",
+        cursor: estado === "conflicto_dispositivo" ? "pointer" : "default",
       }}
     >
       <span style={{ fontSize: 13, flexShrink: 0 }}>{icono}</span>
