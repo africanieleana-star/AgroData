@@ -18,6 +18,7 @@ import { getAuth } from "firebase/auth";
 import {
   initializeFirestore,
   persistentLocalCache,
+  persistentMultipleTabManager
 } from "firebase/firestore";
 
 // Mantenés tus credenciales reales exactamente como las tenés
