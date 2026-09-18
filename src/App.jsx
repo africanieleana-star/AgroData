@@ -2286,7 +2286,7 @@ function PantallaInicio({ onNavegar }) {
           <BotonAcceso texto="Genealogía" icono={<GitFork size={17} />} onClick={() => onNavegar("genealogia")} />
         </div>
 
-        <InformeMensual />
+        <InformeMensual animales={animales} tareasSanidad={tareas} ventas={ventas} />
       </div>
 
       {/* 5. Módulo de Sanidad y Vacunación */}
