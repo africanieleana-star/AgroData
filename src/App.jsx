@@ -2333,31 +2333,6 @@ function PantallaInicio({ onNavegar }) {
         </div>
       </div>
 
-      {/* Botón de Descargar PDF */}
-<button
-  type="button"
-  onClick={descargarPDFMensual}
-  style={{
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    width: "100%",
-    padding: "14px 16px",
-    borderRadius: 12,
-    border: "none",
-    background: "#2E7D32",
-    color: "#FFFFFF",
-    fontFamily: "'PP Neue Montreal Bold', serif",
-    fontWeight: 600,
-    fontSize: 15,
-    cursor: "pointer",
-    marginTop: 10
-  }}
->
-  📄 Descargar Informe Mensual (PDF)
-</button>
-
       {/* 5. Módulo de Sanidad y Vacunación */}
       <button
         type="button"
