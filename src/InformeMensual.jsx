@@ -123,7 +123,7 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
         📊 Reporte Mensual PDF
       </h3>
       <p style={{ margin: "0 0 14px 0", fontSize: "13px", color: "#666" }}>
-        Exportá un documento prolijo con el logo de AgroData, fecha e información organizada por secciones.
+Informe sobre los movimientos, ventas, sanidad, carga de animales, etc.
       </p>
 
       <button
