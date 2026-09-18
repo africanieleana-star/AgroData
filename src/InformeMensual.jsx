@@ -12,20 +12,50 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
       const listaSanidad = Array.isArray(tareasSanidad) ? tareasSanidad : [];
       const listaVentas = Array.isArray(ventas) ? ventas : [];
 
-      // 2. Cálculos estadísticos detallados
+      // 2. Función interna para obtener un Estado Reproductivo bien detallado
+      const obtenerEstadoDetallado = (a) => {
+        // Busca la propiedad en todas las variantes posibles de tu app
+        const valorEstado = a.estadoReproductivo || a.estadoRepro || a.repro || a.estado || a.prenes;
+        
+        // Si hay datos de parición o servicio, los agrega como detalle extra
+        const detalleExtra = a.fechaParicion ? ` (Parición: ${a.fechaParicion})` 
+          : a.fechaServicio ? ` (Servicio: ${a.fechaServicio})` 
+          : "";
+
+        if (valorEstado && valorEstado !== "Normal") {
+          return `${valorEstado}${detalleExtra}`;
+        }
+
+        // Si la categoría es un macho, aclaramos según el tipo
+        const cat = (a.categoria || a.tipo || a.tipoAnimal || "").toLowerCase();
+        if (cat.includes("toro") || cat.includes("torito") || cat.includes("padrillo")) {
+          return "Reproductor";
+        }
+        if (cat.includes("ternero") || cat.includes("novillo") || cat.includes("novillito")) {
+          return "No aplica (En crecimiento)";
+        }
+
+        // Si no tiene estado específico registrado
+        return "Vacía / Sin diagnóstico";
+      };
+
+      // 3. Cálculos estadísticos para las tarjetas superiores (KPIs)
       const totalCabezas = listaAnimales.length;
-      const preñadas = listaAnimales.filter(a => a.estadoReproductivo === "Preñada" || a.estado === "Preñada").length;
-      const vacias = listaAnimales.filter(a => a.estadoReproductivo === "Vacía" || a.estado === "Vacía").length;
+      
+      const preñadas = listaAnimales.filter(a => {
+        const est = (a.estadoReproductivo || a.estadoRepro || a.repro || a.estado || "").toLowerCase();
+        return est.includes("preña") || est.includes("preñada");
+      }).length;
+
       const porcentajePrenez = totalCabezas > 0 ? ((preñadas / totalCabezas) * 100).toFixed(1) : "0.0";
 
-      // 3. Filas dinámicas para la tabla de animales (Lectura flexible de categoría / tipo)
+      // 4. Filas dinámicas para la tabla de animales con detalle completo
       const filasAnimales = listaAnimales.length > 0 
         ? listaAnimales.map((a, i) => {
-            // Se busca la propiedad en orden de prioridad
-            const categoriaReal = a.categoria || a.tipo || a.tipoAnimal || a.categoriaAnimal || 'Sin cat.';
             const caravanaReal = a.caravana || a.id || `A-${i+1}`;
+            const categoriaReal = a.categoria || a.tipo || a.tipoAnimal || a.categoriaAnimal || 'Sin cat.';
             const razaReal = a.raza || 'N/D';
-            const estadoReal = a.estadoReproductivo || a.estado || 'Normal';
+            const estadoDetallado = obtenerEstadoDetallado(a);
             const obsReal = a.observaciones || a.notas || '-';
 
             return `
@@ -33,14 +63,14 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
                 <td style="text-align: center; font-weight: bold;">${caravanaReal}</td>
                 <td>${categoriaReal}</td>
                 <td>${razaReal}</td>
-                <td style="text-align: center;">${estadoReal}</td>
+                <td style="text-align: center; font-size: 10px;">${estadoDetallado}</td>
                 <td>${obsReal}</td>
               </tr>
             `;
           }).join('')
         : `<tr><td colspan="5" style="text-align: center; color: #888;">No hay animales registrados en el sistema.</td></tr>`;
 
-      // 4. Filas dinámicas para sanidad
+      // 5. Filas dinámicas para sanidad
       const filasSanidad = listaSanidad.length > 0
         ? listaSanidad.map(s => `
             <tr>
@@ -52,7 +82,7 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
           `).join('')
         : `<tr><td colspan="4" style="text-align: center; color: #888;">No hay tareas sanitarias aplicadas este mes.</td></tr>`;
 
-      // 5. Filas dinámicas para ventas
+      // 6. Filas dinámicas para ventas
       const filasVentas = listaVentas.length > 0
         ? listaVentas.map(v => `
             <tr>
@@ -64,7 +94,7 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
           `).join('')
         : `<tr><td colspan="4" style="text-align: center; color: #888;">No se registraron operaciones comerciales.</td></tr>`;
 
-      // 6. Creación de la ventana de impresión
+      // 7. Creación de la ventana de impresión
       const ventanaImpresion = window.open("", "_blank");
 
       if (!ventanaImpresion) {
@@ -244,8 +274,8 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
                     <th style="width: 15%; text-align: center;">Caravana</th>
                     <th style="width: 20%;">Categoría</th>
                     <th style="width: 20%;">Raza</th>
-                    <th style="width: 20%; text-align: center;">Estado Repro.</th>
-                    <th style="width: 25%;">Observaciones</th>
+                    <th style="width: 25%; text-align: center;">Estado Repro. / Detalle</th>
+                    <th style="width: 20%;">Observaciones</th>
                   </tr>
                 </thead>
                 <tbody>
