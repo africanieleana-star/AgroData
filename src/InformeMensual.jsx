@@ -18,17 +18,26 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
       const vacias = listaAnimales.filter(a => a.estadoReproductivo === "Vacía" || a.estado === "Vacía").length;
       const porcentajePrenez = totalCabezas > 0 ? ((preñadas / totalCabezas) * 100).toFixed(1) : "0.0";
 
-      // 3. Filas dinámicas para la tabla de animales
+      // 3. Filas dinámicas para la tabla de animales (Lectura flexible de categoría / tipo)
       const filasAnimales = listaAnimales.length > 0 
-        ? listaAnimales.map((a, i) => `
-            <tr>
-              <td style="text-align: center;">${a.caravana || a.id || `A-${i+1}`}</td>
-              <td>${a.categoria || 'Sin cat.'}</td>
-              <td>${a.raza || 'N/D'}</td>
-              <td style="text-align: center;">${a.estadoReproductivo || a.estado || 'Normal'}</td>
-              <td>${a.observaciones || '-'}</td>
-            </tr>
-          `).join('')
+        ? listaAnimales.map((a, i) => {
+            // Se busca la propiedad en orden de prioridad
+            const categoriaReal = a.categoria || a.tipo || a.tipoAnimal || a.categoriaAnimal || 'Sin cat.';
+            const caravanaReal = a.caravana || a.id || `A-${i+1}`;
+            const razaReal = a.raza || 'N/D';
+            const estadoReal = a.estadoReproductivo || a.estado || 'Normal';
+            const obsReal = a.observaciones || a.notas || '-';
+
+            return `
+              <tr>
+                <td style="text-align: center; font-weight: bold;">${caravanaReal}</td>
+                <td>${categoriaReal}</td>
+                <td>${razaReal}</td>
+                <td style="text-align: center;">${estadoReal}</td>
+                <td>${obsReal}</td>
+              </tr>
+            `;
+          }).join('')
         : `<tr><td colspan="5" style="text-align: center; color: #888;">No hay animales registrados en el sistema.</td></tr>`;
 
       // 4. Filas dinámicas para sanidad
@@ -206,7 +215,7 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
               </div>
             </div>
 
-            <!-- Resumen de Indicadores Clave (KPIs) -->
+            <!-- Resumen de Indicadores Clave -->
             <div class="kpi-grid">
               <div class="kpi-card">
                 <div class="kpi-label">Total Rodeos</div>
@@ -281,7 +290,7 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
               </table>
             </div>
 
-            <!-- Firmas de Validación -->
+            <!-- Firmas -->
             <div class="firmas">
               <div class="firma-box">Firma Administrador / Propietario</div>
               <div class="firma-box">Firma Médico Veterinario</div>
