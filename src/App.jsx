@@ -2003,53 +2003,6 @@ function PantallaInicio({ onNavegar }) {
     return total;
   }, [animales]);
 
-  // Función para descargar el PDF completo del mes
-  const descargarPDFMensual = () => {
-    // 1. Crear el elemento invisible en pantalla para armar el PDF
-    const elemento = document.createElement("div");
-    elemento.style.padding = "20px";
-    elemento.style.fontFamily = "Arial, sans-serif";
-    elemento.style.color = "#333";
-
-  // 2. Usamos directamente las variables cargadas en PantallaInicio
-    const listaAnimales = animales || [];
-    const listaTareas = tareasSanidad || [];
-
-    // 3. Estructura visual del informe PDF
-    elemento.innerHTML = `
-      <div style="border-bottom: 2px solid #2E7D32; padding-bottom: 10px; margin-bottom: 20px;">
-        <h1 style="color: #2E7D32; margin: 0;">AgroData - Reporte Mensual</h1>
-        <p style="margin: 5px 0 0 0; color: #666;">Fecha de emisión: ${new Date().toLocaleDateString('es-AR')}</p>
-      </div>
-
-      <h2 style="color: #1b5e20;">1. Resumen de Stock de Animales</h2>
-      <p><strong>Total de animales registrados:</strong> ${listaAnimales.length}</p>
-      <p><strong>Preñadas:</strong> ${conteoEstados.Preñada || 0} | <strong>Vacías:</strong> ${conteoEstados.Vacía || 0} | <strong>Paridas:</strong> ${conteoEstados.Parida || 0}</p>
-
-      <h2 style="color: #1b5e20; margin-top: 20px;">2. Registro Sanitario y Tareas</h2>
-      <p><strong>Tareas totales registradas:</strong> ${listaTareas.length}</p>
-
-      <h2 style="color: #1b5e20; margin-top: 20px;">3. Ventas y Movimientos</h2>
-      <p>Informe consolidado generado automáticamente desde la aplicación.</p>
-    `;
-
-    // 4. Opciones de descarga del PDF
-    const opciones = {
-      margin:       10,
-      filename:     `AgroData_Reporte_${new Date().getMonth() + 1}_${new Date().getFullYear()}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2 },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    // 5. Descargar el archivo
-    if (window.html2pdf) {
-      window.html2pdf().set(opciones).from(elemento).save();
-    } else {
-      alert("Cargando la herramienta de PDF... Por favor, reintenta en un momento.");
-    }
-  };
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
