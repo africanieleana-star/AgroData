@@ -7,115 +7,133 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
     setCargando(true);
 
     try {
-      // 1. Crear el contenedor del informe
+      // 1. Crear un contenedor en el DOM
       const elemento = document.createElement("div");
-      elemento.id = "reporte-impresion-temp";
+      elemento.id = "area-pdf-impresion";
       
-      // ESTILOS CLAVE: Fondo blanco puro y posición para que sea visible por el capturador
-      elemento.style.backgroundColor = "#FFFFFF";
-      elemento.style.color = "#2C3E50";
+      // Estilos forzados para garantizar visibilidad total
+      elemento.style.position = "absolute";
+      elemento.style.left = "-9999px"; // Oculto fuera de la pantalla del usuario pero visible para el navegador
+      elemento.style.top = "0";
+      elemento.style.width = "750px";
+      elemento.style.backgroundColor = "#ffffff";
+      elemento.style.color = "#000000";
       elemento.style.padding = "30px";
+      elemento.style.boxSizing = "border-box";
       elemento.style.fontFamily = "Arial, sans-serif";
-      elemento.style.width = "700px";
 
-      // 2. Encabezado con Isotipo de AgroData
-      const encabezadoHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #2E7D32; padding-bottom: 12px; margin-bottom: 20px;">
-          <div>
-            <h1 style="color: #2E7D32; margin: 0; font-size: 24px; font-weight: bold;">🌱 AgroData</h1>
-            <p style="margin: 2px 0 0 0; color: #555; font-size: 12px;">Gestión Ganadera Inteligente</p>
-          </div>
-          <div style="text-align: right;">
-            <h3 style="margin: 0; color: #333; font-size: 14px;">INFORME MENSUAL CONSOLIDADO</h3>
-            <p style="margin: 4px 0 0 0; color: #666; font-size: 11px;">Emisión: ${new Date().toLocaleDateString('es-AR')}</p>
-          </div>
-        </div>
-      `;
-
-      // 3. Totales calculados de forma segura
+      // 2. Cálculos de Totales
       const totalAnimales = Array.isArray(animales) ? animales.length : 0;
       const totalSanidad = Array.isArray(tareasSanidad) ? tareasSanidad.length : 0;
       const totalVentas = Array.isArray(ventas) ? ventas.length : 0;
 
-      // 4. Estructura visual de las Secciones
+      // 3. Contenido HTML del informe
       elemento.innerHTML = `
-        ${encabezadoHTML}
+        <div style="background-color: #ffffff; color: #000000; width: 100%;">
+          
+          <!-- Encabezado con Isotipo de AgroData -->
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #2E7D32; padding-bottom: 12px; margin-bottom: 25px;">
+            <div>
+              <h1 style="color: #2E7D32; margin: 0; font-size: 26px; font-weight: bold;">🌱 AgroData</h1>
+              <p style="margin: 4px 0 0 0; color: #444444; font-size: 13px;">Gestión Ganadera Inteligente</p>
+            </div>
+            <div style="text-align: right;">
+              <h3 style="margin: 0; color: #111111; font-size: 15px; font-weight: bold;">INFORME MENSUAL CONSOLIDADO</h3>
+              <p style="margin: 4px 0 0 0; color: #555555; font-size: 12px;">Fecha: ${new Date().toLocaleDateString('es-AR')}</p>
+            </div>
+          </div>
 
-        <div style="margin-bottom: 20px;">
-          <h2 style="color: #1B5E20; font-size: 15px; border-bottom: 1px solid #E0E0E0; padding-bottom: 4px; margin-bottom: 10px;">
-            1. Resumen de Stock Ganadero
-          </h2>
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-            <tr style="background-color: #F5F7F5;">
-              <td style="padding: 10px; border: 1px solid #E0E0E0; font-weight: bold;">Total Cabezas Registradas:</td>
-              <td style="padding: 10px; border: 1px solid #E0E0E0;">${totalAnimales} animales</td>
-            </tr>
-          </table>
-        </div>
+          <!-- Sección 1 -->
+          <div style="margin-bottom: 25px;">
+            <h2 style="color: #1B5E20; font-size: 16px; border-bottom: 1px solid #CCCCCC; padding-bottom: 5px; margin-bottom: 12px; font-weight: bold;">
+              1. Resumen de Stock Ganadero
+            </h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #000000;">
+              <tr style="background-color: #F5F7F5;">
+                <td style="padding: 10px; border: 1px solid #DDDDDD; font-weight: bold; width: 60%;">Total Cabezas Registradas:</td>
+                <td style="padding: 10px; border: 1px solid #DDDDDD; color: #000000;">${totalAnimales} animales</td>
+              </tr>
+            </table>
+          </div>
 
-        <div style="margin-bottom: 20px;">
-          <h2 style="color: #1B5E20; font-size: 15px; border-bottom: 1px solid #E0E0E0; padding-bottom: 4px; margin-bottom: 10px;">
-            2. Registro Sanitario y Tareas Aplicadas
-          </h2>
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-            <tr style="background-color: #F5F7F5;">
-              <td style="padding: 10px; border: 1px solid #E0E0E0; font-weight: bold;">Tareas / Sanidad del Mes:</td>
-              <td style="padding: 10px; border: 1px solid #E0E0E0;">${totalSanidad} registros</td>
-            </tr>
-          </table>
-        </div>
+          <!-- Sección 2 -->
+          <div style="margin-bottom: 25px;">
+            <h2 style="color: #1B5E20; font-size: 16px; border-bottom: 1px solid #CCCCCC; padding-bottom: 5px; margin-bottom: 12px; font-weight: bold;">
+              2. Registro Sanitario y Tareas
+            </h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #000000;">
+              <tr style="background-color: #F5F7F5;">
+                <td style="padding: 10px; border: 1px solid #DDDDDD; font-weight: bold; width: 60%;">Tareas Sanitarias del Mes:</td>
+                <td style="padding: 10px; border: 1px solid #DDDDDD; color: #000000;">${totalSanidad} registros</td>
+              </tr>
+            </table>
+          </div>
 
-        <div style="margin-bottom: 20px;">
-          <h2 style="color: #1B5E20; font-size: 15px; border-bottom: 1px solid #E0E0E0; padding-bottom: 4px; margin-bottom: 10px;">
-            3. Ventas y Movimientos Comerciales
-          </h2>
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-            <tr style="background-color: #F5F7F5;">
-              <td style="padding: 10px; border: 1px solid #E0E0E0; font-weight: bold;">Operaciones de Venta:</td>
-              <td style="padding: 10px; border: 1px solid #E0E0E0;">${totalVentas} transacciones</td>
-            </tr>
-          </table>
-        </div>
+          <!-- Sección 3 -->
+          <div style="margin-bottom: 25px;">
+            <h2 style="color: #1B5E20; font-size: 16px; border-bottom: 1px solid #CCCCCC; padding-bottom: 5px; margin-bottom: 12px; font-weight: bold;">
+              3. Ventas y Movimientos
+            </h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #000000;">
+              <tr style="background-color: #F5F7F5;">
+                <td style="padding: 10px; border: 1px solid #DDDDDD; font-weight: bold; width: 60%;">Operaciones Comerciales:</td>
+                <td style="padding: 10px; border: 1px solid #DDDDDD; color: #000000;">${totalVentas} ventas</td>
+              </tr>
+            </table>
+          </div>
 
-        <div style="margin-top: 50px; border-top: 1px dashed #BDBDBD; padding-top: 10px; text-align: center; font-size: 10px; color: #757575;">
-          Documento digital consolidado generado automáticamente por AgroData.
+          <!-- Pie de página -->
+          <div style="margin-top: 60px; border-top: 1px dashed #AAAAAA; padding-top: 12px; text-align: center; font-size: 11px; color: #666666;">
+            Documento digital generado automáticamente desde la aplicación AgroData.
+          </div>
+
         </div>
       `;
 
-      // 5. Pegamos temporalmente el diseño al cuerpo de la página para que la librería lo "vea"
+      // 4. Inserción en el documento
       document.body.appendChild(elemento);
 
-      // 6. Opciones de descarga
+      // 5. Configuración de html2pdf
       const opciones = {
         margin:       10,
         filename:     `AgroData_Informe_${new Date().getMonth() + 1}_${new Date().getFullYear()}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, backgroundColor: '#FFFFFF' },
+        html2canvas:  { 
+          scale: 2, 
+          backgroundColor: '#ffffff',
+          logging: false,
+          useCORS: true
+        },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      // 7. Descargar y limpiar el elemento temporal
-      if (window.html2pdf) {
-        window.html2pdf().set(opciones).from(elemento).save().then(() => {
-          document.body.removeChild(elemento);
-          setCargando(false);
-        }).catch((err) => {
-          console.error("Error al guardar PDF:", err);
-          if (document.getElementById("reporte-impresion-temp")) {
+      // 6. Esperamos 300 ms antes de generar para darle tiempo al navegador de renderizar el texto
+      setTimeout(() => {
+        if (window.html2pdf) {
+          window.html2pdf().set(opciones).from(elemento).save().then(() => {
+            if (document.getElementById("area-pdf-impresion")) {
+              document.body.removeChild(elemento);
+            }
+            setCargando(false);
+          }).catch((err) => {
+            console.error("Error guardando PDF:", err);
+            if (document.getElementById("area-pdf-impresion")) {
+              document.body.removeChild(elemento);
+            }
+            setCargando(false);
+          });
+        } else {
+          alert("Reintentá en unos segundos mientras carga la herramienta.");
+          if (document.getElementById("area-pdf-impresion")) {
             document.body.removeChild(elemento);
           }
           setCargando(false);
-        });
-      } else {
-        alert("Cargando la herramienta de PDF. Por favor reintentá en 5 segundos.");
-        if (document.getElementById("reporte-impresion-temp")) {
-          document.body.removeChild(elemento);
         }
-        setCargando(false);
-      }
+      }, 300);
+
     } catch (err) {
-      console.error("Error en la función:", err);
-      alert("Hubo un problema al armar el PDF.");
+      console.error("Error al construir PDF:", err);
+      alert("No se pudo generar el informe.");
       setCargando(false);
     }
   };
