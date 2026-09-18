@@ -30,7 +30,6 @@ import {
 
 import SyncStatus from "./SyncStatus";
 import BackupPanel from "./BackupPanel";
-import InformeMensual from "./InformeMensual";
 
 import * as XLSX from "xlsx";
 
