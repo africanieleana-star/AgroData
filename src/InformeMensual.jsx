@@ -7,12 +7,10 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
     setCargando(true);
 
     try {
-      // 1. Contar elementos asegurando que no tire error si están vacíos
       const cantAnimales = Array.isArray(animales) ? animales.length : 0;
       const cantSanidad = Array.isArray(tareasSanidad) ? tareasSanidad.length : 0;
       const cantVentas = Array.isArray(ventas) ? ventas.length : 0;
 
-      // 2. Crear una ventana de impresión limpia
       const ventanaImpresion = window.open("", "_blank");
 
       if (!ventanaImpresion) {
@@ -21,7 +19,6 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
         return;
       }
 
-      // 3. Escribir el documento directamente con HTML y CSS estándar de impresión
       ventanaImpresion.document.write(`
         <!DOCTYPE html>
         <html>
@@ -42,14 +39,25 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
                 padding-bottom: 12px;
                 margin-bottom: 30px;
               }
+              .logo-container {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+              }
+              .logo-img {
+                width: 50px;
+                height: 50px;
+                object-fit: cover;
+                border-radius: 8px;
+              }
               .titulo-app {
                 color: #2E7D32;
                 margin: 0;
-                font-size: 28px;
+                font-size: 26px;
                 font-weight: bold;
               }
               .subtitulo-app {
-                margin: 4px 0 0 0;
+                margin: 2px 0 0 0;
                 color: #666666;
                 font-size: 13px;
               }
@@ -91,9 +99,12 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
           </head>
           <body>
             <div class="encabezado">
-              <div>
-                <h1 class="titulo-app">🌱 AgroData</h1>
-                <p class="subtitulo-app">Gestión Ganadera Inteligente</p>
+              <div class="logo-container">
+                <img src="/hojalogo.png" class="logo-img" alt="AgroData" />
+                <div>
+                  <h1 class="titulo-app">AgroData</h1>
+                  <p class="subtitulo-app">Gestión Ganadera Inteligente</p>
+                </div>
               </div>
               <div style="text-align: right;">
                 <h3 style="margin: 0; font-size: 14px;">INFORME MENSUAL CONSOLIDADO</h3>
