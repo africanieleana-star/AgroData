@@ -30,6 +30,7 @@ import {
 
 import SyncStatus from "./SyncStatus";
 import BackupPanel from "./BackupPanel";
+import InformeMensual from "./InformeMensual";
 
 import * as XLSX from "xlsx";
 
@@ -2331,6 +2332,8 @@ function PantallaInicio({ onNavegar }) {
           <BotonAcceso texto="Ventas" icono={<DollarSign size={17} />} onClick={() => onNavegar("ventas")} />
           <BotonAcceso texto="Genealogía" icono={<GitFork size={17} />} onClick={() => onNavegar("genealogia")} />
         </div>
+
+        <InformeMensual />
       </div>
 
       {/* 5. Módulo de Sanidad y Vacunación */}
