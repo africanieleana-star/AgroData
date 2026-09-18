@@ -36,8 +36,9 @@ const app = initializeApp(firebaseConfig);
 // 2. Inicializa Autenticación (Login)
 export const auth = getAuth(app);
 
-// 3. Inicializa Firestore CON soporte offline habilitado (una sola
-// pestaña por vez; suficiente para el uso normal de esta app)
+// 3. Inicializa Firestore con soporte offline y múltiples pestañas habilitadas
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache(),
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
 });
