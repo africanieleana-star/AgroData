@@ -1,42 +1,34 @@
 // -----------------------------------------------------------------------
-// SINCRONIZADOR CON LA NUBE (con protección de sesión + backups diarios +
-// soporte para varias personas/dispositivos usando la misma cuenta)
+// SINCRONIZADOR CON LA NUBE (varias personas / dispositivos, misma cuenta)
 // -----------------------------------------------------------------------
 // La app (App.jsx) sigue guardando todo con localStorage, exactamente
-// igual que antes. Este archivo "espía" cada guardado y sube una copia
-// completa a Firestore, asociada al uid del usuario logueado.
+// igual que antes. Este archivo "espía" cada guardado y lo sincroniza con
+// Firestore, asociado al uid del usuario logueado.
 //
-// Protecciones:
+// Cómo funciona (resumen):
+//  - Cada dispositivo (celu, PC, notebook, navegador o app instalada; cada
+//    uno tiene su propio localStorage) anota QUÉ claves cambió o borró y
+//    todavía no se confirmaron subidas ("cambios pendientes").
+//  - Al subir, se lee lo que hay en la nube, se le aplican SOLO esos
+//    cambios y se guarda. Así nunca se pisa lo que cargó otro dispositivo.
+//  - Después de subir, se traen a este dispositivo las novedades de los
+//    demás. También se revisa la nube al volver a la pestaña/app, al
+//    recuperar conexión y cada 45 segundos mientras la pantalla está
+//    visible, para ver lo que cargaron otros sin tener que recargar.
+//  - Si un setItem llega con el mismo valor que ya había, se ignora (no
+//    genera subida ni "guardando...").
+//  - Cada animal se copia también a usuarios/{uid}/animales/{caravana},
+//    pero EN LOTES (no un pedido por animal), para no saturar Firestore
+//    ("Write stream exhausted maximum allowed queued writes").
+//  - Backup diario en usuarios/{uid}/backups/{AAAA-MM-DD} (últimos 30 días),
+//    como máximo uno cada 5 minutos.
 //  - Nunca toca las claves de sesión de Firebase Auth ("firebase:...").
-//  - Reintenta solo si falla la subida, y avisa si no se pudo confirmar.
-//  - El logout intenta subir lo pendiente antes de cerrar, pero SIEMPRE
-//    termina cerrando sesión y limpiando el dispositivo, haya podido
-//    subir o no (si no pudo, ya se le avisó al usuario antes, en
-//    Root.jsx).
-//  - Guarda una copia de cada día en usuarios/{uid}/backups/{AAAA-MM-DD}.
-//    Se conservan los últimos 30 días; los más viejos se eliminan solos.
 //  - Cada operación contra el servidor tiene un tiempo máximo de espera
-//    (15 segundos), para no quedarse mostrando "Guardando..." para
-//    siempre si la red no contesta. La app SIEMPRE intenta guardar
-//    cuando hace falta, sin confiar ciegamente en si el navegador "dice"
-//    que hay o no conexión (en varios celulares esa información no se
-//    actualiza bien).
-//  - MULTI-DISPOSITIVO: antes de guardar, se compara la versión que hay
-//    en la nube contra la última que este dispositivo conoce. Si otro
-//    dispositivo guardó algo más nuevo mientras tanto, no se lo pisa:
-//    se toma nota de esa versión nueva y se reintenta guardar el cambio
-//    de acá enseguida (no se pierde, solo espera su turno).
-//  - SEMÁFORO CONTRA CHOQUES: solo se permite un intento de guardado a
-//    la vez. Antes, varios "gatillos" (volver a la pestaña, recuperar
-//    el foco, el chequeo cada 20 segundos, etc.) podían disparar
-//    guardados al mismo tiempo, y el dispositivo terminaba "compitiendo
-//    contra sí mismo" y creyendo por error que otro dispositivo había
-//    guardado algo. Con el semáforo, eso ya no puede pasar.
-//  - Si el dispositivo queda con cambios sin subir porque la app se
-//    cerró o se pausó sin señal (algo común en celulares), esa marca de
-//    "pendiente" se guarda también en el propio dispositivo (no solo en
-//    la memoria), para que al reabrir la app se suba ese cambio primero
-//    en vez de traer la versión vieja de la nube y taparlo.
+//    (15 segundos) y hay un semáforo para que solo haya un guardado a la
+//    vez. El pendiente sobrevive al cierre de la app (queda en el
+//    dispositivo) y se sube primero al reabrir.
+//  - El logout intenta subir lo pendiente, pero SIEMPRE termina cerrando
+//    sesión y limpiando el dispositivo.
 // -----------------------------------------------------------------------
 
 import {
@@ -51,6 +43,7 @@ import {
   limit as limitarConsulta,
   getCountFromServer,
   runTransaction,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -62,38 +55,37 @@ let uidActual = null;
 let sincronizacionActiva = false;
 let restaurando = false;
 let timeoutGuardado = null;
-let ultimaVersionConocida = null; // cuál fue la última versión que SÉ que es la mía
+let ultimaVersionConocida = null; // última versión de la nube que este dispositivo conoce
 
 // Hay un cambio local que todavía no se confirmó guardado en la nube.
 // (En memoria, para uso inmediato; la versión que sobrevive a que la
 // app se cierre está en localStorage, clave "agrodata:pendienteSubir".)
 let pendienteDeSubir = false;
 
-// Semáforo: evita que dos guardados se disparen al mismo tiempo. Sin
-// esto, el propio dispositivo puede terminar "compitiendo contra sí
-// mismo" y creyendo por error que otro dispositivo guardó algo nuevo.
+// Semáforo: evita que dos guardados se disparen al mismo tiempo.
 let subidaEnCurso = false;
+let pullEnCurso = false;
 
 let intentosFallidos = 0;
 const ESPERAS_REINTENTO = [3000, 8000, 20000, 45000]; // 3s, 8s, 20s, 45s...
 
 const DIAS_DE_RETENCION_BACKUPS = 30;
+const INTERVALO_MINIMO_BACKUP_MS = 5 * 60 * 1000; // un backup como máximo cada 5 min
+const TAMANO_LOTE = 100; // documentos por lote al escribir animales
 
 // Tiempo máximo que se espera una respuesta del servidor antes de darse
-// por vencido y tratarlo como un error (para poder reintentar en vez de
-// quedarse esperando indefinidamente).
+// por vencido y tratarlo como un error.
 const TIEMPO_MAXIMO_ESPERA_MS = 15000; // 15 segundos
 
 function conTiempoLimite(promesaOriginal, ms = TIEMPO_MAXIMO_ESPERA_MS) {
-  return Promise.race([
-    promesaOriginal,
-    new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error("Tiempo de espera agotado conectando con el servidor")),
-        ms
-      )
-    ),
-  ]);
+  let temporizador;
+  const limite = new Promise((_, reject) => {
+    temporizador = setTimeout(
+      () => reject(new Error("Tiempo de espera agotado conectando con el servidor")),
+      ms
+    );
+  });
+  return Promise.race([promesaOriginal, limite]).finally(() => clearTimeout(temporizador));
 }
 
 // Claves que NUNCA hay que subir, borrar ni pisar: son internas de
@@ -109,72 +101,6 @@ const PREFIJOS_RESERVADOS = [
 
 function esClaveReservada(clave) {
   return PREFIJOS_RESERVADOS.some((prefijo) => clave.startsWith(prefijo));
-}
-
-// -----------------------------------------------------------------------
-// REGISTRO DE CAMBIOS PENDIENTES
-// Anota qué claves se modificaron o borraron en ESTE dispositivo y todavía
-// no se confirmaron subidas. Al subir, solo se aplican esos cambios sobre
-// lo que hay en la nube (en vez de pisar todo con la copia local).
-// Se guarda también en localStorage para sobrevivir a un cierre de la app.
-// -----------------------------------------------------------------------
-const CLAVE_CAMBIOS_PENDIENTES = "agrodata:cambiosPendientes";
-let secuenciaCambios = Date.now();
-let cambiosPendientes = cargarCambiosPendientes();
-
-function cargarCambiosPendientes() {
-  try {
-    const crudo = localStorage.getItem(CLAVE_CAMBIOS_PENDIENTES);
-    return crudo ? JSON.parse(crudo) : {};
-  } catch (e) {
-    return {};
-  }
-}
-
-function guardarCambiosPendientes() {
-  try {
-    if (Object.keys(cambiosPendientes).length === 0) {
-      originalRemoveItem(CLAVE_CAMBIOS_PENDIENTES);
-    } else {
-      originalSetItem(CLAVE_CAMBIOS_PENDIENTES, JSON.stringify(cambiosPendientes));
-    }
-  } catch (e) {
-    console.error("No se pudo guardar el registro de cambios pendientes:", e);
-  }
-}
-
-function marcarCambio(clave, tipo) {
-  // tipo: "set" (alta o modificación) | "del" (borrado)
-  cambiosPendientes[clave] = { t: tipo, n: ++secuenciaCambios };
-  guardarCambiosPendientes();
-}
-
-function registrarCambioLocal(clave, tipo) {
-  if (!sincronizacionActiva || !uidActual || restaurando) return;
-  marcarCambio(clave, tipo);
-}
-
-function limpiarCambiosPendientes() {
-  cambiosPendientes = {};
-  originalRemoveItem(CLAVE_CAMBIOS_PENDIENTES);
-}
-
-// Trae a este dispositivo lo que otros dispositivos guardaron en la nube.
-// Nunca pisa una clave que tenga un cambio local pendiente.
-function aplicarNovedadesDeLaNube(datosNube) {
-  let huboCambios = false;
-  Object.keys(datosNube || {}).forEach((clave) => {
-    if (esClaveReservada(clave)) return;
-    if (cambiosPendientes[clave]) return;
-    if (localStorage.getItem(clave) !== datosNube[clave]) {
-      originalSetItem(clave, datosNube[clave]);
-      huboCambios = true;
-    }
-  });
-  if (huboCambios && typeof window !== "undefined") {
-    window.dispatchEvent(new Event("agrodata:actualizado"));
-  }
-  return huboCambios;
 }
 
 // "sincronizado" | "guardando" | "error" | "sin_conexion" | "conflicto_dispositivo" | "inactivo"
@@ -200,6 +126,78 @@ export function subscribeEstadoSync(callback) {
   listeners.add(callback);
   callback(estadoActual);
   return () => listeners.delete(callback);
+}
+
+// -----------------------------------------------------------------------
+// REGISTRO DE CAMBIOS PENDIENTES
+// Anota qué claves se modificaron o borraron en ESTE dispositivo y todavía
+// no se confirmaron subidas. Se guarda también en localStorage para
+// sobrevivir a un cierre de la app.
+// -----------------------------------------------------------------------
+const CLAVE_CAMBIOS_PENDIENTES = "agrodata:cambiosPendientes";
+let secuenciaCambios = Date.now();
+let timeoutRegistro = null;
+let cambiosPendientes = cargarCambiosPendientes();
+
+function cargarCambiosPendientes() {
+  try {
+    const crudo = localStorage.getItem(CLAVE_CAMBIOS_PENDIENTES);
+    return crudo ? JSON.parse(crudo) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function guardarCambiosPendientes() {
+  clearTimeout(timeoutRegistro);
+  try {
+    if (Object.keys(cambiosPendientes).length === 0) {
+      originalRemoveItem(CLAVE_CAMBIOS_PENDIENTES);
+    } else {
+      originalSetItem(CLAVE_CAMBIOS_PENDIENTES, JSON.stringify(cambiosPendientes));
+    }
+  } catch (e) {
+    console.error("No se pudo guardar el registro de cambios pendientes:", e);
+  }
+}
+
+function marcarCambio(clave, tipo) {
+  // tipo: "set" (alta o modificación) | "del" (borrado)
+  cambiosPendientes[clave] = { t: tipo, n: ++secuenciaCambios };
+  // Se persiste con un pequeño retraso para no reescribir el registro
+  // entero en cada guardado cuando se cargan muchos animales de golpe.
+  clearTimeout(timeoutRegistro);
+  timeoutRegistro = setTimeout(guardarCambiosPendientes, 300);
+}
+
+function registrarCambioLocal(clave, tipo) {
+  if (!sincronizacionActiva || !uidActual || restaurando) return;
+  marcarCambio(clave, tipo);
+}
+
+function limpiarCambiosPendientes() {
+  clearTimeout(timeoutRegistro);
+  cambiosPendientes = {};
+  originalRemoveItem(CLAVE_CAMBIOS_PENDIENTES);
+}
+
+// Trae a este dispositivo lo que otros dispositivos guardaron en la nube.
+// Nunca pisa una clave que tenga un cambio local pendiente y nunca borra
+// nada del dispositivo (solo agrega o actualiza).
+function aplicarNovedadesDeLaNube(datosNube) {
+  let huboCambios = false;
+  Object.keys(datosNube || {}).forEach((clave) => {
+    if (esClaveReservada(clave)) return;
+    if (cambiosPendientes[clave]) return;
+    if (localStorage.getItem(clave) !== datosNube[clave]) {
+      originalSetItem(clave, datosNube[clave]);
+      huboCambios = true;
+    }
+  });
+  if (huboCambios && typeof window !== "undefined") {
+    window.dispatchEvent(new Event("agrodata:actualizado"));
+  }
+  return huboCambios;
 }
 
 function leerTodoLocalStorage() {
@@ -228,14 +226,26 @@ function fechaDeHoyISO() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// -----------------------------------------------------------------------
+// BACKUPS DIARIOS
+// -----------------------------------------------------------------------
+let ultimoBackupMs = 0;
+let ultimaFechaLimpieza = null;
+
 async function actualizarBackupDeHoy(datos) {
   if (!uidActual) return;
+  if (Date.now() - ultimoBackupMs < INTERVALO_MINIMO_BACKUP_MS) return;
+  ultimoBackupMs = Date.now();
   try {
     const fecha = fechaDeHoyISO();
     const refBackup = doc(db, "usuarios", uidActual, "backups", fecha);
     await conTiempoLimite(setDoc(refBackup, { datos, guardado: new Date().toISOString() }));
-    limpiarBackupsViejos();
+    if (ultimaFechaLimpieza !== fecha) {
+      ultimaFechaLimpieza = fecha;
+      limpiarBackupsViejos();
+    }
   } catch (e) {
+    ultimoBackupMs = 0;
     console.error("No se pudo actualizar el backup del día:", e);
   }
 }
@@ -253,9 +263,12 @@ async function limpiarBackupsViejos() {
   }
 }
 
+// -----------------------------------------------------------------------
+// SUBIDA PRINCIPAL (documento único del usuario, con merge por clave)
+// -----------------------------------------------------------------------
 async function subirAhora() {
   if (!uidActual) return false;
-  // Semáforo: un solo guardado a la vez.
+  // Semáforo: si ya hay un guardado en curso, no arrancamos otro.
   if (subidaEnCurso) return false;
 
   subidaEnCurso = true;
@@ -351,44 +364,144 @@ function programarSubida() {
 }
 
 // -----------------------------------------------------------------------
-// Además del documento único de siempre, cada animal se sube TAMBIÉN a
-// su propio documento chico en usuarios/{uid}/animales/{caravana}. No
-// reemplaza nada — es una copia "en paralelo" que alimenta al botón de
-// recuperación de emergencia.
+// TRAER NOVEDADES (lectura de rutina, sin escribir nada)
+// Sirve para ver lo que cargaron otros dispositivos sin tener que
+// recargar. Solo corre si este dispositivo no tiene nada pendiente (si lo
+// tiene, la subida ya trae las novedades al terminar).
 // -----------------------------------------------------------------------
-const timeoutsIndividuales = new Map();
+async function traerNovedadesDeLaNube() {
+  if (!uidActual || !sincronizacionActiva || restaurando) return;
+  if (pendienteDeSubir || subidaEnCurso || pullEnCurso) return;
+
+  pullEnCurso = true;
+  const uid = uidActual;
+  try {
+    const snapshot = await conTiempoLimite(getDoc(doc(db, "usuarios", uid)));
+    if (uid !== uidActual || !sincronizacionActiva) return;
+    if (pendienteDeSubir || subidaEnCurso) return; // algo cambió mientras esperábamos
+    // Una respuesta que sale de la caché puede ser vieja: se ignora.
+    if (snapshot.metadata && snapshot.metadata.fromCache) return;
+    if (!snapshot.exists()) return;
+
+    const version = snapshot.data().actualizado || null;
+    if (version && version === ultimaVersionConocida) return; // nada nuevo
+
+    aplicarNovedadesDeLaNube(snapshot.data().datos);
+    if (version) ultimaVersionConocida = version;
+  } catch (e) {
+    // Chequeo de rutina: si no hay red, se reintenta en el próximo.
+    console.warn("No se pudo revisar novedades en la nube:", e);
+  } finally {
+    pullEnCurso = false;
+  }
+}
+
+// -----------------------------------------------------------------------
+// COPIA INDIVIDUAL DE CADA ANIMAL (usuarios/{uid}/animales/{caravana})
+// No reemplaza nada: es una copia "en paralelo" que alimenta al botón de
+// recuperación de emergencia. Se escribe EN LOTES (hasta 100 animales por
+// pedido, un lote a la vez) y solo si el animal realmente cambió.
+// -----------------------------------------------------------------------
+const animalesPendientes = new Map(); // caravana -> datos (objeto) | null (borrar)
+const ultimoSubidoPorAnimal = new Map(); // caravana -> JSON de lo último subido
+let timeoutLoteAnimales = null;
+let loteAnimalesEnCurso = false;
+let fallosLoteAnimales = 0;
+
+function programarLoteAnimales(espera = 2000) {
+  clearTimeout(timeoutLoteAnimales);
+  timeoutLoteAnimales = setTimeout(subirLoteAnimales, espera);
+}
 
 function programarSubidaIndividual(caravana, datos) {
   if (!sincronizacionActiva || !uidActual || restaurando) return;
-  const timeoutExistente = timeoutsIndividuales.get(caravana);
-  if (timeoutExistente) clearTimeout(timeoutExistente);
-
-  const nuevoTimeout = setTimeout(async () => {
-    timeoutsIndividuales.delete(caravana);
-    try {
-      const ref = doc(db, "usuarios", uidActual, "animales", caravana);
-      await conTiempoLimite(
-        setDoc(ref, { ...datos, actualizado: new Date().toISOString() })
-      );
-    } catch (e) {
-      console.error(`No se pudo subir el animal individual ${caravana}:`, e);
-    }
-  }, 1000);
-
-  timeoutsIndividuales.set(caravana, nuevoTimeout);
+  if (!datos || typeof datos !== "object" || Array.isArray(datos)) return;
+  animalesPendientes.set(caravana, datos);
+  programarLoteAnimales();
 }
 
 function borrarAnimalIndividual(caravana) {
   if (!sincronizacionActiva || !uidActual) return;
-  const ref = doc(db, "usuarios", uidActual, "animales", caravana);
-  deleteDoc(ref).catch((e) =>
-    console.error(`No se pudo borrar el animal individual ${caravana}:`, e)
-  );
+  animalesPendientes.set(caravana, null);
+  programarLoteAnimales();
 }
 
+async function subirLoteAnimales() {
+  if (!sincronizacionActiva || !uidActual) return;
+  if (animalesPendientes.size === 0) return;
+  if (loteAnimalesEnCurso) {
+    programarLoteAnimales(2000);
+    return;
+  }
+
+  loteAnimalesEnCurso = true;
+  const uid = uidActual;
+  try {
+    const entradas = Array.from(animalesPendientes.entries()).slice(0, TAMANO_LOTE);
+    const batch = writeBatch(db);
+    const marca = new Date().toISOString();
+    const invalidas = [];
+    let operaciones = 0;
+
+    entradas.forEach(([caravana, datos]) => {
+      let ref;
+      try {
+        ref = doc(db, "usuarios", uid, "animales", caravana);
+      } catch (e) {
+        // Caravana con caracteres que Firestore no admite en un ID (por
+        // ejemplo "/"): se descarta para que no trabe al resto.
+        console.warn(`Caravana no válida para copia individual: ${caravana}`, e);
+        invalidas.push(caravana);
+        return;
+      }
+      if (datos === null) {
+        batch.delete(ref);
+        operaciones += 1;
+        return;
+      }
+      if (ultimoSubidoPorAnimal.get(caravana) === JSON.stringify(datos)) return; // sin cambios
+      batch.set(ref, { ...datos, actualizado: marca });
+      operaciones += 1;
+    });
+
+    if (operaciones > 0) await conTiempoLimite(batch.commit());
+
+    entradas.forEach(([caravana, datos]) => {
+      // Solo se saca de la cola si no volvió a cambiar mientras se subía
+      if (animalesPendientes.get(caravana) === datos) animalesPendientes.delete(caravana);
+      if (invalidas.includes(caravana)) return;
+      if (datos === null) ultimoSubidoPorAnimal.delete(caravana);
+      else ultimoSubidoPorAnimal.set(caravana, JSON.stringify(datos));
+    });
+    fallosLoteAnimales = 0;
+  } catch (e) {
+    fallosLoteAnimales += 1;
+    console.error("No se pudo subir el lote de animales:", e);
+  } finally {
+    loteAnimalesEnCurso = false;
+    if (animalesPendientes.size > 0 && sincronizacionActiva) {
+      const espera =
+        fallosLoteAnimales > 0
+          ? ESPERAS_REINTENTO[Math.min(fallosLoteAnimales - 1, ESPERAS_REINTENTO.length - 1)]
+          : 500;
+      programarLoteAnimales(espera);
+    }
+  }
+}
+
+// -----------------------------------------------------------------------
+// ESPÍA DE localStorage
+// -----------------------------------------------------------------------
 localStorage.setItem = function (clave, valor) {
-  originalSetItem(clave, valor);
+  const valorNuevo = String(valor);
+  const valorAnterior = localStorage.getItem(clave);
+  originalSetItem(clave, valorNuevo);
   if (esClaveReservada(clave)) return;
+
+  // Si el valor es idéntico al que ya había, no cambió nada: no se sube.
+  // (Evita miles de guardados inútiles cuando la app vuelve a guardar
+  // todos los animales sin haber modificado nada.)
+  if (valorAnterior === valorNuevo) return;
 
   registrarCambioLocal(clave, "set");
   programarSubida();
@@ -396,7 +509,7 @@ localStorage.setItem = function (clave, valor) {
   if (clave.startsWith("animal:")) {
     try {
       const caravana = clave.slice("animal:".length);
-      const datos = JSON.parse(valor);
+      const datos = JSON.parse(valorNuevo);
       programarSubidaIndividual(caravana, datos);
     } catch (e) {
       // el valor no era JSON válido; no se sube individualmente
@@ -405,8 +518,10 @@ localStorage.setItem = function (clave, valor) {
 };
 
 localStorage.removeItem = function (clave) {
+  const existia = localStorage.getItem(clave) !== null;
   originalRemoveItem(clave);
   if (esClaveReservada(clave)) return;
+  if (!existia) return;
 
   registrarCambioLocal(clave, "del");
   programarSubida();
@@ -430,12 +545,20 @@ localStorage.clear = function () {
   programarSubida();
 };
 
+// -----------------------------------------------------------------------
+// GATILLOS (conexión, pantalla, foco, chequeos periódicos)
+// -----------------------------------------------------------------------
 if (typeof window !== "undefined") {
   window.addEventListener("online", () => {
-    if (pendienteDeSubir && sincronizacionActiva) {
+    if (!sincronizacionActiva) return;
+    if (pendienteDeSubir) {
       intentosFallidos = 0;
       subirAhora();
+    } else {
+      fijarEstado("sincronizado");
+      traerNovedadesDeLaNube();
     }
+    if (animalesPendientes.size > 0) programarLoteAnimales(500);
   });
   window.addEventListener("offline", () => {
     if (sincronizacionActiva) fijarEstado("sin_conexion");
@@ -447,41 +570,62 @@ if (typeof window !== "undefined") {
     }
   });
 
+  // Al ocultar la pantalla / cerrar la app: se deja el registro de
+  // pendientes guardado en el dispositivo y se intenta subir.
   const forzarSubidaSiHacePendiente = () => {
-    if (sincronizacionActiva && pendienteDeSubir) {
+    if (!sincronizacionActiva) return;
+    guardarCambiosPendientes();
+    if (pendienteDeSubir) {
       clearTimeout(timeoutGuardado);
       subirAhora();
     }
   };
+
+  // Al volver a la pantalla / recuperar el foco: si hay algo pendiente
+  // se sube; si no, se revisa si otros dispositivos cargaron novedades.
+  const alVolverAVer = () => {
+    if (!sincronizacionActiva) return;
+    if (pendienteDeSubir) {
+      intentosFallidos = 0;
+      subirAhora();
+    } else {
+      traerNovedadesDeLaNube();
+    }
+  };
+
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") forzarSubidaSiHacePendiente();
-    if (document.visibilityState === "visible" && pendienteDeSubir && sincronizacionActiva) {
-      intentosFallidos = 0;
-      subirAhora();
-    }
+    if (document.visibilityState === "visible") alVolverAVer();
   });
   window.addEventListener("pagehide", forzarSubidaSiHacePendiente);
+  window.addEventListener("focus", alVolverAVer);
 
-  window.addEventListener("focus", () => {
-    if (pendienteDeSubir && sincronizacionActiva) {
-      intentosFallidos = 0;
-      subirAhora();
-    }
-  });
-
-  // Chequeo periódico de respaldo, sin depender de si el navegador
-  // "dice" que hay conexión (en algunos celulares esa información no
-  // se actualiza bien). El semáforo (subidaEnCurso) se encarga de que
-  // esto nunca choque con otro intento que ya esté en curso.
+  // Chequeo periódico de respaldo para reintentar subidas pendientes, sin
+  // depender de si el navegador "dice" que hay conexión (en algunos
+  // celulares esa información no se actualiza bien). El semáforo
+  // (subidaEnCurso) evita que choque con otro intento en curso.
   setInterval(() => {
     if (pendienteDeSubir && sincronizacionActiva) {
       subirAhora();
     }
   }, 20000);
+
+  // Revisión de novedades de otros dispositivos mientras la pantalla se ve.
+  setInterval(() => {
+    if (document.visibilityState === "visible") traerNovedadesDeLaNube();
+  }, 45000);
 }
 
+// -----------------------------------------------------------------------
+// INICIO / CIERRE DE SESIÓN
+// -----------------------------------------------------------------------
 export async function iniciarSincronizacion(uid) {
   const cuentaAnterior = localStorage.getItem("agrodata:cuentaActual");
+
+  // ¿Quedaron cambios de una sesión anterior en ESTE dispositivo que
+  // todavía no se habían confirmado como subidos? (por ejemplo, se
+  // cargó algo sin señal y la app se cerró o se pausó antes de que
+  // volviera la conexión).
   const habiaPendienteSinSubir = localStorage.getItem("agrodata:pendienteSubir") === "1";
 
   if (cuentaAnterior && cuentaAnterior !== uid) {
@@ -492,12 +636,15 @@ export async function iniciarSincronizacion(uid) {
 
   uidActual = uid;
   restaurando = true;
+  animalesPendientes.clear();
+  ultimoSubidoPorAnimal.clear();
   fijarEstado("guardando");
 
   try {
     if (cuentaAnterior === uid && habiaPendienteSinSubir) {
-      // Hay cambios locales sin confirmar subidos: NO traemos nada de la
-      // nube antes de subirlos (taparía el cambio con una versión vieja).
+      // Hay cambios locales de la misma cuenta sin confirmar subidos.
+      // NO traemos nada de la nube antes de subirlos (taparía el cambio
+      // con una versión vieja). La subida hace el merge con la nube.
       // Si por una versión anterior de la app no hay registro detallado,
       // se marca todo lo local como "para subir" (nunca se borra nada de
       // la nube por esta vía).
@@ -569,14 +716,27 @@ export async function detenerSincronizacion() {
   ultimaVersionConocida = null;
   pendienteDeSubir = false;
   subidaEnCurso = false;
+  pullEnCurso = false;
   intentosFallidos = 0;
+  clearTimeout(timeoutGuardado);
+  clearTimeout(timeoutLoteAnimales);
+  animalesPendientes.clear();
+  ultimoSubidoPorAnimal.clear();
+  loteAnimalesEnCurso = false;
+  fallosLoteAnimales = 0;
+  ultimoBackupMs = 0;
+  ultimaFechaLimpieza = null;
   borrarSoloDatosDeApp();
-  originalRemoveItem("agrodata:pendienteSubir");
   limpiarCambiosPendientes();
+  originalRemoveItem("agrodata:pendienteSubir");
   fijarEstado("inactivo");
+
   return { exito };
 }
 
+// -----------------------------------------------------------------------
+// BACKUPS: listar / descargar / restaurar
+// -----------------------------------------------------------------------
 export async function listarBackups() {
   if (!uidActual) return [];
   try {
@@ -617,7 +777,7 @@ export async function restaurarBackup(fecha) {
     const datosBackup = snapshot.data().datos;
 
     // Lo que hay hoy y no está en el backup se marca como borrado; lo del
-    // backup como para subir. Así la nube queda igual al backup.
+    // backup, como para subir. Así la nube queda igual al backup.
     const clavesActuales = Object.keys(leerTodoLocalStorage());
     borrarSoloDatosDeApp();
     limpiarCambiosPendientes();
@@ -640,11 +800,14 @@ export async function restaurarBackup(fecha) {
   }
 }
 
+// -----------------------------------------------------------------------
+// RECUPERACIÓN DE EMERGENCIA Y MANTENIMIENTO DE LA SUBCOLECCIÓN "animales"
+// -----------------------------------------------------------------------
 export async function recuperarAnimalesDesdeSubcoleccion() {
   if (!uidActual) return { recuperados: 0, error: "No hay sesión activa." };
   try {
     const refColeccion = collection(db, "usuarios", uidActual, "animales");
-    const snapshot = await getDocs(refColeccion);
+    const snapshot = await conTiempoLimite(getDocs(refColeccion));
     let recuperados = 0;
     snapshot.forEach((docSnap) => {
       const animal = docSnap.data();
@@ -666,13 +829,15 @@ export async function recuperarAnimalesDesdeSubcoleccion() {
 export async function migrarTodosLosAnimalesAhora() {
   if (!uidActual) return { subidos: 0, total: 0, error: "No hay sesión activa." };
   try {
+    const uid = uidActual;
     const claves = [];
     for (let i = 0; i < localStorage.length; i++) {
       const clave = localStorage.key(i);
       if (clave && clave.startsWith("animal:")) claves.push(clave);
     }
 
-    let subidos = 0;
+    const marca = new Date().toISOString();
+    const pendientes = [];
     for (const clave of claves) {
       let datos;
       try {
@@ -680,18 +845,32 @@ export async function migrarTodosLosAnimalesAhora() {
       } catch (e) {
         continue;
       }
-      if (!datos) continue;
+      if (!datos || typeof datos !== "object" || Array.isArray(datos)) continue;
 
       const caravana = clave.slice("animal:".length);
+      let ref;
       try {
-        const ref = doc(db, "usuarios", uidActual, "animales", caravana);
-        // eslint-disable-next-line no-await-in-loop
-        await conTiempoLimite(
-          setDoc(ref, { ...datos, actualizado: new Date().toISOString() })
-        );
-        subidos += 1;
+        ref = doc(db, "usuarios", uid, "animales", caravana);
       } catch (e) {
-        console.error(`No se pudo subir el animal ${caravana}:`, e);
+        console.warn(`Caravana no válida para copia individual: ${caravana}`, e);
+        continue;
+      }
+      pendientes.push({ caravana, datos, ref });
+    }
+
+    // En lotes: un pedido por cada TAMANO_LOTE animales, no uno por animal.
+    let subidos = 0;
+    for (let i = 0; i < pendientes.length; i += TAMANO_LOTE) {
+      const lote = pendientes.slice(i, i + TAMANO_LOTE);
+      try {
+        const batch = writeBatch(db);
+        lote.forEach(({ datos, ref }) => batch.set(ref, { ...datos, actualizado: marca }));
+        // eslint-disable-next-line no-await-in-loop
+        await conTiempoLimite(batch.commit());
+        lote.forEach(({ caravana, datos }) => ultimoSubidoPorAnimal.set(caravana, JSON.stringify(datos)));
+        subidos += lote.length;
+      } catch (e) {
+        console.error("No se pudo subir un lote de animales:", e);
       }
     }
 
@@ -704,6 +883,11 @@ export async function migrarTodosLosAnimalesAhora() {
 
 export async function limpiarAnimalesHuerfanos() {
   if (!uidActual) return { eliminados: 0, error: "No hay sesión activa." };
+  // Seguridad: esta función borra de Firebase lo que ESTE dispositivo no
+  // tiene. Si hay cambios sin subir, la lista local puede estar desactualizada.
+  if (pendienteDeSubir) {
+    return { eliminados: 0, error: "Hay cambios sin subir. Esperá a que diga 'sincronizado' y volvé a intentar." };
+  }
   try {
     const caravanasLocales = new Set();
     for (let i = 0; i < localStorage.length; i++) {
@@ -714,12 +898,20 @@ export async function limpiarAnimalesHuerfanos() {
     }
 
     const refColeccion = collection(db, "usuarios", uidActual, "animales");
-    const snapshot = await getDocs(refColeccion);
+    const snapshot = await conTiempoLimite(getDocs(refColeccion));
     const huerfanos = snapshot.docs.filter((d) => !caravanasLocales.has(d.id));
 
-    await Promise.all(huerfanos.map((d) => deleteDoc(d.ref)));
+    let eliminados = 0;
+    for (let i = 0; i < huerfanos.length; i += TAMANO_LOTE) {
+      const lote = huerfanos.slice(i, i + TAMANO_LOTE);
+      const batch = writeBatch(db);
+      lote.forEach((d) => batch.delete(d.ref));
+      // eslint-disable-next-line no-await-in-loop
+      await conTiempoLimite(batch.commit());
+      eliminados += lote.length;
+    }
 
-    return { eliminados: huerfanos.length };
+    return { eliminados };
   } catch (e) {
     console.error("No se pudo limpiar animales huérfanos:", e);
     return { eliminados: 0, error: "No se pudo conectar con Firebase." };
