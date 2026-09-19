@@ -63,7 +63,6 @@ let sincronizacionActiva = false;
 let restaurando = false;
 let timeoutGuardado = null;
 let ultimaVersionConocida = null; // cuál fue la última versión que SÉ que es la mía
-class ConflictoVersionError extends Error {}
 
 // Hay un cambio local que todavía no se confirmó guardado en la nube.
 // (En memoria, para uso inmediato; la versión que sobrevive a que la
@@ -105,10 +104,77 @@ const PREFIJOS_RESERVADOS = [
   "firebase-heartbeat",
   "agrodata:cuentaActual",
   "agrodata:pendienteSubir",
+  "agrodata:cambiosPendientes",
 ];
 
 function esClaveReservada(clave) {
   return PREFIJOS_RESERVADOS.some((prefijo) => clave.startsWith(prefijo));
+}
+
+// -----------------------------------------------------------------------
+// REGISTRO DE CAMBIOS PENDIENTES
+// Anota qué claves se modificaron o borraron en ESTE dispositivo y todavía
+// no se confirmaron subidas. Al subir, solo se aplican esos cambios sobre
+// lo que hay en la nube (en vez de pisar todo con la copia local).
+// Se guarda también en localStorage para sobrevivir a un cierre de la app.
+// -----------------------------------------------------------------------
+const CLAVE_CAMBIOS_PENDIENTES = "agrodata:cambiosPendientes";
+let secuenciaCambios = Date.now();
+let cambiosPendientes = cargarCambiosPendientes();
+
+function cargarCambiosPendientes() {
+  try {
+    const crudo = localStorage.getItem(CLAVE_CAMBIOS_PENDIENTES);
+    return crudo ? JSON.parse(crudo) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function guardarCambiosPendientes() {
+  try {
+    if (Object.keys(cambiosPendientes).length === 0) {
+      originalRemoveItem(CLAVE_CAMBIOS_PENDIENTES);
+    } else {
+      originalSetItem(CLAVE_CAMBIOS_PENDIENTES, JSON.stringify(cambiosPendientes));
+    }
+  } catch (e) {
+    console.error("No se pudo guardar el registro de cambios pendientes:", e);
+  }
+}
+
+function marcarCambio(clave, tipo) {
+  // tipo: "set" (alta o modificación) | "del" (borrado)
+  cambiosPendientes[clave] = { t: tipo, n: ++secuenciaCambios };
+  guardarCambiosPendientes();
+}
+
+function registrarCambioLocal(clave, tipo) {
+  if (!sincronizacionActiva || !uidActual || restaurando) return;
+  marcarCambio(clave, tipo);
+}
+
+function limpiarCambiosPendientes() {
+  cambiosPendientes = {};
+  originalRemoveItem(CLAVE_CAMBIOS_PENDIENTES);
+}
+
+// Trae a este dispositivo lo que otros dispositivos guardaron en la nube.
+// Nunca pisa una clave que tenga un cambio local pendiente.
+function aplicarNovedadesDeLaNube(datosNube) {
+  let huboCambios = false;
+  Object.keys(datosNube || {}).forEach((clave) => {
+    if (esClaveReservada(clave)) return;
+    if (cambiosPendientes[clave]) return;
+    if (localStorage.getItem(clave) !== datosNube[clave]) {
+      originalSetItem(clave, datosNube[clave]);
+      huboCambios = true;
+    }
+  });
+  if (huboCambios && typeof window !== "undefined") {
+    window.dispatchEvent(new Event("agrodata:actualizado"));
+  }
+  return huboCambios;
 }
 
 // "sincronizado" | "guardando" | "error" | "sin_conexion" | "conflicto_dispositivo" | "inactivo"
@@ -189,11 +255,7 @@ async function limpiarBackupsViejos() {
 
 async function subirAhora() {
   if (!uidActual) return false;
-  // Semáforo: si ya hay un guardado en curso, no arrancamos otro. El
-  // que ya está en camino va a terminar de subir lo más nuevo que haya
-  // en el dispositivo en ese momento; si mientras tanto se cargó algo
-  // más, "pendienteDeSubir" sigue en true y algún otro gatillo (el
-  // chequeo cada 20 segundos, por ejemplo) va a volver a intentarlo.
+  // Semáforo: un solo guardado a la vez.
   if (subidaEnCurso) return false;
 
   subidaEnCurso = true;
@@ -201,42 +263,64 @@ async function subirAhora() {
 
   try {
     const referencia = doc(db, "usuarios", uidActual);
-    const datos = leerTodoLocalStorage();
     const nuevaMarca = new Date().toISOString();
+    // Foto de los cambios que se envían en ESTE intento. Si mientras
+    // tanto se carga algo más, queda anotado para el intento siguiente.
+    const cambiosEnviados = { ...cambiosPendientes };
+    let datosFinales = {};
 
     await conTiempoLimite(
       runTransaction(db, async (transaction) => {
         const snapshotActual = await transaction.get(referencia);
-        const versionEnNube = snapshotActual.exists() ? snapshotActual.data().actualizado : null;
+        // Partimos de lo que hay en la nube (incluye lo de otros dispositivos)
+        const datosNube =
+          snapshotActual.exists() && snapshotActual.data().datos
+            ? { ...snapshotActual.data().datos }
+            : {};
 
-        if (ultimaVersionConocida && versionEnNube && versionEnNube !== ultimaVersionConocida) {
-          throw new ConflictoVersionError(versionEnNube);
-        }
+        // ...y le aplicamos SOLO los cambios hechos en este dispositivo.
+        Object.keys(cambiosEnviados).forEach((clave) => {
+          if (esClaveReservada(clave)) return;
+          if (cambiosEnviados[clave].t === "del") {
+            delete datosNube[clave];
+          } else {
+            const valorLocal = localStorage.getItem(clave);
+            if (valorLocal !== null) datosNube[clave] = valorLocal;
+          }
+        });
 
-        transaction.set(referencia, { datos, actualizado: nuevaMarca });
+        datosFinales = datosNube;
+        transaction.set(referencia, { datos: datosNube, actualizado: nuevaMarca });
       })
     );
 
     ultimaVersionConocida = nuevaMarca;
-    pendienteDeSubir = false;
-    originalRemoveItem("agrodata:pendienteSubir");
+
+    // Sacamos del registro solo lo que se subió (salvo lo que se volvió
+    // a modificar mientras se subía).
+    Object.keys(cambiosEnviados).forEach((clave) => {
+      const actual = cambiosPendientes[clave];
+      if (actual && actual.n === cambiosEnviados[clave].n) delete cambiosPendientes[clave];
+    });
+    guardarCambiosPendientes();
+
+    pendienteDeSubir = Object.keys(cambiosPendientes).length > 0;
+    if (!pendienteDeSubir) originalRemoveItem("agrodata:pendienteSubir");
     intentosFallidos = 0;
-    fijarEstado("sincronizado");
-    actualizarBackupDeHoy(datos);
-    return true;
-  } catch (e) {
-    if (e instanceof ConflictoVersionError) {
-      // Otro dispositivo (una persona distinta usando la misma cuenta)
-      // guardó una versión más nueva justo antes que nosotros. El
-      // cambio de este dispositivo NO se pierde: solo actualizamos cuál
-      // es la versión más reciente que conocemos y reintentamos en un
-      // instante, para que también termine guardado.
-      ultimaVersionConocida = e.message || null;
+
+    // Traer lo que cargaron otros dispositivos
+    aplicarNovedadesDeLaNube(datosFinales);
+
+    fijarEstado(pendienteDeSubir ? "guardando" : "sincronizado");
+    actualizarBackupDeHoy(datosFinales);
+
+    if (pendienteDeSubir) {
       setTimeout(() => {
         if (pendienteDeSubir && sincronizacionActiva) subirAhora();
-      }, 800);
-      return false;
+      }, 1000);
     }
+    return true;
+  } catch (e) {
     console.error("No se pudo sincronizar con la nube:", e);
     fijarEstado("error");
     programarReintento();
@@ -306,6 +390,7 @@ localStorage.setItem = function (clave, valor) {
   originalSetItem(clave, valor);
   if (esClaveReservada(clave)) return;
 
+  registrarCambioLocal(clave, "set");
   programarSubida();
 
   if (clave.startsWith("animal:")) {
@@ -323,6 +408,7 @@ localStorage.removeItem = function (clave) {
   originalRemoveItem(clave);
   if (esClaveReservada(clave)) return;
 
+  registrarCambioLocal(clave, "del");
   programarSubida();
 
   if (clave.startsWith("animal:")) {
@@ -332,12 +418,15 @@ localStorage.removeItem = function (clave) {
 
 localStorage.clear = function () {
   const reservadas = {};
+  const clavesDeApp = [];
   for (let i = 0; i < localStorage.length; i++) {
     const clave = localStorage.key(i);
     if (esClaveReservada(clave)) reservadas[clave] = localStorage.getItem(clave);
+    else clavesDeApp.push(clave);
   }
   originalClear();
   Object.keys(reservadas).forEach((clave) => originalSetItem(clave, reservadas[clave]));
+  clavesDeApp.forEach((clave) => registrarCambioLocal(clave, "del"));
   programarSubida();
 };
 
@@ -393,15 +482,11 @@ if (typeof window !== "undefined") {
 
 export async function iniciarSincronizacion(uid) {
   const cuentaAnterior = localStorage.getItem("agrodata:cuentaActual");
-
-  // ¿Quedaron cambios de una sesión anterior en ESTE dispositivo que
-  // todavía no se habían confirmado como subidos? (por ejemplo, se
-  // cargó algo sin señal y la app se cerró o se pausó antes de que
-  // volviera la conexión).
   const habiaPendienteSinSubir = localStorage.getItem("agrodata:pendienteSubir") === "1";
 
   if (cuentaAnterior && cuentaAnterior !== uid) {
     borrarSoloDatosDeApp();
+    limpiarCambiosPendientes();
     originalRemoveItem("agrodata:pendienteSubir");
   }
 
@@ -411,10 +496,17 @@ export async function iniciarSincronizacion(uid) {
 
   try {
     if (cuentaAnterior === uid && habiaPendienteSinSubir) {
-      // Hay cambios locales de la misma cuenta sin confirmar subidos.
-      // NO tocamos el localStorage ni traemos nada de la nube: eso
-      // taparía el cambio pendiente con una versión vieja. Dejamos que
-      // la subida normal lo suba.
+      // Hay cambios locales sin confirmar subidos: NO traemos nada de la
+      // nube antes de subirlos (taparía el cambio con una versión vieja).
+      // Si por una versión anterior de la app no hay registro detallado,
+      // se marca todo lo local como "para subir" (nunca se borra nada de
+      // la nube por esta vía).
+      if (Object.keys(cambiosPendientes).length === 0) {
+        Object.keys(leerTodoLocalStorage()).forEach((clave) => {
+          cambiosPendientes[clave] = { t: "set", n: ++secuenciaCambios };
+        });
+        guardarCambiosPendientes();
+      }
       pendienteDeSubir = true;
       originalSetItem("agrodata:cuentaActual", uid);
       subirAhora();
@@ -426,6 +518,7 @@ export async function iniciarSincronizacion(uid) {
 
     if (snapshot.exists() && snapshot.data().datos) {
       borrarSoloDatosDeApp();
+      limpiarCambiosPendientes();
       const datosNube = snapshot.data().datos;
       Object.keys(datosNube).forEach((clave) => {
         if (!esClaveReservada(clave)) originalSetItem(clave, datosNube[clave]);
@@ -479,8 +572,8 @@ export async function detenerSincronizacion() {
   intentosFallidos = 0;
   borrarSoloDatosDeApp();
   originalRemoveItem("agrodata:pendienteSubir");
+  limpiarCambiosPendientes();
   fijarEstado("inactivo");
-
   return { exito };
 }
 
@@ -522,9 +615,18 @@ export async function restaurarBackup(fecha) {
     if (!snapshot.exists()) return { exito: false };
 
     const datosBackup = snapshot.data().datos;
+
+    // Lo que hay hoy y no está en el backup se marca como borrado; lo del
+    // backup como para subir. Así la nube queda igual al backup.
+    const clavesActuales = Object.keys(leerTodoLocalStorage());
     borrarSoloDatosDeApp();
+    limpiarCambiosPendientes();
+    clavesActuales.forEach((clave) => marcarCambio(clave, "del"));
     Object.keys(datosBackup).forEach((clave) => {
-      if (!esClaveReservada(clave)) originalSetItem(clave, datosBackup[clave]);
+      if (!esClaveReservada(clave)) {
+        originalSetItem(clave, datosBackup[clave]);
+        marcarCambio(clave, "set");
+      }
     });
 
     programarSubida();
@@ -549,6 +651,7 @@ export async function recuperarAnimalesDesdeSubcoleccion() {
       const caravana = (animal && animal.caravana) || docSnap.id;
       if (caravana) {
         originalSetItem(`animal:${caravana}`, JSON.stringify(animal));
+        marcarCambio(`animal:${caravana}`, "set");
         recuperados += 1;
       }
     });
