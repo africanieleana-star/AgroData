@@ -94,6 +94,14 @@ const PREFIJOS_RESERVADOS = [
   "firebase:",
   "firebaseLocalStorageDb",
   "firebase-heartbeat",
+  "firebase-app-check",
+  // Claves internas del propio Firestore (sincronización entre pestañas:
+  // firestore_clients_..., firestore_mutations_..., firestore_online_state_...).
+  // Firestore las reescribe en CADA operación; si se tomaran como datos de la
+  // app se generaba un bucle infinito de "guardando...". Nunca se suben.
+  "firestore_",
+  "@firebase",
+  "_grecaptcha",
   "agrodata:cuentaActual",
   "agrodata:pendienteSubir",
   "agrodata:cambiosPendientes",
@@ -142,7 +150,12 @@ let cambiosPendientes = cargarCambiosPendientes();
 function cargarCambiosPendientes() {
   try {
     const crudo = localStorage.getItem(CLAVE_CAMBIOS_PENDIENTES);
-    return crudo ? JSON.parse(crudo) : {};
+    const registro = crudo ? JSON.parse(crudo) : {};
+    // Limpia claves que versiones anteriores anotaron por error (internas de Firestore)
+    Object.keys(registro).forEach((clave) => {
+      if (esClaveReservada(clave)) delete registro[clave];
+    });
+    return registro;
   } catch (e) {
     return {};
   }
@@ -290,6 +303,11 @@ async function subirAhora() {
           snapshotActual.exists() && snapshotActual.data().datos
             ? { ...snapshotActual.data().datos }
             : {};
+
+        // Limpieza: claves internas que versiones anteriores subieron por error
+        Object.keys(datosNube).forEach((clave) => {
+          if (esClaveReservada(clave)) delete datosNube[clave];
+        });
 
         // ...y le aplicamos SOLO los cambios hechos en este dispositivo.
         Object.keys(cambiosEnviados).forEach((clave) => {
