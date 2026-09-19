@@ -1,5 +1,6 @@
 // -----------------------------------------------------------------------
-// SINCRONIZADOR CON LA NUBE (con protección de sesión + backups diarios)
+// SINCRONIZADOR CON LA NUBE (con protección de sesión + backups diarios +
+// soporte para varias personas/dispositivos usando la misma cuenta)
 // -----------------------------------------------------------------------
 // La app (App.jsx) sigue guardando todo con localStorage, exactamente
 // igual que antes. Este archivo "espía" cada guardado y sube una copia
@@ -8,21 +9,34 @@
 // Protecciones:
 //  - Nunca toca las claves de sesión de Firebase Auth ("firebase:...").
 //  - Reintenta solo si falla la subida, y avisa si no se pudo confirmar.
-//  - El logout espera la confirmación antes de borrar el dispositivo.
-//  - Guarda una copia de cada día en usuarios/{uid}/backups/{AAAA-MM-DD},
-//    para poder volver atrás si algo se corrompe o se borra por error.
+//  - El logout intenta subir lo pendiente antes de cerrar, pero SIEMPRE
+//    termina cerrando sesión y limpiando el dispositivo, haya podido
+//    subir o no (si no pudo, ya se le avisó al usuario antes, en
+//    Root.jsx).
+//  - Guarda una copia de cada día en usuarios/{uid}/backups/{AAAA-MM-DD}.
 //    Se conservan los últimos 30 días; los más viejos se eliminan solos.
 //  - Cada operación contra el servidor tiene un tiempo máximo de espera
 //    (15 segundos), para no quedarse mostrando "Guardando..." para
-//    siempre si la red no contesta.
-//  - NUEVO: además de escuchar el evento "online" del navegador (que en
-//    celulares no siempre se dispara al recuperar señal, sobre todo si
-//    la app estuvo en segundo plano), ahora también reintenta subir:
-//      1) cada vez que la app vuelve a estar visible/en primer plano
-//         (visibilitychange, focus), y
-//      2) con un chequeo periódico de respaldo cada 20 segundos.
-//    Esto asegura que, apenas vuelva la señal en el celular, los
-//    cambios cargados offline se suban solos, igual que en la PC.
+//    siempre si la red no contesta. La app SIEMPRE intenta guardar
+//    cuando hace falta, sin confiar ciegamente en si el navegador "dice"
+//    que hay o no conexión (en varios celulares esa información no se
+//    actualiza bien).
+//  - MULTI-DISPOSITIVO: antes de guardar, se compara la versión que hay
+//    en la nube contra la última que este dispositivo conoce. Si otro
+//    dispositivo guardó algo más nuevo mientras tanto, no se lo pisa:
+//    se toma nota de esa versión nueva y se reintenta guardar el cambio
+//    de acá enseguida (no se pierde, solo espera su turno).
+//  - SEMÁFORO CONTRA CHOQUES: solo se permite un intento de guardado a
+//    la vez. Antes, varios "gatillos" (volver a la pestaña, recuperar
+//    el foco, el chequeo cada 20 segundos, etc.) podían disparar
+//    guardados al mismo tiempo, y el dispositivo terminaba "compitiendo
+//    contra sí mismo" y creyendo por error que otro dispositivo había
+//    guardado algo. Con el semáforo, eso ya no puede pasar.
+//  - Si el dispositivo queda con cambios sin subir porque la app se
+//    cerró o se pausó sin señal (algo común en celulares), esa marca de
+//    "pendiente" se guarda también en el propio dispositivo (no solo en
+//    la memoria), para que al reabrir la app se suba ese cambio primero
+//    en vez de traer la versión vieja de la nube y taparlo.
 // -----------------------------------------------------------------------
 
 import {
@@ -48,11 +62,18 @@ let uidActual = null;
 let sincronizacionActiva = false;
 let restaurando = false;
 let timeoutGuardado = null;
-let ultimaVersionConocida = null; // guarda cuál fue la última versión que SÉ que es la mía
+let ultimaVersionConocida = null; // cuál fue la última versión que SÉ que es la mía
 class ConflictoVersionError extends Error {}
 
 // Hay un cambio local que todavía no se confirmó guardado en la nube.
+// (En memoria, para uso inmediato; la versión que sobrevive a que la
+// app se cierre está en localStorage, clave "agrodata:pendienteSubir".)
 let pendienteDeSubir = false;
+
+// Semáforo: evita que dos guardados se disparen al mismo tiempo. Sin
+// esto, el propio dispositivo puede terminar "compitiendo contra sí
+// mismo" y creyendo por error que otro dispositivo guardó algo nuevo.
+let subidaEnCurso = false;
 
 let intentosFallidos = 0;
 const ESPERAS_REINTENTO = [3000, 8000, 20000, 45000]; // 3s, 8s, 20s, 45s...
@@ -61,14 +82,9 @@ const DIAS_DE_RETENCION_BACKUPS = 30;
 
 // Tiempo máximo que se espera una respuesta del servidor antes de darse
 // por vencido y tratarlo como un error (para poder reintentar en vez de
-// quedarse esperando para siempre).
+// quedarse esperando indefinidamente).
 const TIEMPO_MAXIMO_ESPERA_MS = 15000; // 15 segundos
 
-// Envuelve cualquier operación contra Firestore para que, si no responde
-// dentro del tiempo máximo, se la considere fallida (en vez de quedarse
-// esperando indefinidamente). La operación original puede seguir
-// resolviéndose "en segundo plano" más tarde; simplemente dejamos de
-// esperarla acá.
 function conTiempoLimite(promesaOriginal, ms = TIEMPO_MAXIMO_ESPERA_MS) {
   return Promise.race([
     promesaOriginal,
@@ -82,14 +98,20 @@ function conTiempoLimite(promesaOriginal, ms = TIEMPO_MAXIMO_ESPERA_MS) {
 }
 
 // Claves que NUNCA hay que subir, borrar ni pisar: son internas de
-// Firebase (por ejemplo, la sesión de Firebase Auth).
-const PREFIJOS_RESERVADOS = ["firebase:", "firebaseLocalStorageDb", "firebase-heartbeat"];
+// Firebase o del propio mecanismo de sincronización.
+const PREFIJOS_RESERVADOS = [
+  "firebase:",
+  "firebaseLocalStorageDb",
+  "firebase-heartbeat",
+  "agrodata:cuentaActual",
+  "agrodata:pendienteSubir",
+];
 
 function esClaveReservada(clave) {
   return PREFIJOS_RESERVADOS.some((prefijo) => clave.startsWith(prefijo));
 }
 
-// "sincronizado" | "guardando" | "error" | "sin_conexion" | "inactivo"
+// "sincronizado" | "guardando" | "error" | "sin_conexion" | "conflicto_dispositivo" | "inactivo"
 let estadoActual = "inactivo";
 const listeners = new Set();
 
@@ -140,23 +162,18 @@ function fechaDeHoyISO() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-// Guarda (o actualiza) la foto del día de hoy en la colección de backups.
-// No se llama en cada guardado, solo se dispara una vez confirmada la
-// subida principal, así que como mucho hace una escritura extra por día.
 async function actualizarBackupDeHoy(datos) {
   if (!uidActual) return;
   try {
     const fecha = fechaDeHoyISO();
     const refBackup = doc(db, "usuarios", uidActual, "backups", fecha);
     await conTiempoLimite(setDoc(refBackup, { datos, guardado: new Date().toISOString() }));
-    limpiarBackupsViejos(); // no bloqueante, no hace falta esperarlo
+    limpiarBackupsViejos();
   } catch (e) {
     console.error("No se pudo actualizar el backup del día:", e);
   }
 }
 
-// Borra los backups más viejos que los últimos N días, para no acumular
-// para siempre ni gastar de más en Firestore.
 async function limpiarBackupsViejos() {
   if (!uidActual) return;
   try {
@@ -172,12 +189,15 @@ async function limpiarBackupsViejos() {
 
 async function subirAhora() {
   if (!uidActual) return false;
+  // Semáforo: si ya hay un guardado en curso, no arrancamos otro. El
+  // que ya está en camino va a terminar de subir lo más nuevo que haya
+  // en el dispositivo en ese momento; si mientras tanto se cargó algo
+  // más, "pendienteDeSubir" sigue en true y algún otro gatillo (el
+  // chequeo cada 20 segundos, por ejemplo) va a volver a intentarlo.
+  if (subidaEnCurso) return false;
 
-  fijarEstado(
-    typeof navigator !== "undefined" && navigator.onLine === false
-      ? "sin_conexion"
-      : "guardando"
-  );
+  subidaEnCurso = true;
+  fijarEstado("guardando");
 
   try {
     const referencia = doc(db, "usuarios", uidActual);
@@ -190,7 +210,7 @@ async function subirAhora() {
         const versionEnNube = snapshotActual.exists() ? snapshotActual.data().actualizado : null;
 
         if (ultimaVersionConocida && versionEnNube && versionEnNube !== ultimaVersionConocida) {
-          throw new ConflictoVersionError();
+          throw new ConflictoVersionError(versionEnNube);
         }
 
         transaction.set(referencia, { datos, actualizado: nuevaMarca });
@@ -199,21 +219,30 @@ async function subirAhora() {
 
     ultimaVersionConocida = nuevaMarca;
     pendienteDeSubir = false;
+    originalRemoveItem("agrodata:pendienteSubir");
     intentosFallidos = 0;
     fijarEstado("sincronizado");
     actualizarBackupDeHoy(datos);
     return true;
   } catch (e) {
     if (e instanceof ConflictoVersionError) {
-      console.warn("Otro dispositivo guardó datos más nuevos. No se sobrescribió nada.");
-      fijarEstado("conflicto_dispositivo");
-      pendienteDeSubir = false;
+      // Otro dispositivo (una persona distinta usando la misma cuenta)
+      // guardó una versión más nueva justo antes que nosotros. El
+      // cambio de este dispositivo NO se pierde: solo actualizamos cuál
+      // es la versión más reciente que conocemos y reintentamos en un
+      // instante, para que también termine guardado.
+      ultimaVersionConocida = e.message || null;
+      setTimeout(() => {
+        if (pendienteDeSubir && sincronizacionActiva) subirAhora();
+      }, 800);
       return false;
     }
     console.error("No se pudo sincronizar con la nube:", e);
     fijarEstado("error");
     programarReintento();
     return false;
+  } finally {
+    subidaEnCurso = false;
   }
 }
 
@@ -229,6 +258,7 @@ function programarReintento() {
 function programarSubida() {
   if (!sincronizacionActiva || !uidActual || restaurando) return;
   pendienteDeSubir = true;
+  originalSetItem("agrodata:pendienteSubir", "1");
   fijarEstado("guardando");
   clearTimeout(timeoutGuardado);
   timeoutGuardado = setTimeout(() => {
@@ -237,11 +267,10 @@ function programarSubida() {
 }
 
 // -----------------------------------------------------------------------
-// ETAPA 1 DE LA MIGRACIÓN: además del documento único de siempre, cada
-// animal se sube TAMBIÉN a su propio documento chico en
-// usuarios/{uid}/animales/{caravana}. No reemplaza nada todavía — es una
-// subida "en paralelo" para poder migrar la lectura más adelante sin
-// perder el sistema que ya funciona.
+// Además del documento único de siempre, cada animal se sube TAMBIÉN a
+// su propio documento chico en usuarios/{uid}/animales/{caravana}. No
+// reemplaza nada — es una copia "en paralelo" que alimenta al botón de
+// recuperación de emergencia.
 // -----------------------------------------------------------------------
 const timeoutsIndividuales = new Map();
 
@@ -313,9 +342,6 @@ localStorage.clear = function () {
 };
 
 if (typeof window !== "undefined") {
-  // Intenta subir de inmediato apenas el navegador avisa que volvió la
-  // señal. Es la vía principal, pero en el celular no siempre se
-  // dispara (ver los respaldos más abajo).
   window.addEventListener("online", () => {
     if (pendienteDeSubir && sincronizacionActiva) {
       intentosFallidos = 0;
@@ -332,11 +358,6 @@ if (typeof window !== "undefined") {
     }
   });
 
-  // En el celular, cambiar de app o apagar la pantalla NO dispara
-  // "beforeunload" de forma confiable. "visibilitychange" (y "pagehide"
-  // como respaldo) sí se disparan siempre que la pestaña deja de estar
-  // visible, así que ahí forzamos la subida pendiente sin esperar el
-  // debounce de 1 segundo.
   const forzarSubidaSiHacePendiente = () => {
     if (sincronizacionActiva && pendienteDeSubir) {
       clearTimeout(timeoutGuardado);
@@ -345,26 +366,13 @@ if (typeof window !== "undefined") {
   };
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") forzarSubidaSiHacePendiente();
-  });
-  window.addEventListener("pagehide", forzarSubidaSiHacePendiente);
-
-  // ---------------------------------------------------------------
-  // RESPALDOS PARA RECONEXIÓN CONFIABLE EN CELULAR
-  // ---------------------------------------------------------------
-  // 1) Cuando la app vuelve a estar visible (el usuario reabre la app
-  //    o vuelve de otra pantalla del celular), reintentamos subir si
-  //    había algo pendiente. Esto cubre el caso típico: cargaste un
-  //    ternero sin señal, minimizaste la app, y cuando la volvés a
-  //    abrir con wifi ya disponible, se sube solo.
-  document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && pendienteDeSubir && sincronizacionActiva) {
       intentosFallidos = 0;
       subirAhora();
     }
   });
+  window.addEventListener("pagehide", forzarSubidaSiHacePendiente);
 
-  // 2) Lo mismo cuando la ventana/pestaña recupera el foco (cubre
-  //    algunos navegadores/casos que "visibilitychange" no dispara).
   window.addEventListener("focus", () => {
     if (pendienteDeSubir && sincronizacionActiva) {
       intentosFallidos = 0;
@@ -372,23 +380,47 @@ if (typeof window !== "undefined") {
     }
   });
 
-  // 3) Chequeo periódico de respaldo: cada 20 segundos, si hay algo
-  //    pendiente de subir y el navegador dice que hay conexión, se
-  //    reintenta. Es la red de seguridad final para cuando ninguno de
-  //    los eventos anteriores se disparó (pasa en algunos celulares
-  //    con Android/iOS al volver de segundo plano).
+  // Chequeo periódico de respaldo, sin depender de si el navegador
+  // "dice" que hay conexión (en algunos celulares esa información no
+  // se actualiza bien). El semáforo (subidaEnCurso) se encarga de que
+  // esto nunca choque con otro intento que ya esté en curso.
   setInterval(() => {
-    if (pendienteDeSubir && sincronizacionActiva && navigator.onLine) {
+    if (pendienteDeSubir && sincronizacionActiva) {
       subirAhora();
     }
   }, 20000);
 }
 
 export async function iniciarSincronizacion(uid) {
+  const cuentaAnterior = localStorage.getItem("agrodata:cuentaActual");
+
+  // ¿Quedaron cambios de una sesión anterior en ESTE dispositivo que
+  // todavía no se habían confirmado como subidos? (por ejemplo, se
+  // cargó algo sin señal y la app se cerró o se pausó antes de que
+  // volviera la conexión).
+  const habiaPendienteSinSubir = localStorage.getItem("agrodata:pendienteSubir") === "1";
+
+  if (cuentaAnterior && cuentaAnterior !== uid) {
+    borrarSoloDatosDeApp();
+    originalRemoveItem("agrodata:pendienteSubir");
+  }
+
   uidActual = uid;
   restaurando = true;
   fijarEstado("guardando");
+
   try {
+    if (cuentaAnterior === uid && habiaPendienteSinSubir) {
+      // Hay cambios locales de la misma cuenta sin confirmar subidos.
+      // NO tocamos el localStorage ni traemos nada de la nube: eso
+      // taparía el cambio pendiente con una versión vieja. Dejamos que
+      // la subida normal lo suba.
+      pendienteDeSubir = true;
+      originalSetItem("agrodata:cuentaActual", uid);
+      subirAhora();
+      return;
+    }
+
     const referencia = doc(db, "usuarios", uid);
     const snapshot = await conTiempoLimite(getDoc(referencia));
 
@@ -399,7 +431,7 @@ export async function iniciarSincronizacion(uid) {
         if (!esClaveReservada(clave)) originalSetItem(clave, datosNube[clave]);
       });
       ultimaVersionConocida = snapshot.data().actualizado || null;
-    } else {
+    } else if (!cuentaAnterior || cuentaAnterior === uid) {
       const datosLocales = leerTodoLocalStorage();
       const marcaInicial = new Date().toISOString();
       await conTiempoLimite(
@@ -410,6 +442,8 @@ export async function iniciarSincronizacion(uid) {
       );
       ultimaVersionConocida = marcaInicial;
     }
+
+    originalSetItem("agrodata:cuentaActual", uid);
     fijarEstado("sincronizado");
   } catch (e) {
     console.error("No se pudo traer los datos de la nube:", e);
@@ -434,23 +468,22 @@ export async function detenerSincronizacion() {
     }
   }
 
-  if (exito) {
-    sincronizacionActiva = false;
-    uidActual = null;
-    ultimaVersionConocida = null;
-    pendienteDeSubir = false;
-    intentosFallidos = 0;
-    borrarSoloDatosDeApp();
-    fijarEstado("inactivo");
-  }
+  // Pase lo que pase con la subida, cerramos sesión y borramos el
+  // dispositivo. Si algún usuario distinto entra después en el mismo
+  // dispositivo, no debe encontrar datos de la cuenta anterior.
+  sincronizacionActiva = false;
+  uidActual = null;
+  ultimaVersionConocida = null;
+  pendienteDeSubir = false;
+  subidaEnCurso = false;
+  intentosFallidos = 0;
+  borrarSoloDatosDeApp();
+  originalRemoveItem("agrodata:pendienteSubir");
+  fijarEstado("inactivo");
 
   return { exito };
 }
 
-/**
- * Devuelve la lista de backups disponibles para el usuario logueado,
- * del más reciente al más viejo. Cada uno trae { fecha, guardado }.
- */
 export async function listarBackups() {
   if (!uidActual) return [];
   try {
@@ -464,21 +497,10 @@ export async function listarBackups() {
   }
 }
 
-/**
- * Devuelve los datos actuales de la app (los que hay ahora mismo en este
- * dispositivo), sin las claves reservadas de Firebase. Sirve para ofrecer
- * una descarga de respaldo real en la propia PC del usuario.
- */
 export function obtenerDatosActuales() {
   return leerTodoLocalStorage();
 }
 
-/**
- * Devuelve los datos guardados en un backup puntual, SIN aplicarlos al
- * dispositivo (a diferencia de restaurarBackup). Sirve para poder
- * descargar cualquier copia vieja como archivo, sin tener que restaurarla
- * primero.
- */
 export async function obtenerDatosDeBackup(fecha) {
   if (!uidActual) return null;
   try {
@@ -492,14 +514,6 @@ export async function obtenerDatosDeBackup(fecha) {
   }
 }
 
-/**
- * Restaura el dispositivo actual a como estaban los datos en la fecha
- * indicada (formato "AAAA-MM-DD", el mismo id que devuelve listarBackups).
- * No toca la sesión de Firebase. Después de restaurar, sube esta versión
- * como el nuevo estado "vivo" (para que quede igual en todos los
- * dispositivos), y conviene recargar la página para que toda la app
- * relea los datos frescos.
- */
 export async function restaurarBackup(fecha) {
   if (!uidActual) return { exito: false };
   try {
@@ -513,7 +527,7 @@ export async function restaurarBackup(fecha) {
       if (!esClaveReservada(clave)) originalSetItem(clave, datosBackup[clave]);
     });
 
-    programarSubida(); // para que esta restauración se propague a la nube y otros dispositivos
+    programarSubida();
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("agrodata:actualizado"));
     }
@@ -524,13 +538,6 @@ export async function restaurarBackup(fecha) {
   }
 }
 
-/**
- * Recuperación de emergencia: trae las fichas guardadas en
- * usuarios/{uid}/animales (el otro sistema de sincronización, por
- * animal individual) y las carga en este dispositivo como
- * "animal:<caravana>". Se usa cuando el documento "vivo" principal
- * quedó vacío pero esta subcolección sí tiene datos.
- */
 export async function recuperarAnimalesDesdeSubcoleccion() {
   if (!uidActual) return { recuperados: 0, error: "No hay sesión activa." };
   try {
@@ -545,7 +552,7 @@ export async function recuperarAnimalesDesdeSubcoleccion() {
         recuperados += 1;
       }
     });
-    if (recuperados > 0) programarSubida(); // para que también quede subido al documento principal
+    if (recuperados > 0) programarSubida();
     return { recuperados };
   } catch (e) {
     console.error("No se pudo recuperar desde la subcolección de animales:", e);
@@ -553,13 +560,6 @@ export async function recuperarAnimalesDesdeSubcoleccion() {
   }
 }
 
-/**
- * Migración de arranque: sube a la subcolección usuarios/{uid}/animales
- * TODOS los animales que existen ahora mismo en este dispositivo, sin
- * esperar a que se editen uno por uno. Sirve para "ponerse al día" con
- * animales que fueron cargados antes de que existiera la subida
- * individual (Etapa 1), como pasó con algunos toros.
- */
 export async function migrarTodosLosAnimalesAhora() {
   if (!uidActual) return { subidos: 0, total: 0, error: "No hay sesión activa." };
   try {
@@ -575,7 +575,7 @@ export async function migrarTodosLosAnimalesAhora() {
       try {
         datos = JSON.parse(localStorage.getItem(clave));
       } catch (e) {
-        continue; // ficha corrupta, se omite
+        continue;
       }
       if (!datos) continue;
 
@@ -599,13 +599,6 @@ export async function migrarTodosLosAnimalesAhora() {
   }
 }
 
-/**
- * Limpieza de huérfanos: compara los animales que existen ahora mismo en
- * este dispositivo (localStorage) contra los documentos individuales que
- * hay en usuarios/{uid}/animales, y borra de Firebase los que ya no
- * existen localmente (animales dados de baja antes de que existiera el
- * borrado automático, o restos de pruebas anteriores).
- */
 export async function limpiarAnimalesHuerfanos() {
   if (!uidActual) return { eliminados: 0, error: "No hay sesión activa." };
   try {
@@ -630,11 +623,6 @@ export async function limpiarAnimalesHuerfanos() {
   }
 }
 
-/**
- * Devuelve la cantidad exacta de documentos en usuarios/{uid}/animales,
- * sin traerlos todos (solo pide el conteo a Firestore). Útil para
- * verificar rápido que la migración subió la cantidad esperada.
- */
 export async function contarAnimalesEnFirebase() {
   if (!uidActual) return { cantidad: null, error: "No hay sesión activa." };
   try {
