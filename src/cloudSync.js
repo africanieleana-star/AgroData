@@ -184,7 +184,7 @@ function marcarCambio(clave, tipo) {
 }
 
 function registrarCambioLocal(clave, tipo) {
-  if (!sincronizacionActiva || !uidActual || restaurando) return;
+  if (!uidActual) return;
   marcarCambio(clave, tipo);
 }
 
@@ -281,12 +281,18 @@ async function limpiarBackupsViejos() {
 // -----------------------------------------------------------------------
 async function subirAhora() {
   if (!uidActual) return false;
+  if (restaurando) {
+    setTimeout(() => {
+      if (pendienteDeSubir && sincronizacionActiva) subirAhora();
+    }, 500);
+    return false;
+  }
   // Semáforo: si ya hay un guardado en curso, no arrancamos otro.
   if (subidaEnCurso) return false;
 
   subidaEnCurso = true;
   fijarEstado("guardando");
-
+  
   try {
     const referencia = doc(db, "usuarios", uidActual);
     const nuevaMarca = new Date().toISOString();
@@ -371,7 +377,7 @@ function programarReintento() {
 }
 
 function programarSubida() {
-  if (!sincronizacionActiva || !uidActual || restaurando) return;
+  if (!uidActual) return;
   pendienteDeSubir = true;
   originalSetItem("agrodata:pendienteSubir", "1");
   fijarEstado("guardando");
@@ -432,7 +438,7 @@ function programarLoteAnimales(espera = 2000) {
 }
 
 function programarSubidaIndividual(caravana, datos) {
-  if (!sincronizacionActiva || !uidActual || restaurando) return;
+  if (!uidActual) return;
   if (!datos || typeof datos !== "object" || Array.isArray(datos)) return;
   animalesPendientes.set(caravana, datos);
   programarLoteAnimales();
@@ -653,11 +659,12 @@ export async function iniciarSincronizacion(uid) {
   }
 
   uidActual = uid;
+  sincronizacionActiva = true;
   restaurando = true;
   animalesPendientes.clear();
   ultimoSubidoPorAnimal.clear();
   fijarEstado("guardando");
-
+  
   try {
     if (cuentaAnterior === uid && habiaPendienteSinSubir) {
       // Hay cambios locales de la misma cuenta sin confirmar subidos.
@@ -708,7 +715,6 @@ export async function iniciarSincronizacion(uid) {
     fijarEstado("error");
   } finally {
     restaurando = false;
-    sincronizacionActiva = true;
   }
 }
 
