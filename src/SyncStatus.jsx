@@ -1,26 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { getEstadoSync, subscribeEstadoSync, getUltimoMensajeError, getInfoDebug } from "./cloudSync";
+import { getEstadoSync, subscribeEstadoSync, getUltimoMensajeError } from "./cloudSync";
 
-// Indicador chiquito y fijo en pantalla que muestra si los datos están
-// guardados en la nube, guardándose, con error, o sin conexión.
-// Usa los mismos colores/tipografía que el resto de AgroData.
 export default function SyncStatus() {
   const [estado, setEstado] = useState(getEstadoSync());
-  const [infoDebug, setInfoDebug] = useState(getInfoDebug());
 
   useEffect(() => {
     const desuscribirse = subscribeEstadoSync(setEstado);
     return desuscribirse;
   }, []);
 
-  // SOLO DIAGNÓSTICO TEMPORAL: refresca el panel de debug cada segundo
-  useEffect(() => {
-    const intervalo = setInterval(() => setInfoDebug(getInfoDebug()), 1000);
-    return () => clearInterval(intervalo);
-  }, []);
-
   if (estado === "inactivo") return null; // todavía no hay sesión iniciada
-
   const CONFIG = {
     sincronizado: { texto: "Guardado en la nube", color: "var(--verde-exito)", icono: "✅" },
     guardando: { texto: "Guardando...", color: "var(--marron-cuero)", icono: "☁️" },
@@ -68,10 +57,6 @@ export default function SyncStatus() {
           {detalleError}
         </div>
       )}
-      {/* SOLO DIAGNÓSTICO TEMPORAL — sacar esta parte después */}
-      <div style={{ fontSize: 9, fontWeight: 500, opacity: 0.7, fontFamily: "monospace" }}>
-        uid:{infoDebug.uid} act:{String(infoDebug.sincronizacionActiva)} restaur:{String(infoDebug.restaurando)} pend:{String(infoDebug.pendienteDeSubir)} llamadas:{infoDebug.vecesQueSeLlamoProgramarSubida}
-      </div>
     </div>
   );
 }
