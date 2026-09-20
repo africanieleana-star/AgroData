@@ -3563,6 +3563,7 @@ function fechaAISO(date) {
 function obtenerAlertasDe(ficha, hoy) {
   const alertas = [];
   if (ficha.esCria) return alertas;
+  if (ficha.fallecimiento && ficha.fallecimiento.fecha) return alertas; // fallecidos: sin avisos
   if (!APLICA_SERVICIO.includes(ficha.tipo)) return alertas;
 
   const yaParida =
@@ -3692,7 +3693,8 @@ function PantallaListado({ onVolver, onVerFicha }) {
     setMensajeImportacion(null);
     try {
       const resumen = await importarAnimalesDesdeExcel(archivo, sobrescribirTodos);
-      setAnimales(leerTodosLosAnimalesGuardados());
+      setAnimales(leerAnimalesActivos());
+      setAnimalesFallecidos(leerAnimalesFallecidos());
       let texto = `✅ ${resumen.creados} creado(s), ${resumen.actualizados} actualizado(s)`;
       if (resumen.omitidos > 0) texto += `, ${resumen.omitidos} omitido(s)`;
       setMensajeImportacion({ tipo: "exito", texto });
@@ -3745,8 +3747,10 @@ function PantallaListado({ onVolver, onVerFicha }) {
   }, [animales]);
 
   const animalesFiltrados = useMemo(() => {
-    let lista = animales;
-    if (categoriaFiltro) {
+    // Si está elegido el botón "Fallecidos", se muestra esa lista aparte;
+    // si no, se muestran los animales en stock.
+    let lista = categoriaFiltro === "Fallecidos" ? animalesFallecidos : animales;
+    if (categoriaFiltro && categoriaFiltro !== "Fallecidos") {
       lista = lista.filter((a) => a.tipo === categoriaFiltro);
     }
     if (establecimientoFiltro) {
@@ -3757,7 +3761,7 @@ function PantallaListado({ onVolver, onVerFicha }) {
       lista = lista.filter((a) => (a.caravana || "").toLowerCase().includes(texto));
     }
     return [...lista].sort((a, b) => (a.caravana || "").localeCompare(b.caravana || ""));
-  }, [animales, busqueda, categoriaFiltro, establecimientoFiltro]);
+  }, [animales, animalesFallecidos, busqueda, categoriaFiltro, establecimientoFiltro]);
 
   const eliminarAnimalDelListado = (caravanaABorrar) => {
     if (!window.confirm(`¿Estás segura de eliminar la ficha N° ${caravanaABorrar}? Esta acción no se puede deshacer.`)) return;
@@ -3765,6 +3769,7 @@ function PantallaListado({ onVolver, onVerFicha }) {
     try {
       localStorage.removeItem(`animal:${caravanaABorrar}`);
       setAnimales((prev) => prev.filter((a) => a.caravana !== caravanaABorrar));
+      setAnimalesFallecidos((prev) => prev.filter((a) => a.caravana !== caravanaABorrar));
     } catch (e) {
       alert("No se pudo eliminar la ficha.");
     }
@@ -4168,28 +4173,24 @@ function PantallaRecria({ onVolver, onEditar }) {
     return conteo;
   }, [animales]);
 
-  const animalesFiltrados = useMemo(() => {
-    let lista = categoriaFiltro === "Fallecidos" ? animalesFallecidos : animales;
-    if (categoriaFiltro && categoriaFiltro !== "Fallecidos") {
+   const animalesFiltrados = useMemo(() => {
+    let lista = animales;
+    if (categoriaFiltro) {
       lista = lista.filter((a) => a.tipo === categoriaFiltro);
-    }
-    if (establecimientoFiltro) {
-      lista = lista.filter((a) => (a.establecimiento || "").trim() === establecimientoFiltro);
     }
     const texto = busqueda.trim().toLowerCase();
     if (texto) {
       lista = lista.filter((a) => (a.caravana || "").toLowerCase().includes(texto));
     }
     return [...lista].sort((a, b) => (a.caravana || "").localeCompare(b.caravana || ""));
-  }, [animales, animalesFallecidos, busqueda, categoriaFiltro, establecimientoFiltro]);
+  }, [animales, busqueda, categoriaFiltro]);
 
   const eliminarAnimalDelListado = (caravanaABorrar) => {
-    if (!window.confirm(`¿Estás segura de eliminar la ficha N° ${caravanaABorrar}? Esta acción no se puede deshacer.`)) return;
-
+    if (!window.confirm(`¿Estás segura de eliminar la ficha N° ${caravanaABorrar}? Esta acción no se puede deshacer.`))
+      return;
     try {
       localStorage.removeItem(`animal:${caravanaABorrar}`);
       setAnimales((prev) => prev.filter((a) => a.caravana !== caravanaABorrar));
-      setAnimalesFallecidos((prev) => prev.filter((a) => a.caravana !== caravanaABorrar));
     } catch (e) {
       alert("No se pudo eliminar la ficha.");
     }
@@ -9808,8 +9809,8 @@ function FormularioNuevaVenta() {
           }}
         />
 
-        {categoriasPresentes.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+      {(categoriasPresentes.length > 0 || animalesFallecidos.length > 0) && (
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
             <button
               type="button"
               onClick={() => setCategoriaFiltro(null)}
@@ -9853,7 +9854,7 @@ function FormularioNuevaVenta() {
 
         {cargando ? (
           <p style={{ fontSize: 13, color: "#8A7A63", textAlign: "center" }}>Cargando...</p>
-        ) : animales.length === 0 ? (
+      ) : animales.length === 0 && animalesFallecidos.length === 0 ? (
           <p style={{ fontSize: 13, color: "#8A7A63", textAlign: "center" }}>
             No hay animales en stock para vender.
           </p>
