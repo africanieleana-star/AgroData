@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from "react";
-import { getEstadoSync, subscribeEstadoSync, getUltimoMensajeError } from "./cloudSync";
+import { getEstadoSync, subscribeEstadoSync, getUltimoMensajeError, revisarNovedadesAhora } from "./cloudSync";
 
 export default function SyncStatus() {
   const [estado, setEstado] = useState(getEstadoSync());
+  const [actualizando, setActualizando] = useState(false);
 
   useEffect(() => {
     const desuscribirse = subscribeEstadoSync(setEstado);
     return desuscribirse;
   }, []);
+
+  const actualizarAhora = async () => {
+    if (actualizando) return;
+    setActualizando(true);
+    await revisarNovedadesAhora();
+    setTimeout(() => setActualizando(false), 600);
+  };
 
   if (estado === "inactivo") return null; // todavía no hay sesión iniciada
   const CONFIG = {
@@ -51,6 +59,29 @@ export default function SyncStatus() {
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: 13, flexShrink: 0 }}>{icono}</span>
         <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{texto}</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            actualizarAhora();
+          }}
+          title="Actualizar ahora"
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            marginLeft: 2,
+            cursor: "pointer",
+            fontSize: 12,
+            lineHeight: 1,
+            flexShrink: 0,
+            opacity: actualizando ? 0.5 : 1,
+            transform: actualizando ? "rotate(180deg)" : "none",
+            transition: "transform 0.4s ease",
+          }}
+        >
+          🔄
+        </button>
       </div>
       {detalleError && (
         <div style={{ fontSize: 10, fontWeight: 500, opacity: 0.85, whiteSpace: "normal", wordBreak: "break-word" }}>
