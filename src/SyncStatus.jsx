@@ -59,6 +59,16 @@ export default function SyncStatus() {
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: 13, flexShrink: 0 }}>{icono}</span>
         <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{texto}</span>
+               <span
+          style={{
+            width: 1,
+            height: 14,
+            background: color,
+            opacity: 0.3,
+            flexShrink: 0,
+            marginLeft: 2,
+          }}
+        />
         <button
           type="button"
           onClick={(e) => {
@@ -67,8 +77,14 @@ export default function SyncStatus() {
           }}
           title="Actualizar ahora"
           style={{
-            background: "none",
+            background: "rgba(0,0,0,0.07)",
             border: "none",
+            borderRadius: "50%",
+            width: 22,
+            height: 22,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             padding: 0,
             marginLeft: 2,
             cursor: "pointer",
@@ -77,7 +93,7 @@ export default function SyncStatus() {
             flexShrink: 0,
             opacity: actualizando ? 0.5 : 1,
             transform: actualizando ? "rotate(180deg)" : "none",
-            transition: "transform 0.4s ease",
+            transition: "transform 0.4s ease, background 0.15s ease",
           }}
         >
           🔄
