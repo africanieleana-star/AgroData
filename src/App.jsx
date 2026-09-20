@@ -3420,10 +3420,20 @@ function guardarVentas(listaCompleta) {
   }
 }
 
-// Animales que siguen en stock (no vendidos). Se usa en las pantallas
-// que muestran "lo que tengo hoy": Mis animales, Recría, Inicio.
+// Animales que siguen en stock (no vendidos ni fallecidos). Se usa en las
+// pantallas que muestran "lo que tengo hoy": Mis animales, Recría, Inicio.
 function leerAnimalesActivos() {
-  return leerTodosLosAnimalesGuardados().filter((a) => !a.vendido);
+  return leerTodosLosAnimalesGuardados().filter(
+    (a) => !a.vendido && !(a.fallecimiento && a.fallecimiento.fecha)
+  );
+}
+
+// Animales fallecidos: se sacan del stock activo pero no se borran sus
+// datos. Quedan disponibles acá para el filtro "Fallecidos" del listado.
+function leerAnimalesFallecidos() {
+  return leerTodosLosAnimalesGuardados().filter(
+    (a) => a.fallecimiento && a.fallecimiento.fecha
+  );
 }
 
 // Crea el registro de venta y marca cada animal seleccionado como
@@ -3640,6 +3650,7 @@ function EtiquetaEstado({ estado }) {
 
 function PantallaListado({ onVolver, onVerFicha }) {
   const [animales, setAnimales] = useState([]);
+  const [animalesFallecidos, setAnimalesFallecidos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState(null);
@@ -3702,8 +3713,12 @@ function PantallaListado({ onVolver, onVerFicha }) {
 
   useEffect(() => {
     setAnimales(leerAnimalesActivos());
+    setAnimalesFallecidos(leerAnimalesFallecidos());
     setCargando(false);
-    const recargar = () => setAnimales(leerAnimalesActivos());
+    const recargar = () => {
+      setAnimales(leerAnimalesActivos());
+      setAnimalesFallecidos(leerAnimalesFallecidos());
+    };
     window.addEventListener("agrodata:actualizado", recargar);
     return () => window.removeEventListener("agrodata:actualizado", recargar);
   }, []);
@@ -3963,7 +3978,7 @@ function PantallaListado({ onVolver, onVerFicha }) {
               borderRadius: 999,
               border: categoriaFiltro === null ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
               background: categoriaFiltro === null ? "var(--verde-monte)" : "#FFFDF8",
-              color: categoriaFiltro === null ? "#FBF7ED" : "var(--marron-oscuroº)",
+              color: categoriaFiltro === null ? "#FBF7ED" : "var(--marron-oscuro)",
               fontSize: 12.5,
               fontWeight: 600,
               cursor: "pointer",
@@ -3993,6 +4008,24 @@ function PantallaListado({ onVolver, onVerFicha }) {
               </button>
             );
           })}
+          {animalesFallecidos.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setCategoriaFiltro(categoriaFiltro === "Fallecidos" ? null : "Fallecidos")}
+              style={{
+                padding: "7px 12px",
+                borderRadius: 999,
+                border: categoriaFiltro === "Fallecidos" ? "2px solid #5A5A5A" : "2px solid var(--borde)",
+                background: categoriaFiltro === "Fallecidos" ? "#5A5A5A" : "#FFFDF8",
+                color: categoriaFiltro === "Fallecidos" ? "#FBF7ED" : "var(--marron-oscuro)",
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              ✝ Fallecidos ({animalesFallecidos.length})
+            </button>
+          )}
         </div>
       )}
 
@@ -4136,23 +4169,27 @@ function PantallaRecria({ onVolver, onEditar }) {
   }, [animales]);
 
   const animalesFiltrados = useMemo(() => {
-    let lista = animales;
-    if (categoriaFiltro) {
+    let lista = categoriaFiltro === "Fallecidos" ? animalesFallecidos : animales;
+    if (categoriaFiltro && categoriaFiltro !== "Fallecidos") {
       lista = lista.filter((a) => a.tipo === categoriaFiltro);
+    }
+    if (establecimientoFiltro) {
+      lista = lista.filter((a) => (a.establecimiento || "").trim() === establecimientoFiltro);
     }
     const texto = busqueda.trim().toLowerCase();
     if (texto) {
       lista = lista.filter((a) => (a.caravana || "").toLowerCase().includes(texto));
     }
     return [...lista].sort((a, b) => (a.caravana || "").localeCompare(b.caravana || ""));
-  }, [animales, busqueda, categoriaFiltro]);
+  }, [animales, animalesFallecidos, busqueda, categoriaFiltro, establecimientoFiltro]);
 
   const eliminarAnimalDelListado = (caravanaABorrar) => {
-    if (!window.confirm(`¿Estás segura de eliminar la ficha N° ${caravanaABorrar}? Esta acción no se puede deshacer.`))
-      return;
+    if (!window.confirm(`¿Estás segura de eliminar la ficha N° ${caravanaABorrar}? Esta acción no se puede deshacer.`)) return;
+
     try {
       localStorage.removeItem(`animal:${caravanaABorrar}`);
       setAnimales((prev) => prev.filter((a) => a.caravana !== caravanaABorrar));
+      setAnimalesFallecidos((prev) => prev.filter((a) => a.caravana !== caravanaABorrar));
     } catch (e) {
       alert("No se pudo eliminar la ficha.");
     }
