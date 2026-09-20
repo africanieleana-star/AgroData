@@ -535,7 +535,14 @@ async function subirLoteAnimales() {
 // -----------------------------------------------------------------------
 // ESPÍA DE localStorage
 // -----------------------------------------------------------------------
-localStorage.setItem = function (clave, valor) {
+// Se sobreescribe en Storage.prototype (no en la instancia localStorage
+// directamente) porque en Safari/WebKit (y por lo tanto en TODOS los
+// navegadores de iPhone, incluido Chrome, que ahí corre sobre WebKit)
+// sobreescribir "localStorage.setItem" a veces no toma efecto: el
+// navegador sigue usando el método nativo por dentro, en silencio, sin
+// avisar ningún error. Pisando el prototipo en vez de la instancia, sí
+// funciona de forma confiable en todos los navegadores.
+Storage.prototype.setItem = function (clave, valor) {
   const valorNuevo = String(valor);
   const valorAnterior = localStorage.getItem(clave);
   originalSetItem(clave, valorNuevo);
@@ -560,7 +567,7 @@ localStorage.setItem = function (clave, valor) {
   }
 };
 
-localStorage.removeItem = function (clave) {
+Storage.prototype.removeItem = function (clave) {
   const existia = localStorage.getItem(clave) !== null;
   originalRemoveItem(clave);
   if (esClaveReservada(clave)) return;
@@ -574,7 +581,7 @@ localStorage.removeItem = function (clave) {
   }
 };
 
-localStorage.clear = function () {
+Storage.prototype.clear = function () {
   const reservadas = {};
   const clavesDeApp = [];
   for (let i = 0; i < localStorage.length; i++) {
