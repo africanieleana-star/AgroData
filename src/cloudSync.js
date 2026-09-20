@@ -69,6 +69,18 @@ let pullEnCurso = false;
 let intentosFallidos = 0;
 const ESPERAS_REINTENTO = [3000, 8000, 20000, 45000]; // 3s, 8s, 20s, 45s...
 
+// --- SOLO DIAGNÓSTICO TEMPORAL: sacar después de resolver el bug del iPhone ---
+let contadorProgramarSubida = 0;
+export function getInfoDebug() {
+  return {
+    uid: uidActual ? uidActual.slice(0, 6) + "..." : "SIN UID",
+    sincronizacionActiva,
+    restaurando,
+    pendienteDeSubir,
+    vecesQueSeLlamoProgramarSubida: contadorProgramarSubida,
+  };
+}
+
 const DIAS_DE_RETENCION_BACKUPS = 30;
 const INTERVALO_MINIMO_BACKUP_MS = 5 * 60 * 1000; // un backup como máximo cada 5 min
 const TAMANO_LOTE = 100; // documentos por lote al escribir animales
@@ -383,6 +395,7 @@ function programarReintento() {
 }
 
 function programarSubida() {
+  contadorProgramarSubida += 1;
   if (!uidActual) return;
   pendienteDeSubir = true;
   originalSetItem("agrodata:pendienteSubir", "1");
