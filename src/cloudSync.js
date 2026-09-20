@@ -113,6 +113,7 @@ function esClaveReservada(clave) {
 
 // "sincronizado" | "guardando" | "error" | "sin_conexion" | "conflicto_dispositivo" | "inactivo"
 let estadoActual = "inactivo";
+let ultimoMensajeError = ""; // texto real del último error, para verlo sin conectar un depurador
 const listeners = new Set();
 
 function fijarEstado(nuevoEstado) {
@@ -128,6 +129,10 @@ function fijarEstado(nuevoEstado) {
 
 export function getEstadoSync() {
   return estadoActual;
+}
+
+export function getUltimoMensajeError() {
+  return ultimoMensajeError;
 }
 
 export function subscribeEstadoSync(callback) {
@@ -359,6 +364,7 @@ async function subirAhora() {
     return true;
   } catch (e) {
     console.error("No se pudo sincronizar con la nube:", e);
+    ultimoMensajeError = e && e.code ? `${e.code}: ${e.message}` : String((e && e.message) || e);
     fijarEstado("error");
     programarReintento();
     return false;
