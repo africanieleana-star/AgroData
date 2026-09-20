@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getEstadoSync, subscribeEstadoSync } from "./cloudSync";
+import { getEstadoSync, subscribeEstadoSync, getUltimoMensajeError } from "./cloudSync";
 
 // Indicador chiquito y fijo en pantalla que muestra si los datos están
 // guardados en la nube, guardándose, con error, o sin conexión.
@@ -24,6 +24,8 @@ export default function SyncStatus() {
 
   const { texto, color, icono } = CONFIG[estado] || CONFIG.guardando;
 
+  const detalleError = estado === "error" ? getUltimoMensajeError() : "";
+
   return (
     <div
       onClick={() => {
@@ -35,23 +37,30 @@ export default function SyncStatus() {
         left: 16,
         zIndex: 250,
         display: "flex",
-        alignItems: "center",
-        gap: 6,
+        flexDirection: "column",
+        gap: 2,
         background: "var(--crema, #FFFFFF)",
         border: `1.5px solid ${color}`,
-        borderRadius: 999,
+        borderRadius: 12,
         padding: "6px 12px",
         boxShadow: "0 2px 8px rgba(59,42,29,0.12)",
         fontFamily: "'Inter', sans-serif",
         fontSize: 11.5,
         fontWeight: 600,
         color,
-        maxWidth: "70vw",
+        maxWidth: "82vw",
         cursor: estado === "conflicto_dispositivo" ? "pointer" : "default",
       }}
     >
-      <span style={{ fontSize: 13, flexShrink: 0 }}>{icono}</span>
-      <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{texto}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 13, flexShrink: 0 }}>{icono}</span>
+        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{texto}</span>
+      </div>
+      {detalleError && (
+        <div style={{ fontSize: 10, fontWeight: 500, opacity: 0.85, whiteSpace: "normal", wordBreak: "break-word" }}>
+          {detalleError}
+        </div>
+      )}
     </div>
   );
 }
