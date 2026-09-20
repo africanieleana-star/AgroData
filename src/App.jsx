@@ -9809,7 +9809,7 @@ function FormularioNuevaVenta() {
           }}
         />
 
-      {(categoriasPresentes.length > 0 || animalesFallecidos.length > 0) && (
+     {categoriasPresentes.length > 0 && (
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
             <button
               type="button"
