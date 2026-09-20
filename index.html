@@ -20,21 +20,40 @@
          "pegado" para siempre con una versión vieja y rota del
          Service Worker. -->
     <script>
+      // Versión de la app que está corriendo ahora mismo, tomada del
+      // nombre real del archivo JS que trajo el navegador (Vite le
+      // cambia el nombre —el "hash"— cada vez que el código cambia).
+      // Sirve para detectar una versión nueva SIN depender del ciclo de
+      // vida del Service Worker, que en un iPhone (PWA instalada en la
+      // pantalla de inicio, que iOS solo "pausa" en vez de cerrar) es
+      // poco confiable para avisar solo. Esto en cambio es un simple
+      // pedido de red, no depende de nada específico de Apple.
+      window.__AGRODATA_VERSION_ACTUAL__ =
+        document.querySelector('script[type="module"]')?.getAttribute('src') || '';
+
+      async function revisarSiHayVersionNueva() {
+        try {
+          const respuesta = await fetch('/', { cache: 'no-store' });
+          const html = await respuesta.text();
+          const match = html.match(/<script[^>]*type="module"[^>]*src="([^"]+)"/);
+          const srcNuevo = match ? match[1] : null;
+          if (srcNuevo && srcNuevo !== window.__AGRODATA_VERSION_ACTUAL__) {
+            window.location.reload();
+          }
+        } catch (e) {
+          // sin conexión: no se puede chequear, se reintenta más tarde
+        }
+      }
+
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker
             .register('/service-worker.js', { updateViaCache: 'none' })
             .then((registro) => {
-              // Fuerza un chequeo de actualización ahora mismo.
               registro.update();
-
-              // Si ya había un Service Worker esperando para activarse
-              // (una versión nueva instalada pero no tomada todavía),
-              // le pedimos que se salte la espera.
               if (registro.waiting) {
                 registro.waiting.postMessage({ tipo: 'SALTAR_ESPERA' });
               }
-
               registro.addEventListener('updatefound', () => {
                 const nuevoWorker = registro.installing;
                 if (!nuevoWorker) return;
@@ -47,9 +66,6 @@
             })
             .catch((err) => console.error('Error registrando el Service Worker:', err));
 
-          // Cuando el Service Worker activo cambia (se actualizó a una
-          // versión nueva), recargamos la página una sola vez para que
-          // la app quede corriendo con el código nuevo.
           let yaRecargo = false;
           navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (yaRecargo) return;
@@ -57,20 +73,30 @@
             window.location.reload();
           });
         });
+      }
 
-        // Cada vez que la app vuelve a primer plano, le pedimos al
-        // navegador que revise si hay una versión nueva del Service
-        // Worker en el servidor. Así, aunque el celular haya quedado
-        // con una versión vieja, apenas se abre la app con conexión
-        // se actualiza sola.
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') {
+      // Cada vez que la app vuelve a primer plano (clave para la PWA en
+      // el celular, que queda "pausada" en segundo plano en vez de
+      // cerrarse del todo), se revisa si hay una versión nueva
+      // comparando el archivo real, sin depender de si el Service
+      // Worker se dio cuenta solo.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          revisarSiHayVersionNueva();
+          if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistration().then((registro) => {
               if (registro) registro.update();
             });
           }
-        });
-      }
+        }
+      });
+
+      // Respaldo: mientras la app está abierta y a la vista, revisa
+      // cada 2 minutos por si se publicó una versión nueva mientras
+      // tanto (por ejemplo, si la dejaste al frente todo ese rato).
+      setInterval(() => {
+        if (document.visibilityState === 'visible') revisarSiHayVersionNueva();
+      }, 120000);
     </script>
   </body>
 </html>
