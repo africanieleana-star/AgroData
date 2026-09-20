@@ -13,12 +13,12 @@
 // incluso en redes distintas y en modo incógnito. Como esta app se usa
 // normalmente en una sola pestaña, se saca esa pieza y se deja el
 // guardado offline simple, que es más estable.
+
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import {
   initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager
+  persistentLocalCache
 } from "firebase/firestore";
 
 // Mantenés tus credenciales reales exactamente como las tenés
@@ -37,9 +37,11 @@ const app = initializeApp(firebaseConfig);
 // 2. Inicializa Autenticación (Login)
 export const auth = getAuth(app);
 
-// 3. Inicializa Firestore con soporte offline y múltiples pestañas habilitadas
+// 3. Inicializa Firestore con soporte offline simple (sin gestor de
+// múltiples pestañas: fue lo que dejó la app trabada en "Guardando..."
+// para siempre la vez anterior que se probó). Tu propio cloudSync.js ya
+// maneja el guardado offline y la cola de pendientes por su cuenta, así
+// que esto solo cachea lecturas — no hace falta más.
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  })
+  localCache: persistentLocalCache({})
 });
