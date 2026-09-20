@@ -217,15 +217,36 @@ function limpiarCambiosPendientes() {
 // Nunca pisa una clave que tenga un cambio local pendiente y nunca borra
 // nada del dispositivo (solo agrega o actualiza).
 function aplicarNovedadesDeLaNube(datosNube) {
+  const datos = datosNube || {};
   let huboCambios = false;
-  Object.keys(datosNube || {}).forEach((clave) => {
+
+  // 1. Agrega o actualiza lo que cambió o es nuevo en otro dispositivo.
+  Object.keys(datos).forEach((clave) => {
     if (esClaveReservada(clave)) return;
     if (cambiosPendientes[clave]) return;
-    if (localStorage.getItem(clave) !== datosNube[clave]) {
-      originalSetItem(clave, datosNube[clave]);
+    if (localStorage.getItem(clave) !== datos[clave]) {
+      originalSetItem(clave, datos[clave]);
       huboCambios = true;
     }
   });
+
+  // 2. Borra en este dispositivo lo que otro dispositivo eliminó. Como
+  // "datos" es la foto COMPLETA de la cuenta (no un parche), cualquier
+  // clave que exista acá y ya no esté ahí fue borrada en otro lado —
+  // salvo que este dispositivo tenga un cambio propio sin confirmar
+  // sobre esa misma clave (para no pisarse con algo que se está
+  // subiendo justo ahora).
+  const clavesLocales = [];
+  for (let i = 0; i < localStorage.length; i++) clavesLocales.push(localStorage.key(i));
+  clavesLocales.forEach((clave) => {
+    if (esClaveReservada(clave)) return;
+    if (cambiosPendientes[clave]) return;
+    if (!(clave in datos) && localStorage.getItem(clave) !== null) {
+      originalRemoveItem(clave);
+      huboCambios = true;
+    }
+  });
+
   if (huboCambios && typeof window !== "undefined") {
     window.dispatchEvent(new Event("agrodata:actualizado"));
   }
