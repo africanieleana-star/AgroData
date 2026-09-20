@@ -44,6 +44,7 @@ import {
   getCountFromServer,
   runTransaction,
   writeBatch,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -56,6 +57,7 @@ let sincronizacionActiva = false;
 let restaurando = false;
 let timeoutGuardado = null;
 let ultimaVersionConocida = null; // última versión de la nube que este dispositivo conoce
+let cancelarListenerNube = null; // corta la escucha en vivo al cerrar sesión
 
 // Hay un cambio local que todavía no se confirmó guardado en la nube.
 // (En memoria, para uso inmediato; la versión que sobrevive a que la
@@ -439,6 +441,53 @@ async function traerNovedadesDeLaNube() {
   }
 }
 
+// Para el botón de "Actualizar" manual: fuerza una revisión inmediata,
+// sin esperar al próximo tick del chequeo periódico.
+export async function revisarNovedadesAhora() {
+  return traerNovedadesDeLaNube();
+}
+
+// -----------------------------------------------------------------------
+// ESCUCHA EN VIVO: Firestore avisa apenas otro dispositivo guarda algo,
+// sin depender de timers. Esto es clave para la PWA: cuando el celular la
+// manda a segundo plano, el sistema operativo pausa los setInterval de
+// JS, así que el chequeo periódico de arriba puede no correr durante un
+// buen rato. onSnapshot no depende de eso — apenas la app vuelve a
+// primer plano, la conexión se reactiva sola y trae lo último.
+// -----------------------------------------------------------------------
+function iniciarEscuchaEnVivo(uid) {
+  detenerEscuchaEnVivo();
+  const referencia = doc(db, "usuarios", uid);
+  cancelarListenerNube = onSnapshot(
+    referencia,
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (uid !== uidActual || !sincronizacionActiva) return;
+      // Es el eco de algo que acabamos de escribir nosotros mismos
+      // (todavía no confirmado por el servidor, o ya aplicado al subir):
+      // se ignora para no pisarse ni generar trabajo de más.
+      if (snapshot.metadata.hasPendingWrites || snapshot.metadata.fromCache) return;
+      if (!snapshot.exists()) return;
+
+      const version = snapshot.data().actualizado || null;
+      if (version && version === ultimaVersionConocida) return; // ya lo tenemos
+
+      aplicarNovedadesDeLaNube(snapshot.data().datos);
+      if (version) ultimaVersionConocida = version;
+    },
+    (error) => {
+      console.warn("Se cortó la escucha en vivo de la nube:", error);
+    }
+  );
+}
+
+function detenerEscuchaEnVivo() {
+  if (cancelarListenerNube) {
+    cancelarListenerNube();
+    cancelarListenerNube = null;
+  }
+}
+
 // -----------------------------------------------------------------------
 // COPIA INDIVIDUAL DE CADA ANIMAL (usuarios/{uid}/animales/{caravana})
 // No reemplaza nada: es una copia "en paralelo" que alimenta al botón de
@@ -690,6 +739,7 @@ export async function iniciarSincronizacion(uid) {
   animalesPendientes.clear();
   ultimoSubidoPorAnimal.clear();
   fijarEstado("guardando");
+  iniciarEscuchaEnVivo(uid);
   
   try {
     if (cuentaAnterior === uid && habiaPendienteSinSubir) {
@@ -761,6 +811,7 @@ export async function detenerSincronizacion() {
   // Pase lo que pase con la subida, cerramos sesión y borramos el
   // dispositivo. Si algún usuario distinto entra después en el mismo
   // dispositivo, no debe encontrar datos de la cuenta anterior.
+  detenerEscuchaEnVivo();
   sincronizacionActiva = false;
   uidActual = null;
   ultimaVersionConocida = null;
