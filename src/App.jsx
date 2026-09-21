@@ -9008,8 +9008,9 @@ function responderPregunta(preguntaOriginal) {
   // 5. Conteos generales ("¿cuántas vacas tengo?", "¿cuántas preñadas?")
   if (p.includes("cuant")) {
     const categoria = extraerCategoriaMencionada(p);
-    let base = categoria ? animales.filter((a) => a.tipo === categoria) : animales;
-
+    const activos = animales.filter((a) => !a.vendido && !(a.fallecimiento && a.fallecimiento.fecha));
+    let base = categoria ? activos.filter((a) => a.tipo === categoria) : activos;
+    
     if (p.includes("prenad") || p.includes("preniad")) {
       base = base.filter((a) => estadoReproductivoDe(a)?.texto === "Preñada");
       return `Tenés ${base.length} animal(es) preñado(s)${categoria ? ` en la categoría ${categoria}` : ""}.`;
@@ -9024,7 +9025,7 @@ function responderPregunta(preguntaOriginal) {
     }
     return categoria
       ? `Tenés ${base.length} animal(es) en la categoría ${categoria}.`
-      : `Tenés ${animales.length} animal(es) registrados en total.`;
+      : `Tenés ${activos.length} animal(es) en stock.`;
   }
 
   // 6. Tareas / pendientes / alertas de hoy
@@ -9076,65 +9077,6 @@ function responderPregunta(preguntaOriginal) {
 /* ---------------------------------------------------------------- */
 /* CHATBOT: componente visual (botón flotante + ventana de chat)     */
 /* ---------------------------------------------------------------- */
-
-
-// Arma un resumen de tu rodeo en texto, para que Gemini pueda responder
-// con datos reales. Solo se usa cuando el chatbot normal no entiende la pregunta.
-function construirContextoParaIA() {
-  const animales = leerAnimalesActivos();
-  const hoy = new Date();
-
-  const lineas = animales.map((a) => {
-    const estado = estadoReproductivoDe(a);
-    const ultimoServicio =
-      Array.isArray(a.historialServicios) && a.historialServicios.length > 0
-        ? a.historialServicios[a.historialServicios.length - 1]
-        : a.servicio || null;
-
-    const partes = [
-      `N° ${a.caravana}`,
-      a.tipo || "sin categoría",
-      estado ? `estado: ${estado.texto}` : null,
-      a.raza ? `raza: ${a.raza}` : null,
-      a.establecimiento ? `establecimiento: ${a.establecimiento}` : null,
-      a.fechaNacimiento ? `nació: ${a.fechaNacimiento}` : null,
-      a.caravanaMadre || a.cria?.caravanaMadre
-        ? `madre: ${a.caravanaMadre || a.cria?.caravanaMadre}`
-        : null,
-      a.nombrePadre || a.cria?.nombrePadre
-        ? `padre: ${a.nombrePadre || a.cria?.nombrePadre}`
-        : null,
-      ultimoServicio?.inseminacion?.fecha
-        ? `última inseminación: ${ultimoServicio.inseminacion.fecha}`
-        : null,
-      ultimoServicio?.toro?.fecha
-        ? `último servicio con toro: ${ultimoServicio.toro.fecha}`
-        : null,
-      a.tacto?.fecha
-        ? `tacto: ${a.tacto.fecha} (${a.tacto.resultado === "Preniada" ? "preñada" : "vacía"})`
-        : null,
-      Array.isArray(a.historialCrias) && a.historialCrias.length > 0
-        ? `crías: ${a.historialCrias.map((c) => c.caravana || "sin caravana").join(", ")}`
-        : null,
-      a.fallecimiento?.fecha ? `falleció: ${a.fallecimiento.fecha}` : null,
-    ];
-    return "- " + partes.filter(Boolean).join(" | ");
-  });
-
-  let totalAlertas = 0;
-  animales.forEach((f) => (totalAlertas += obtenerAlertasDe(f, hoy).length));
-  const tareasPendientes = leerTareasManuales()
-    .filter((t) => !t.completada)
-    .map((t) => `- ${t.texto}${t.fecha ? ` (${t.fecha})` : ""}`);
-
-  return (
-    `Total de animales en stock: ${animales.length}\n` +
-    `Alertas automáticas pendientes: ${totalAlertas}\n\n` +
-    `ANIMALES:\n${lineas.join("\n") || "(no hay animales cargados)"}\n\n` +
-    `TAREAS PENDIENTES:\n${tareasPendientes.join("\n") || "(ninguna)"}\n\n` +
-    `PLAN SANITARIO DE REFERENCIA:\n${JSON.stringify(PLANES_SANITARIOS)}`
-  );
-}
 
 function ChatBot() {
   const [abierto, setAbierto] = useState(false);
@@ -9191,18 +9133,19 @@ function ChatBot() {
     setMensajes((prev) => [...prev, { autor: "usuario", texto: pregunta }]);
     setEntrada("");
 
-    // 1) Primero se intenta con las reglas de siempre (rápido y gratis)
+    // 1) Órdenes de carga ("anotá que la 102...", "recordame..."): las resuelve la app
     const respuestaComando = intentarProcesarComando(pregunta);
-    let respuesta = respuestaComando !== null ? respuestaComando : responderPregunta(pregunta);
+    let respuesta = respuestaComando;
 
-    // 2) Si no entendió la pregunta, se la pasa a Gemini
-    if (respuestaComando === null && respuesta.startsWith("No entendí bien")) {
+    // 2) Cualquier pregunta: la responde Gemini con TODOS los datos de la app
+    if (respuestaComando === null) {
       setPensando(true);
       try {
-        respuesta = await preguntarAGemini(pregunta, construirContextoParaIA());
+        respuesta = await preguntarAGemini(pregunta);
       } catch (e) {
         console.error("Error al consultar a Gemini:", e);
-        respuesta = "No pude consultar a la IA en este momento. Probá de nuevo en un rato.";
+        // 3) Sin internet o si falla la IA: respuestas básicas de la app
+        respuesta = responderPregunta(pregunta);
       }
       setPensando(false);
     }
