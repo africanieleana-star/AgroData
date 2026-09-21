@@ -19,7 +19,8 @@ import {
   MessageCircle,
   Send,
   Mic,
-  Volume2
+  Volume2,
+  ShoppingCart
 } from "lucide-react";
 
 import {
@@ -1651,6 +1652,7 @@ const irAIngresar = () => {
               {pantalla === "formulario-recria" && "FICHA DE RECRÍA"}
               {pantalla === "resumen" && "Ficha del animal"}
               {pantalla === "alertas" && "TAREAS PARA HOY"}
+              {pantalla === "compras" && "COMPRAS"}
               {pantalla === "ventas" && "VENTAS"}
             </p>
           </div>
@@ -1728,6 +1730,13 @@ const irAIngresar = () => {
 
             {pantalla === "sanidad" && (
               <PantallaSanidad />
+            )}
+
+            {pantalla === "compras" && (
+              <PantallaCompras
+                onVolver={() => setPantalla("inicio")}
+                onVerFicha={(f) => irAVerResumen(f, "compras")}
+              />
             )}
 
             {pantalla === "ventas" && (
@@ -3430,6 +3439,110 @@ function guardarTareasManuales(listaCompleta) {
   } catch (e) {
     console.error("Error al guardar las tareas:", e);
   }
+}
+
+// ============================================================
+// COMPRAS: se guardan todas juntas bajo una sola clave. Cada compra
+// "agrupa" uno o varios animales nuevos que ingresan al rodeo.
+// ============================================================
+const CLAVE_COMPRAS = "agrodata_compras";
+
+function leerCompras() {
+  try {
+    const data = localStorage.getItem(CLAVE_COMPRAS);
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function guardarCompras(listaCompleta) {
+  try {
+    localStorage.setItem(CLAVE_COMPRAS, JSON.stringify(listaCompleta));
+  } catch (e) {
+    console.error("Error al guardar las compras:", e);
+  }
+}
+
+// Calcula el monto total de una compra, igual que se hace con las ventas:
+// por unidad x cantidad de animales, o por kilo x cantidad de kilos.
+function calcularMontoCompra(compra) {
+  const num = (v) => {
+    if (!v) return null;
+    const n = parseFloat(String(v).replace(",", "."));
+    return isNaN(n) ? null : n;
+  };
+  const porUnidad = num(compra.precioPorUnidad);
+  if (porUnidad !== null) return porUnidad * (compra.animales?.length || 1);
+  const porKilo = num(compra.precioPorKilo);
+  const kilos = num(compra.cantidadKilos);
+  if (porKilo !== null && kilos !== null) return porKilo * kilos;
+  return null;
+}
+
+// Crea el registro de compra y da de alta una ficha nueva por cada
+// animal comprado. Si una caravana ya existía en el sistema, no se
+// pisa la ficha existente: se omite y se avisa en el resumen.
+function registrarCompra(datosCompra, animalesComprados) {
+  const compras = leerCompras();
+  const caravanasFinales = [];
+  const omitidas = [];
+
+  animalesComprados.forEach((a) => {
+    const caravana = (a.caravana || "").trim();
+    if (!caravana) return;
+    const clave = `animal:${caravana}`;
+    const yaExiste = localStorage.getItem(clave);
+    if (yaExiste) {
+      omitidas.push(caravana);
+      return;
+    }
+    const ficha = {
+      caravana,
+      tipo: a.tipo || null,
+      raza: a.raza?.trim() || null,
+      color: a.color?.trim() || null,
+      establecimiento: datosCompra.vendedor?.trim() || null,
+      fechaNacimiento: null,
+      caravanaMadre: null,
+      nombrePadre: null,
+      observacionesAnimal: `Comprado el ${datosCompra.fecha}${datosCompra.vendedor ? ` a ${datosCompra.vendedor}` : ""}.`,
+      fechaAlta: fechaAISO(new Date()),
+      fechaModificacion: null,
+      servicio: null,
+      historialServicios: [],
+      historialCrias: [],
+      tacto: null,
+      paricion: null,
+      fallecimiento: null,
+      recria: null,
+      compra: { fecha: datosCompra.fecha, vendedor: datosCompra.vendedor || null },
+    };
+    localStorage.setItem(clave, JSON.stringify(ficha));
+    caravanasFinales.push(caravana);
+  });
+
+  const nuevaCompra = {
+    id: `${Date.now()}`,
+    fecha: datosCompra.fecha,
+    vendedor: datosCompra.vendedor || null,
+    precioPorKilo: datosCompra.precioPorKilo || null,
+    precioPorUnidad: datosCompra.precioPorUnidad || null,
+    cantidadKilos: datosCompra.cantidadKilos || null,
+    observaciones: datosCompra.observaciones || null,
+    animales: caravanasFinales,
+  };
+  guardarCompras([...compras, nuevaCompra]);
+  emitirActualizacionDatos();
+  return { compra: nuevaCompra, omitidas };
+}
+
+// Elimina solo el REGISTRO de la compra (el historial de precio/vendedor).
+// No borra las fichas de los animales que ya se cargaron con esa compra.
+function eliminarCompra(compraId) {
+  const compras = leerCompras();
+  guardarCompras(compras.filter((c) => c.id !== compraId));
+  emitirActualizacionDatos();
 }
 
 // ============================================================
@@ -9205,6 +9318,15 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
               onClick={() => irA("sanidad")}
             />
 
+            {/* 6.4 Compras */}
+            <OpcionMenu
+              icono={<ShoppingCart size={20} />}
+              texto="Compras"
+              mostrarTexto={true}
+              activa={pantallaActual === "compras"}
+              onClick={() => irA("compras")}
+            />
+
             {/* 6.5 Ventas */}
             <OpcionMenu
               icono={<DollarSign size={20} />}
@@ -9638,6 +9760,430 @@ function PantallaSanidad() {
         </div>
       )}
 
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- */
+/* Pantalla "Compras": registrar compras y ver el historial          */
+/* ---------------------------------------------------------------- */
+
+function PantallaCompras({ onVolver, onVerFicha }) {
+  const [pestaña, setPestaña] = useState("nueva"); // "nueva" | "historial"
+
+  return (
+    <div
+      style={{
+        background: "var(--crema)",
+        border: "1px solid var(--borde)",
+        borderRadius: 16,
+        padding: "22px 18px",
+        boxShadow: "0 2px 10px rgba(59,42,29,0.06)",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onVolver}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          background: "none",
+          border: "none",
+          color: "var(--marron-cuero-oscuro)",
+          fontSize: 12.5,
+          fontWeight: 600,
+          cursor: "pointer",
+          padding: 0,
+          marginBottom: 14,
+        }}
+      >
+        <ArrowLeft size={14} /> Volver
+      </button>
+
+      <h2
+        style={{
+          fontFamily: "'PP Neue Montreal Bold', serif",
+          fontSize: 18,
+          fontWeight: 600,
+          color: "var(--marron-oscuro)",
+          margin: "0 0 14px",
+        }}
+      >
+        Compras
+      </h2>
+
+      <div style={{ display: "flex", gap: 6, background: "#F5F2EC", padding: 4, borderRadius: 12, marginBottom: 18 }}>
+        {[
+          { id: "nueva", label: "🛒 Registrar compra" },
+          { id: "historial", label: "📋 Historial" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setPestaña(tab.id)}
+            style={{
+              flex: 1,
+              padding: "10px 4px",
+              borderRadius: 8,
+              border: "none",
+              background: pestaña === tab.id ? "var(--crema)" : "transparent",
+              color: pestaña === tab.id ? "var(--marron-oscuro)" : "#8A7A63",
+              fontWeight: 700,
+              fontSize: 13,
+              cursor: "pointer",
+              boxShadow: pestaña === tab.id ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {pestaña === "nueva" && <FormularioNuevaCompra />}
+      {pestaña === "historial" && <HistorialCompras onVerFicha={onVerFicha} />}
+    </div>
+  );
+}
+
+function FormularioNuevaCompra() {
+  const [animalesAAgregar, setAnimalesAAgregar] = useState([]); // {caravana, tipo, raza, color}
+  const [caravanaNueva, setCaravanaNueva] = useState("");
+  const [tipoNuevo, setTipoNuevo] = useState(null);
+  const [razaNueva, setRazaNueva] = useState("");
+  const [colorNueva, setColorNueva] = useState("");
+
+  const [fecha, setFecha] = useState("");
+  const [vendedor, setVendedor] = useState("");
+  const [precioPorKilo, setPrecioPorKilo] = useState("");
+  const [precioPorUnidad, setPrecioPorUnidad] = useState("");
+  const [cantidadKilos, setCantidadKilos] = useState("");
+  const [observaciones, setObservaciones] = useState("");
+
+  const agregarAnimalALista = () => {
+    const numero = caravanaNueva.trim();
+    if (!numero || !tipoNuevo) {
+      alert("Completá el número de caravana y la categoría del animal.");
+      return;
+    }
+    if (animalesAAgregar.some((a) => a.caravana === numero)) {
+      alert(`La caravana ${numero} ya está en la lista.`);
+      return;
+    }
+    setAnimalesAAgregar((actual) => [
+      ...actual,
+      { caravana: numero, tipo: tipoNuevo, raza: razaNueva.trim(), color: colorNueva.trim() },
+    ]);
+    setCaravanaNueva("");
+    setTipoNuevo(null);
+    setRazaNueva("");
+    setColorNueva("");
+  };
+
+  const quitarAnimalDeLista = (caravana) => {
+    setAnimalesAAgregar((actual) => actual.filter((a) => a.caravana !== caravana));
+  };
+
+  const listoParaGuardar = animalesAAgregar.length > 0 && fecha.trim().length > 0;
+
+  const guardar = () => {
+    if (!listoParaGuardar) return;
+    const { compra, omitidas } = registrarCompra(
+      {
+        fecha: fecha.trim(),
+        vendedor: vendedor.trim() || null,
+        precioPorKilo: precioPorKilo.trim() || null,
+        precioPorUnidad: precioPorUnidad.trim() || null,
+        cantidadKilos: cantidadKilos.trim() || null,
+        observaciones: observaciones.trim() || null,
+      },
+      animalesAAgregar
+    );
+
+    setAnimalesAAgregar([]);
+    setFecha("");
+    setVendedor("");
+    setPrecioPorKilo("");
+    setPrecioPorUnidad("");
+    setCantidadKilos("");
+    setObservaciones("");
+
+    let mensaje = `✅ Compra registrada. ${compra.animales.length} animal(es) se agregaron al rodeo.`;
+    if (omitidas.length > 0) {
+      mensaje += `\n⚠️ No se pudieron cargar (la caravana ya existía): ${omitidas.join(", ")}.`;
+    }
+    alert(mensaje);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {/* 1. Animales comprados */}
+      <div>
+        <h3
+          style={{
+            fontFamily: "'PP Neue Montreal Bold', serif",
+            fontSize: 15,
+            fontWeight: 600,
+            color: "var(--marron-oscuro)",
+            margin: "0 0 10px",
+          }}
+        >
+          1. Cargá los animales comprados {animalesAAgregar.length > 0 && `(${animalesAAgregar.length})`}
+        </h3>
+
+        <div className="grilla-formulario" style={{ marginBottom: 10 }}>
+          <CampoTexto id="compra-caravana" etiqueta="N° de caravana" tipo="text" placeholder="Ej: B201" valor={caravanaNueva} onChange={setCaravanaNueva} />
+          <CampoTexto id="compra-raza" etiqueta="Raza (opcional)" tipo="text" placeholder="Ej: Angus" valor={razaNueva} onChange={setRazaNueva} />
+          <CampoTexto id="compra-color" etiqueta="Color (opcional)" tipo="text" placeholder="Ej: Negro" valor={colorNueva} onChange={setColorNueva} />
+        </div>
+
+        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--marron-oscuro)", marginBottom: 6 }}>
+          Categoría
+        </label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+          {TIPOS.map((t) => {
+            const activo = tipoNuevo === t.valor;
+            return (
+              <button
+                key={t.valor}
+                type="button"
+                onClick={() => setTipoNuevo(activo ? null : t.valor)}
+                style={{
+                  padding: "9px 6px",
+                  borderRadius: 10,
+                  border: activo ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
+                  background: activo ? "var(--verde-monte)" : "#FFFDF8",
+                  color: activo ? "#FBF7ED" : "var(--marron-oscuro)",
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {t.valor}
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={agregarAnimalALista}
+          style={{
+            width: "100%",
+            padding: "12px",
+            borderRadius: 10,
+            border: "2px dashed var(--verde-salvia)",
+            background: "#FFFDF8",
+            color: "var(--verde-monte)",
+            fontFamily: "'PP Neue Montreal Bold', serif",
+            fontWeight: 600,
+            fontSize: 13.5,
+            cursor: "pointer",
+            marginBottom: 14,
+          }}
+        >
+          ➕ Agregar a la lista
+        </button>
+
+        {animalesAAgregar.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 6 }}>
+            {animalesAAgregar.map((a) => (
+              <div
+                key={a.caravana}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "1px solid var(--borde)",
+                  background: "#FFFDF8",
+                }}
+              >
+                <div>
+                  <div style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontWeight: 700, fontSize: 14, color: "var(--marron-oscuro)" }}>
+                    N° {a.caravana}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "#8A7A63" }}>
+                    {a.tipo}{a.raza ? ` · ${a.raza}` : ""}{a.color ? ` · ${a.color}` : ""}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => quitarAnimalDeLista(a.caravana)}
+                  style={{ background: "none", border: "none", color: "#C62828", cursor: "pointer", fontSize: 15 }}
+                >
+                  ❌
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 2. Datos de la compra */}
+      <div style={{ borderTop: "1px dashed var(--borde)", paddingTop: 16 }}>
+        <h3
+          style={{
+            fontFamily: "'PP Neue Montreal Bold', serif",
+            fontSize: 15,
+            fontWeight: 600,
+            color: "var(--marron-oscuro)",
+            margin: "0 0 10px",
+          }}
+        >
+          2. Datos de la compra
+        </h3>
+
+        <div className="grilla-formulario">
+          <CampoTexto id="compra-fecha" etiqueta="Fecha de compra" tipo="date" valor={fecha} onChange={setFecha} />
+          <CampoTexto id="compra-vendedor" etiqueta="Comprado a / establecimiento" tipo="text" placeholder="Ej: Consignataria Rural SA" valor={vendedor} onChange={setVendedor} />
+          <CampoTexto id="compra-precio-kilo" etiqueta="Precio por kilo" tipo="text" placeholder="Ej: 2600" valor={precioPorKilo} onChange={setPrecioPorKilo} />
+          <CampoTexto id="compra-precio-unidad" etiqueta="Precio por unidad" tipo="text" placeholder="Ej: 480000" valor={precioPorUnidad} onChange={setPrecioPorUnidad} />
+          <CampoTexto id="compra-kilos" etiqueta="Cantidad de kilos" tipo="text" placeholder="Ej: 200" valor={cantidadKilos} onChange={setCantidadKilos} />
+        </div>
+
+        <label
+          htmlFor="compra-observaciones"
+          style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--marron-oscuro)", marginBottom: 5 }}
+        >
+          Observaciones
+        </label>
+        <textarea
+          id="compra-observaciones"
+          rows={2}
+          placeholder="Forma de pago, remate, etc. (opcional)"
+          value={observaciones}
+          onChange={(e) => setObservaciones(e.target.value)}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 14,
+            padding: "12px 14px",
+            borderRadius: 10,
+            border: "2px solid var(--borde)",
+            background: "#FFFDF8",
+            color: "var(--marron-oscuro)",
+            resize: "vertical",
+          }}
+        />
+      </div>
+
+      <button
+        type="button"
+        disabled={!listoParaGuardar}
+        onClick={guardar}
+        style={{
+          width: "100%",
+          padding: "15px",
+          borderRadius: 12,
+          border: "none",
+          background: "var(--marron-cuero)",
+          color: "#FBF7ED",
+          fontFamily: "'PP Neue Montreal Bold', serif",
+          fontWeight: 600,
+          fontSize: 15.5,
+          cursor: listoParaGuardar ? "pointer" : "not-allowed",
+          opacity: listoParaGuardar ? 1 : 0.5,
+        }}
+      >
+        ✅ Registrar compra y agregar al rodeo
+      </button>
+    </div>
+  );
+}
+
+function HistorialCompras({ onVerFicha }) {
+  const [compras, setCompras] = useState([]);
+
+  useEffect(() => {
+    setCompras(leerCompras());
+    const recargar = () => setCompras(leerCompras());
+    window.addEventListener("agrodata:actualizado", recargar);
+    return () => window.removeEventListener("agrodata:actualizado", recargar);
+  }, []);
+
+  const eliminar = (compra) => {
+    if (
+      !window.confirm(
+        `¿Eliminar este registro de compra del ${formatearFechaDDMMYYYY(parseISO(compra.fecha))}? Esto NO borra las fichas de los animales, solo el registro de la compra.`
+      )
+    )
+      return;
+    eliminarCompra(compra.id);
+    setCompras(leerCompras());
+  };
+
+  const comprasOrdenadas = [...compras].sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+
+  if (comprasOrdenadas.length === 0) {
+    return (
+      <p style={{ fontSize: 13.5, color: "#8A7A63", textAlign: "center", padding: "20px 0" }}>
+        Todavía no registraste ninguna compra.
+      </p>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {comprasOrdenadas.map((compra) => (
+        <div key={compra.id} style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 12, padding: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+            <div>
+              <div style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontWeight: 700, fontSize: 15, color: "var(--marron-oscuro)" }}>
+                {formatearFechaDDMMYYYY(parseISO(compra.fecha))}
+              </div>
+              <div style={{ fontSize: 12, color: "#8A7A63", marginTop: 2 }}>
+                {compra.animales.length} animal(es) comprado(s)
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => eliminar(compra)}
+              title="Eliminar este registro de compra"
+              style={{ background: "none", border: "none", color: "#C62828", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+            >
+              Eliminar
+            </button>
+          </div>
+
+          <FilaDato etiqueta="Comprado a" valor={compra.vendedor} />
+          <FilaDato etiqueta="Precio por kilo" valor={compra.precioPorKilo ? `$${compra.precioPorKilo}` : null} />
+          <FilaDato etiqueta="Precio por unidad" valor={compra.precioPorUnidad ? `$${compra.precioPorUnidad}` : null} />
+          <FilaDato etiqueta="Cantidad de kilos" valor={compra.cantidadKilos ? `${compra.cantidadKilos} kg` : null} />
+          <FilaDato
+            etiqueta="Monto total"
+            valor={calcularMontoCompra(compra) !== null ? formatearMonto(calcularMontoCompra(compra)) : null}
+          />
+          {compra.observaciones && <FilaDato etiqueta="Observaciones" valor={compra.observaciones} />}
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+            {compra.animales.map((caravana) => {
+              const ficha = leerAnimalPorCaravana(caravana);
+              return (
+                <button
+                  key={caravana}
+                  type="button"
+                  onClick={() => ficha && onVerFicha && onVerFicha(ficha)}
+                  style={{
+                    padding: "5px 10px",
+                    borderRadius: 999,
+                    border: "1px solid var(--verde-salvia)",
+                    background: "#F5F2EC",
+                    color: "var(--marron-oscuro)",
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    cursor: ficha ? "pointer" : "default",
+                  }}
+                >
+                  N° {caravana}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
