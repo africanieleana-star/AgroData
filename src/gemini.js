@@ -31,3 +31,41 @@ export async function preguntarAGemini(pregunta, contextoDelCampo) {
   const resultado = await modelo.generateContent(prompt);
   return resultado.response.text();
 }
+
+
+// Función para armar el texto completo con la información de tu app
+export function armarContextoCompleto({ animales = [], compras = [], eventos = [] }) {
+  let texto = "=== DATOS REGISTRADOS EN AGRODATA ===\n\n";
+
+  // 1. ANIMALES Y RODEO
+  texto += "--- HACIENDA Y ANIMALES ---\n";
+  if (animales.length === 0) {
+    texto += "No hay animales registrados.\n";
+  } else {
+    animales.forEach((a) => {
+      texto += `- Caravana: ${a.caravana || "Sin ID"}, Categoria: ${a.categoria || "N/D"}, Raza: ${a.raza || "N/D"}, Estado: ${a.estado || "N/D"}, Lote/Potrero: ${a.lote || "Sin asignar"}\n`;
+    });
+  }
+
+  // 2. COMPRAS Y COMPROBANTES
+  texto += "\n--- HISTORIAL DE COMPRAS Y GASTOS ---\n";
+  if (compras.length === 0) {
+    texto += "No hay compras o facturas registradas.\n";
+  } else {
+    compras.forEach((c) => {
+      texto += `- Fecha: ${c.fecha || "N/D"}, Proveedor: ${c.proveedor || "Desconocido"}, Categoria: ${c.categoria || "General"}, Total: $${c.total || 0}, Ítems: ${c.resumen || c.concepto || "Sin detalle"}\n`;
+    });
+  }
+
+  // 3. EVENTOS O TRATAMIENTOS
+  texto += "\n--- EVENTOS Y SANIDAD ---\n";
+  if (eventos.length === 0) {
+    texto += "No hay eventos o tratamientos registrados.\n";
+  } else {
+    eventos.forEach((e) => {
+      texto += `- Fecha: ${e.fecha || "N/D"}, Tipo: ${e.tipo || "General"}, Descripción: ${e.descripcion || "Sin detalle"}\n`;
+    });
+  }
+
+  return texto;
+}
