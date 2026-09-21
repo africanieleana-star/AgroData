@@ -322,37 +322,10 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
             <div class="pie">
               Documento digital generado automáticamente por la plataforma AgroData.
             </div>
-
-            <button
-              onclick="window.print()"
-              style="
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                background-color: #2E7D32;
-                color: white;
-                border: none;
-                border-radius: 10px;
-                padding: 12px 18px;
-                font-size: 14px;
-                font-weight: bold;
-                cursor: pointer;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.25);
-                font-family: 'Helvetica Neue', Arial, sans-serif;
-              "
-            >
-              🖨️ Imprimir / Guardar como PDF
-            </button>
-
-            <style>
-              @media print {
-                button { display: none !important; }
-              }
-            </style>
           </body>
         </html>
       `;
-
+      
       // 8. Generamos un Blob y lo abrimos en una pestaña realmente aparte
       // (esto es lo que evita que se "pise" la app en celulares/PWA)
       const blob = new Blob([htmlInforme], { type: "text/html" });
