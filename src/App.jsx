@@ -544,6 +544,17 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [busquedaListado, setBusquedaListado] = useState("");
   const [categoriaFiltroListado, setCategoriaFiltroListado] = useState(null);
   const [establecimientoFiltroListado, setEstablecimientoFiltroListado] = useState(null);
+  // Recuerda a qué altura de scroll estabas en "Mis Animales" al tocar
+  // un animal, para volver ahí (no al principio de la lista) al apretar Volver.
+  const scrollListadoRef = useRef(0);
+
+  // Cada vez que se vuelve a mostrar el listado, restaura esa altura.
+  useEffect(() => {
+    if (pantalla === "listado") {
+      const y = scrollListadoRef.current;
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    }
+  }, [pantalla]);
   
   const [caravanaFormularioRecria, setCaravanaFormularioRecria] = useState(null);
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -1706,7 +1717,10 @@ const irAIngresar = () => {
              {pantalla === "listado" && (
               <PantallaListado
                 onVolver={volverDesdeListado}
-                onVerFicha={irAVerResumen}
+                onVerFicha={(f) => {
+                  scrollListadoRef.current = window.scrollY;
+                  irAVerResumen(f);
+                }}
                 busqueda={busquedaListado}
                 setBusqueda={setBusquedaListado}
                 categoriaFiltro={categoriaFiltroListado}
