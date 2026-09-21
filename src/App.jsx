@@ -1919,6 +1919,7 @@ function PantallaInicio({ onNavegar }) {
   useEffect(() => {
     const cargarDatosInicio = () => {
       setAnimales(leerAnimalesActivos());
+      setAnimalesTotalInforme([...leerAnimalesActivos(), ...leerAnimalesFallecidos()]);
       setTareasSanidad(leerRegistrosSanidad());
       setVentas(leerVentas());
       setCargando(false);
@@ -2319,7 +2320,7 @@ function PantallaInicio({ onNavegar }) {
           <BotonAcceso texto="Genealogía" icono={<GitFork size={17} />} onClick={() => onNavegar("genealogia")} />
         </div>
 
-      <InformeMensual animales={animales} tareasSanidad={tareasSanidad} ventas={ventas} />
+      <InformeMensual animales={animalesTotalInforme} tareasSanidad={tareasSanidad} ventas={ventas} />
       </div>
 
       {/* 5. Módulo de Sanidad y Vacunación */}
