@@ -2823,7 +2823,8 @@ function estadoReproductivoDe(ficha) {
   if (ficha.tacto && ficha.tacto.resultado === "Vacia") {
     return { texto: "Vacía", fondo: "var(--terracota)", color: "#FBF7ED" };
   }
-  return { texto: "Vacía", fondo: "var(--terracota)", color: "#FBF7ED" };
+  // Sin tacto cargado: no se le asigna ningún estado (ni "Vacía" ni otro).
+  return null;
 }
 
 
