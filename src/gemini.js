@@ -1,5 +1,5 @@
 // Conexión con Gemini (a través de Firebase AI Logic)
-import { getAI, getGenerativeModel, GoogleAIBackend } from "firebase/ai";
+import { getAI, getGenerativeModel, GoogleAIBackend, ThinkingLevel } from "firebase/ai";
 import { app } from "./firebase";
 
 const ai = getAI(app, { backend: new GoogleAIBackend() });
@@ -23,6 +23,7 @@ No des diagnósticos veterinarios: ante dudas de salud, recomendá consultar al 
 export const modelo = getGenerativeModel(ai, {
   model: "gemini-3.8-flash",
   systemInstruction: INSTRUCCIONES,
+  generationConfig: { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } },
 });
 
 export async function preguntarAGemini(pregunta, contextoDelCampo) {
@@ -61,7 +62,11 @@ function limpiar(valor) {
   if (esObjeto(valor)) {
     const salida = {};
     Object.keys(valor).forEach((k) => {
-      salida[k] = limpiar(valor[k]);
+      const v = limpiar(valor[k]);
+      // se omiten los campos vacíos: no aportan información y agrandan el texto
+      if (v === null || v === undefined || v === "") return;
+      if (Array.isArray(v) && v.length === 0) return;
+      salida[k] = v;
     });
     return salida;
   }
