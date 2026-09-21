@@ -39,11 +39,9 @@ const app = initializeApp(firebaseConfig);
 // 2. Inicializa Autenticación (Login)
 export const auth = getAuth(app);
 
-// 3. Inicializa Firestore
+// 3. Base de datos con soporte offline
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({})
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
 });
-
-// 4. Inicializa y exporta la Inteligencia Artificial (Gemini 2.0 Flash)
-export const ai = getAI(app);
-export const model = getGenerativeModel(ai, { model: "gemini-2.0-flash" });
