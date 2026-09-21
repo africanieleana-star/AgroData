@@ -3464,7 +3464,8 @@ function guardarCompras(listaCompleta) {
   }
 }
 
-// Calcula el monto total de una compra, igual que se hace con las ventas:
+// Calcula el monto total de una compra. Prioridad: si hay un "Valor
+// total pagado" cargado, se usa ese directamente. Si no, se calcula
 // por unidad x cantidad de animales, o por kilo x cantidad de kilos.
 function calcularMontoCompra(compra) {
   const num = (v) => {
@@ -3472,6 +3473,8 @@ function calcularMontoCompra(compra) {
     const n = parseFloat(String(v).replace(",", "."));
     return isNaN(n) ? null : n;
   };
+  const total = num(compra.montoTotal);
+  if (total !== null) return total;
   const porUnidad = num(compra.precioPorUnidad);
   if (porUnidad !== null) return porUnidad * (compra.animales?.length || 1);
   const porKilo = num(compra.precioPorKilo);
@@ -3529,6 +3532,7 @@ function registrarCompra(datosCompra, animalesComprados) {
     precioPorKilo: datosCompra.precioPorKilo || null,
     precioPorUnidad: datosCompra.precioPorUnidad || null,
     cantidadKilos: datosCompra.cantidadKilos || null,
+    montoTotal: datosCompra.montoTotal || null,
     observaciones: datosCompra.observaciones || null,
     animales: caravanasFinales,
   };
@@ -9858,6 +9862,7 @@ function FormularioNuevaCompra() {
   const [precioPorKilo, setPrecioPorKilo] = useState("");
   const [precioPorUnidad, setPrecioPorUnidad] = useState("");
   const [cantidadKilos, setCantidadKilos] = useState("");
+  const [montoTotal, setMontoTotal] = useState("");
   const [observaciones, setObservaciones] = useState("");
 
   const agregarAnimalALista = () => {
@@ -9895,6 +9900,7 @@ function FormularioNuevaCompra() {
         precioPorKilo: precioPorKilo.trim() || null,
         precioPorUnidad: precioPorUnidad.trim() || null,
         cantidadKilos: cantidadKilos.trim() || null,
+        montoTotal: montoTotal.trim() || null,
         observaciones: observaciones.trim() || null,
       },
       animalesAAgregar
@@ -9906,6 +9912,7 @@ function FormularioNuevaCompra() {
     setPrecioPorKilo("");
     setPrecioPorUnidad("");
     setCantidadKilos("");
+    setMontoTotal("");
     setObservaciones("");
 
     let mensaje = `✅ Compra registrada. ${compra.animales.length} animal(es) se agregaron al rodeo.`;
@@ -10038,10 +10045,17 @@ function FormularioNuevaCompra() {
         <div className="grilla-formulario">
           <CampoTexto id="compra-fecha" etiqueta="Fecha de compra" tipo="date" valor={fecha} onChange={setFecha} />
           <CampoTexto id="compra-vendedor" etiqueta="Comprado a / establecimiento" tipo="text" placeholder="Ej: Consignataria Rural SA" valor={vendedor} onChange={setVendedor} />
-          <CampoTexto id="compra-precio-kilo" etiqueta="Precio por kilo" tipo="text" placeholder="Ej: 2600" valor={precioPorKilo} onChange={setPrecioPorKilo} />
-          <CampoTexto id="compra-precio-unidad" etiqueta="Precio por unidad" tipo="text" placeholder="Ej: 480000" valor={precioPorUnidad} onChange={setPrecioPorUnidad} />
-          <CampoTexto id="compra-kilos" etiqueta="Cantidad de kilos" tipo="text" placeholder="Ej: 200" valor={cantidadKilos} onChange={setCantidadKilos} />
+          <div className="columna-completa">
+            <CampoTexto id="compra-monto-total" etiqueta="Valor total pagado" tipo="text" placeholder="Ej: 3200000" valor={montoTotal} onChange={setMontoTotal} />
+          </div>
+          <CampoTexto id="compra-precio-kilo" etiqueta="Precio por kilo (opcional)" tipo="text" placeholder="Ej: 2600" valor={precioPorKilo} onChange={setPrecioPorKilo} />
+          <CampoTexto id="compra-precio-unidad" etiqueta="Precio por unidad (opcional)" tipo="text" placeholder="Ej: 480000" valor={precioPorUnidad} onChange={setPrecioPorUnidad} />
+          <CampoTexto id="compra-kilos" etiqueta="Cantidad de kilos (opcional)" tipo="text" placeholder="Ej: 200" valor={cantidadKilos} onChange={setCantidadKilos} />
         </div>
+
+        <p style={{ fontSize: 11.5, color: "#8A7A63", fontStyle: "italic", margin: "0 0 14px" }}>
+          Si cargás el "Valor total pagado", ese es el monto que se usa. Los campos de precio por kilo / por unidad son opcionales, por si preferís calcularlo así en vez de poner el total directamente.
+        </p>
 
         <label
           htmlFor="compra-observaciones"
