@@ -36,68 +36,43 @@ export async function preguntarAGemini(pregunta, contextoDelCampo) {
   return resultado.response.text();
 }
 
-
-// Función para armar el texto completo con la información de tu app
-export function armarContextoCompleto({ animales = [], compras = [], eventos = [] }) {
-  let texto = "=== DATOS REGISTRADOS EN AGRODATA ===\n\n";
-
-  // 1. ANIMALES Y RODEO
-  texto += "--- HACIENDA Y ANIMALES ---\n";
-  if (animales.length === 0) {
-    texto += "No hay animales registrados.\n";
-  } else {
-    animales.forEach((a) => {
-      texto += `- Caravana: ${a.caravana || "Sin ID"}, Categoria: ${a.categoria || "N/D"}, Raza: ${a.raza || "N/D"}, Estado: ${a.estado || "N/D"}, Lote/Potrero: ${a.lote || "Sin asignar"}\n`;
-    });
-  }
-
-  // 2. COMPRAS Y COMPROBANTES
-  texto += "\n--- HISTORIAL DE COMPRAS Y GASTOS ---\n";
-  if (compras.length === 0) {
-    texto += "No hay compras o facturas registradas.\n";
-  } else {
-    compras.forEach((c) => {
-      texto += `- Fecha: ${c.fecha || "N/D"}, Proveedor: ${c.proveedor || "Desconocido"}, Categoria: ${c.categoria || "General"}, Total: $${c.total || 0}, Ítems: ${c.resumen || c.concepto || "Sin detalle"}\n`;
-    });
-  }
-
-  // 3. EVENTOS O TRATAMIENTOS
-  texto += "\n--- EVENTOS Y SANIDAD ---\n";
-  if (eventos.length === 0) {
-    texto += "No hay eventos o tratamientos registrados.\n";
-  } else {
-    eventos.forEach((e) => {
-      texto += `- Fecha: ${e.fecha || "N/D"}, Tipo: ${e.tipo || "General"}, Descripción: ${e.descripcion || "Sin detalle"}\n`;
-    });
-  }
-
-  return texto;
-}
-
-// Función que junta la información almacenada en AgroData
 export function obtenerContextoDelCampo() {
   let texto = "=== DATOS DEL CAMPO REGISTRADOS EN AGRODATA ===\n\n";
 
   try {
     // 1. Leer Animales
     const animales = JSON.parse(localStorage.getItem("agrodata_animales") || "[]");
-    texto += "--- HACIENDA Y ANIMALES ---\n";
-    if (animales.length === 0) {
-      texto += "No hay animales registrados.\n";
+    
+    // Filtramos por estado
+    const fallecidos = animales.filter(a => 
+      a.estado && (a.estado.toLowerCase().includes("muerto") || a.estado.toLowerCase().includes("fallecido"))
+    );
+    const activos = animales.filter(a => 
+      !a.estado || (!a.estado.toLowerCase().includes("muerto") && !a.estado.toLowerCase().includes("fallecido"))
+    );
+
+    texto += "--- RESUMEN DE HACIENDA ---\n";
+    texto += `- Total de animales en registro: ${animales.length}\n`;
+    texto += `- Animales activos en el campo: ${activos.length}\n`;
+    texto += `- Animales fallecidos/muertos: ${fallecidos.length}\n\n`;
+
+    texto += "--- DETALLE DE ANIMALES FALLECIDOS ---\n";
+    if (fallecidos.length === 0) {
+      texto += "No hay animales marcados como fallecidos o muertos.\n";
     } else {
-      animales.forEach((a) => {
-        texto += `- Caravana: ${a.caravana || "Sin ID"}, Categoría: ${a.categoria || "N/D"}, Raza: ${a.raza || "N/D"}, Estado: ${a.estado || "N/D"}, Potrero: ${a.potrero || "N/D"}\n`;
+      fallecidos.forEach((a) => {
+        texto += `- Caravana: ${a.caravana || "Sin ID"}, Categoría: ${a.categoria || "N/D"}, Estado: ${a.estado}\n`;
       });
     }
 
-    // 2. Leer Tareas y Compras / Gastos
+    // 2. Leer Tareas y Sanidad
     const tareas = JSON.parse(localStorage.getItem("tareas_manuales") || "[]");
-    texto += "\n--- REGISTRO DE TAREAS, SANIDAD Y GASTOS ---\n";
+    texto += "\n--- REGISTRO DE TAREAS Y SANIDAD ---\n";
     if (tareas.length === 0) {
-      texto += "No hay tareas o gastos registrados.\n";
+      texto += "No hay tareas registradas.\n";
     } else {
       tareas.forEach((t) => {
-        texto += `- Tarea: ${t.texto || "Sin detalle"}, Fecha/Estado: ${t.completada ? "Completada" : "Pendiente"}\n`;
+        texto += `- Tarea: ${t.texto || "Sin detalle"}\n`;
       });
     }
   } catch (e) {
@@ -106,3 +81,4 @@ export function obtenerContextoDelCampo() {
 
   return texto;
 }
+
