@@ -30,6 +30,7 @@ import {
 
 import SyncStatus from "./SyncStatus";
 import BackupPanel from "./BackupPanel";
+import BotonDeshacer from "./Deshacer";
 import InformeMensual from "./InformeMensual"; 
 
 import * as XLSX from "xlsx";
@@ -678,6 +679,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
 
   const [estado, setEstado] = useState("idle"); // idle | guardando | conflicto | error
   const [toast, setToast] = useState(null); // { tipo: "exito" | "error", mensaje: string } | null
+  const [versionDeshacer, setVersionDeshacer] = useState(0); // cambia cada vez que se deshace algo, para refrescar la pantalla
 
   const muestraServicio = true;
   const listoParaGuardar = (caravana || "").length > 0 && tipo !== null; const enEdicion = modo === "edicion";
@@ -1083,6 +1085,35 @@ const irAIngresar = () => {
     setPantalla("buscar");
   };
 
+    // Después de deshacer algo, se refresca lo que está abierto en pantalla
+  // para que no siga mostrando datos viejos.
+  const alDeshacer = (mensaje) => {
+    mostrarToast(`↩️ Deshecho: ${mensaje}`);
+    setResultadoBusqueda(null);
+    setFichaEncontrada(null);
+
+    if (pantalla === "resumen" && fichaEnResumen) {
+      const fresca = leerAnimalPorCaravana(fichaEnResumen.caravana);
+      if (fresca) setFichaEnResumen(fresca);
+      else volverDesdeResumen();
+    } else if (pantalla === "formulario") {
+      const fresca = leerAnimalPorCaravana(caravana);
+      if (modo === "edicion") {
+        if (fresca) irAEditarFicha(fresca);
+        else volverABuscar();
+      } else {
+        // Ficha nueva todavía sin guardar: se respeta lo que estás escribiendo
+        // y solo se actualizan las listas de servicios y crías.
+        setHistorialServicios(fresca && Array.isArray(fresca.historialServicios) ? fresca.historialServicios : []);
+        setHistorialCrias(fresca && Array.isArray(fresca.historialCrias) ? fresca.historialCrias : []);
+      }
+    } else if (pantalla === "guardado") {
+      volverABuscar();
+    }
+
+    setVersionDeshacer((v) => v + 1);
+  };
+
   const guardar = useCallback(async () => {
     if (!listoParaGuardar) return;
     setEstado("guardando");
@@ -1462,6 +1493,7 @@ const irAIngresar = () => {
       <Toast toast={toast} />
       <SyncStatus />
       <BackupPanel />
+      <BotonDeshacer onDeshecho={alDeshacer} />
       <ChatBot />
       <Analytics />
 
@@ -1625,6 +1657,7 @@ const irAIngresar = () => {
 
           {/* Contenido Principal */}
           <div
+            key={versionDeshacer}
             style={{
               flex: 1,
               padding: "22px 16px 40px",
