@@ -94,16 +94,9 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
           `).join('')
         : `<tr><td colspan="4" style="text-align: center; color: #888;">No se registraron operaciones comerciales.</td></tr>`;
 
-      // 7. Creación de la ventana de impresión
-      const ventanaImpresion = window.open("", "_blank");
-
-      if (!ventanaImpresion) {
-        alert("Por favor, permití las ventanas emergentes para visualizar el informe.");
-        setCargando(false);
-        return;
-      }
-
-      ventanaImpresion.document.write(`
+      // 7. Armamos el HTML completo del informe
+      const htmlInforme = `
+      
         <!DOCTYPE html>
         <html>
           <head>
@@ -337,10 +330,27 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
             </script>
           </body>
         </html>
-      `);
+      `;
 
-      ventanaImpresion.document.close();
+      // 8. Generamos un Blob y lo abrimos en una pestaña realmente aparte
+      // (esto es lo que evita que se "pise" la app en celulares/PWA)
+      const blob = new Blob([htmlInforme], { type: "text/html" });
+      const urlBlob = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = urlBlob;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Liberamos la memoria del blob después de un rato,
+      // dándole tiempo a la pestaña nueva a cargarlo
+      setTimeout(() => URL.revokeObjectURL(urlBlob), 60000);
+
       setCargando(false);
+      
     } catch (err) {
       console.error(err);
       alert("Error al intentar construir el reporte detallado.");
