@@ -536,6 +536,15 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   }, []);
   const [fichaEnResumen, setFichaEnResumen] = useState(null);
   const [origenResumen, setOrigenResumen] = useState("listado"); // a dónde volver desde el resumen
+  
+  // Filtro de "Mis Animales" (búsqueda, solapa de tipo y establecimiento).
+  // Se guarda acá (y no adentro de PantallaListado) para que no se pierda
+  // cuando entrás a una ficha y volvés: PantallaListado se desmonta al
+  // entrar a "resumen", así que si el filtro viviera ahí, se resetearía.
+  const [busquedaListado, setBusquedaListado] = useState("");
+  const [categoriaFiltroListado, setCategoriaFiltroListado] = useState(null);
+  const [establecimientoFiltroListado, setEstablecimientoFiltroListado] = useState(null);
+  
   const [caravanaFormularioRecria, setCaravanaFormularioRecria] = useState(null);
   const [menuAbierto, setMenuAbierto] = useState(false);
 
@@ -1695,7 +1704,16 @@ const irAIngresar = () => {
             )}
 
              {pantalla === "listado" && (
-              <PantallaListado onVolver={volverDesdeListado} onVerFicha={irAVerResumen} />
+              <PantallaListado
+                onVolver={volverDesdeListado}
+                onVerFicha={irAVerResumen}
+                busqueda={busquedaListado}
+                setBusqueda={setBusquedaListado}
+                categoriaFiltro={categoriaFiltroListado}
+                setCategoriaFiltro={setCategoriaFiltroListado}
+                establecimientoFiltro={establecimientoFiltroListado}
+                setEstablecimientoFiltro={setEstablecimientoFiltroListado}
+              />
             )}
 
             {pantalla === "recria" && (
@@ -3908,13 +3926,19 @@ function EtiquetaEstado({ estado }) {
   );
 }
 
-function PantallaListado({ onVolver, onVerFicha }) {
+function PantallaListado({
+  onVolver,
+  onVerFicha,
+  busqueda,
+  setBusqueda,
+  categoriaFiltro,
+  setCategoriaFiltro,
+  establecimientoFiltro,
+  setEstablecimientoFiltro,
+}) {
   const [animales, setAnimales] = useState([]);
   const [animalesFallecidos, setAnimalesFallecidos] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [busqueda, setBusqueda] = useState("");
-  const [categoriaFiltro, setCategoriaFiltro] = useState(null);
-  const [establecimientoFiltro, setEstablecimientoFiltro] = useState(null);
 
     const [importando, setImportando] = useState(false);
   const [mensajeImportacion, setMensajeImportacion] = useState(null);
