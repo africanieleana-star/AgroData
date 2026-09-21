@@ -37,35 +37,47 @@ export async function preguntarAGemini(pregunta, contextoDelCampo) {
 }
 
 export function obtenerContextoDelCampo() {
-  let texto = "=== DATOS DEL CAMPO REGISTRADOS EN AGRODATA ===\n\n";
+  let texto = "=== DATOS OFICIALES DEL CAMPO EN AGRODATA ===\n\n";
 
   try {
-    // 1. Leer Animales
-    const animales = JSON.parse(localStorage.getItem("agrodata_animales") || "[]");
-    
-    // Filtramos por estado
-    const fallecidos = animales.filter(a => 
-      a.estado && (a.estado.toLowerCase().includes("muerto") || a.estado.toLowerCase().includes("fallecido"))
-    );
-    const activos = animales.filter(a => 
-      !a.estado || (!a.estado.toLowerCase().includes("muerto") && !a.estado.toLowerCase().includes("fallecido"))
+    // Intentamos leer la lista de animales de los nombres más comunes guardados en la app
+    const animalesGuardados = JSON.parse(
+      localStorage.getItem("agrodata_animales") || 
+      localStorage.getItem("animales") || 
+      "[]"
     );
 
-    texto += "--- RESUMEN DE HACIENDA ---\n";
-    texto += `- Total de animales en registro: ${animales.length}\n`;
-    texto += `- Animales activos en el campo: ${activos.length}\n`;
-    texto += `- Animales fallecidos/muertos: ${fallecidos.length}\n\n`;
+    // Separamos los animales activos de los dados de baja o fallecidos
+    const fallecidos = [];
+    const activos = [];
+
+    animalesGuardados.forEach((a) => {
+      const estado = String(a.estado || "").toLowerCase();
+      const esBaja = a.baja || estado.includes("muerto") || estado.includes("fallecido") || estado.includes("baja");
+
+      if (esBaja) {
+        fallecidos.push(a);
+      } else {
+        activos.push(a);
+      }
+    });
+
+    // Escribimos los números EXACTOS para que la IA los lea directamente
+    texto += "--- RESUMEN DE ANIMALES ---\n";
+    texto += `* Cantidad TOTAL DE ANIMALES VIVOS / ACTIVOS: ${activos.length}\n`;
+    texto += `* Cantidad TOTAL DE ANIMALES FALLECIDOS / MUERTOS: ${fallecidos.length}\n`;
+    texto += `* Total histórico registrado en sistema: ${animalesGuardados.length}\n\n`;
 
     texto += "--- DETALLE DE ANIMALES FALLECIDOS ---\n";
     if (fallecidos.length === 0) {
-      texto += "No hay animales marcados como fallecidos o muertos.\n";
+      texto += "No hay animales registrados como fallecidos.\n";
     } else {
       fallecidos.forEach((a) => {
-        texto += `- Caravana: ${a.caravana || "Sin ID"}, Categoría: ${a.categoria || "N/D"}, Estado: ${a.estado}\n`;
+        texto += `- Caravana: ${a.caravana || "Sin ID"}, Categoria: ${a.categoria || "N/D"}, Estado: ${a.estado || "Fallecido"}\n`;
       });
     }
 
-    // 2. Leer Tareas y Sanidad
+    // Leer Tareas y Sanidad
     const tareas = JSON.parse(localStorage.getItem("tareas_manuales") || "[]");
     texto += "\n--- REGISTRO DE TAREAS Y SANIDAD ---\n";
     if (tareas.length === 0) {
@@ -81,4 +93,3 @@ export function obtenerContextoDelCampo() {
 
   return texto;
 }
-
