@@ -26,8 +26,7 @@ if (import.meta.env.DEV) {
 }
 
 export const appCheck = initializeAppCheck(app, {
-  provider: new ReCaptchaEnterpriseProvider("6LePacctAAAAAFcrz5I7MQhJd-2lJTLC4N6-V-Wy"),
-  isTokenAutoRefreshEnabled: true,
+  provider: new ReCaptchaEnterpriseProvider("6LePacctAAAAAHA8dXkXlrs3xIRZ4WwAiu_PaTau"),  isTokenAutoRefreshEnabled: true,
 });
 
 // 3. Login
