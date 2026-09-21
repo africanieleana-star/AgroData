@@ -1,3 +1,15 @@
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
+
+// Para probar en tu computadora (localhost): genera un "token de depuración"
+if (import.meta.env.DEV) {
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+}
+
+export const appCheck = initializeAppCheck(app, {
+  provider: new ReCaptchaEnterpriseProvider("6LePacctAAAAAFcrz5I7MQhJd-2lJTLC4N6-V-Wy"),
+  isTokenAutoRefreshEnabled: true,
+});
+
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import {
