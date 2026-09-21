@@ -106,10 +106,28 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
               body {
                 font-family: 'Helvetica Neue', Arial, sans-serif;
                 color: #2C3E50;
-                background-color: #FFFFFF;
+                background-color: #E9E9E9;
                 margin: 0;
-                padding: 0;
+                padding: 20px 0;
                 font-size: 12px;
+              }
+              .hoja-a4 {
+                width: 210mm;
+                min-height: 297mm;
+                max-width: 100%;
+                box-sizing: border-box;
+                margin: 0 auto;
+                padding: 18mm;
+                background-color: #FFFFFF;
+                box-shadow: 0 0 12px rgba(0,0,0,0.15);
+              }
+              table { page-break-inside: auto; }
+              tr { page-break-inside: avoid; page-break-after: auto; }
+              thead { display: table-header-group; }
+              .seccion { page-break-inside: avoid; }
+              @media print {
+                body { background-color: #FFFFFF; padding: 0; }
+                .hoja-a4 { box-shadow: none; margin: 0; width: auto; min-height: 0; }
               }
               .encabezado {
                 display: flex;
@@ -224,9 +242,10 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
             </style>
           </head>
           <body>
+            <div class="hoja-a4">
             <div class="encabezado">
               <div class="logo-container">
-                <img src="/hojalogo.png" class="logo-img" alt="AgroData" />
+                <img src="${window.location.origin}/hojalogo.png" class="logo-img" alt="AgroData" />
                 <div>
                   <h1 class="titulo-app">AgroData</h1>
                   <p class="subtitulo-app">Software de Gestión Ganadera Inteligente</p>
@@ -321,6 +340,7 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
 
             <div class="pie">
               Documento digital generado automáticamente por la plataforma AgroData.
+            </div>
             </div>
           </body>
         </html>
