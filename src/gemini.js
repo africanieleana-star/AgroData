@@ -16,7 +16,7 @@ Si hace falta una lista, usá renglones que empiecen con un guion.
 No des diagnósticos veterinarios: ante dudas de salud, recomendá consultar al veterinario.
 `;
 
-const modelo = getGenerativeModel(ai, {
+export const modelo = getGenerativeModel(ai, {
   model: "gemini-3.8-flash",
   systemInstruction: INSTRUCCIONES,
 });
