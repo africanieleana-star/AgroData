@@ -34,6 +34,8 @@ import BackupPanel from "./BackupPanel";
 import BotonDeshacer from "./Deshacer";
 import InformeMensual from "./InformeMensual"; 
 
+import { escucharMicrofono, enviarMensajeChatAgro, hablarTexto } from "./aiServices";
+
 import * as XLSX from "xlsx";
 
 const TIPOS = [
