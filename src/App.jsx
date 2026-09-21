@@ -9624,7 +9624,7 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
           <div
             style={{
               marginTop: "auto", // 👈 empuja este bloque hacia abajo dentro del menú...
-              marginBottom: 150, // 👈 ...pero lo frena antes de llegar al borde,
+              marginBottom: 100, // 👈 ...pero lo frena antes de llegar al borde,
                                   // para que no lo tapen los botones flotantes
                                   // de Sincronización / Copia de seguridad.
               borderTop: "1px solid var(--borde, #e0d8c3)",
