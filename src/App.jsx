@@ -34,6 +34,8 @@ import BackupPanel from "./BackupPanel";
 import BotonDeshacer from "./Deshacer";
 import InformeMensual from "./InformeMensual"; 
 
+import { preguntarAGemini } from "./gemini";
+
 import { escucharMicrofono, enviarMensajeChatAgro, hablarTexto } from "./aiServices";
 
 import * as XLSX from "xlsx";
@@ -9075,6 +9077,65 @@ function responderPregunta(preguntaOriginal) {
 /* CHATBOT: componente visual (botón flotante + ventana de chat)     */
 /* ---------------------------------------------------------------- */
 
+
+// Arma un resumen de tu rodeo en texto, para que Gemini pueda responder
+// con datos reales. Solo se usa cuando el chatbot normal no entiende la pregunta.
+function construirContextoParaIA() {
+  const animales = leerAnimalesActivos();
+  const hoy = new Date();
+
+  const lineas = animales.map((a) => {
+    const estado = estadoReproductivoDe(a);
+    const ultimoServicio =
+      Array.isArray(a.historialServicios) && a.historialServicios.length > 0
+        ? a.historialServicios[a.historialServicios.length - 1]
+        : a.servicio || null;
+
+    const partes = [
+      `N° ${a.caravana}`,
+      a.tipo || "sin categoría",
+      estado ? `estado: ${estado.texto}` : null,
+      a.raza ? `raza: ${a.raza}` : null,
+      a.establecimiento ? `establecimiento: ${a.establecimiento}` : null,
+      a.fechaNacimiento ? `nació: ${a.fechaNacimiento}` : null,
+      a.caravanaMadre || a.cria?.caravanaMadre
+        ? `madre: ${a.caravanaMadre || a.cria?.caravanaMadre}`
+        : null,
+      a.nombrePadre || a.cria?.nombrePadre
+        ? `padre: ${a.nombrePadre || a.cria?.nombrePadre}`
+        : null,
+      ultimoServicio?.inseminacion?.fecha
+        ? `última inseminación: ${ultimoServicio.inseminacion.fecha}`
+        : null,
+      ultimoServicio?.toro?.fecha
+        ? `último servicio con toro: ${ultimoServicio.toro.fecha}`
+        : null,
+      a.tacto?.fecha
+        ? `tacto: ${a.tacto.fecha} (${a.tacto.resultado === "Preniada" ? "preñada" : "vacía"})`
+        : null,
+      Array.isArray(a.historialCrias) && a.historialCrias.length > 0
+        ? `crías: ${a.historialCrias.map((c) => c.caravana || "sin caravana").join(", ")}`
+        : null,
+      a.fallecimiento?.fecha ? `falleció: ${a.fallecimiento.fecha}` : null,
+    ];
+    return "- " + partes.filter(Boolean).join(" | ");
+  });
+
+  let totalAlertas = 0;
+  animales.forEach((f) => (totalAlertas += obtenerAlertasDe(f, hoy).length));
+  const tareasPendientes = leerTareasManuales()
+    .filter((t) => !t.completada)
+    .map((t) => `- ${t.texto}${t.fecha ? ` (${t.fecha})` : ""}`);
+
+  return (
+    `Total de animales en stock: ${animales.length}\n` +
+    `Alertas automáticas pendientes: ${totalAlertas}\n\n` +
+    `ANIMALES:\n${lineas.join("\n") || "(no hay animales cargados)"}\n\n` +
+    `TAREAS PENDIENTES:\n${tareasPendientes.join("\n") || "(ninguna)"}\n\n` +
+    `PLAN SANITARIO DE REFERENCIA:\n${JSON.stringify(PLANES_SANITARIOS)}`
+  );
+}
+
 function ChatBot() {
   const [abierto, setAbierto] = useState(false);
   const [mensajes, setMensajes] = useState([
@@ -9085,6 +9146,7 @@ function ChatBot() {
   ]);
   const [entrada, setEntrada] = useState("");
   const [escuchando, setEscuchando] = useState(false);
+  const [pensando, setPensando] = useState(false);
   const reconocimientoRef = useRef(null);
   const listaRef = useRef(null);
 
@@ -9121,19 +9183,31 @@ function ChatBot() {
     reconocimientoRef.current.start();
   };
 
-  const enviarPregunta = (textoManual) => {
+  const enviarPregunta = async (textoManual) => {
     const pregunta = (textoManual !== undefined ? textoManual : entrada).trim();
     if (!pregunta) return;
 
-    const respuestaComando = intentarProcesarComando(pregunta);
-    const respuesta = respuestaComando !== null ? respuestaComando : responderPregunta(pregunta);
-
-    setMensajes((prev) => [
-      ...prev,
-      { autor: "usuario", texto: pregunta },
-      { autor: "bot", texto: respuesta },
-    ]);
+    // Muestra enseguida lo que escribió la persona
+    setMensajes((prev) => [...prev, { autor: "usuario", texto: pregunta }]);
     setEntrada("");
+
+    // 1) Primero se intenta con las reglas de siempre (rápido y gratis)
+    const respuestaComando = intentarProcesarComando(pregunta);
+    let respuesta = respuestaComando !== null ? respuestaComando : responderPregunta(pregunta);
+
+    // 2) Si no entendió la pregunta, se la pasa a Gemini
+    if (respuestaComando === null && respuesta.startsWith("No entendí bien")) {
+      setPensando(true);
+      try {
+        respuesta = await preguntarAGemini(pregunta, construirContextoParaIA());
+      } catch (e) {
+        console.error("Error al consultar a Gemini:", e);
+        respuesta = "No pude consultar a la IA en este momento. Probá de nuevo en un rato.";
+      }
+      setPensando(false);
+    }
+
+    setMensajes((prev) => [...prev, { autor: "bot", texto: respuesta }]);
 
     // Lee la respuesta en voz alta, si el navegador lo permite
     if (window.speechSynthesis) {
@@ -9236,6 +9310,21 @@ function ChatBot() {
                 {m.texto}
               </div>
             ))}
+            {pensando && (
+              <div
+                style={{
+                  alignSelf: "flex-start",
+                  background: "#F5F2EC",
+                  color: "#8A7A63",
+                  padding: "8px 12px",
+                  borderRadius: 12,
+                  fontSize: 13,
+                  fontStyle: "italic",
+                }}
+              >
+                Pensando...
+              </div>
+            )}
           </div>
 
           {/* Entrada de texto + botones */}
