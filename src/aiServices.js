@@ -29,7 +29,7 @@ export async function procesarFacturaAvanzada(archivo) {
     - TOTAL: (Solo el valor numérico y moneda)
     - OBSERVACION_AGRO: (Si detectas vacunas o insumos importantes, deja un consejo breve).`;
 
-    const result = await model.generateContent([prompt, imagePart]);
+    const result = await modelo.generateContent([prompt, imagePart]);
     const response = await result.response;
     return response.text();
   } catch (error) {
@@ -46,14 +46,14 @@ let chatSession = null;
 export async function enviarMensajeChatAgro(mensaje) {
   try {
     if (!chatSession) {
-      chatSession = model.startChat({
+      chatSession = modelo.startChat({
         history: [
           {
             role: "user",
             parts: [{ text: "Hola, vas a actuar como el Asistente Técnico y Financiero de AgroData." }],
           },
           {
-            role: "modelo",
+            role: "model",
             parts: [{ text: "¡Hola! Soy AgroAI, el asistente inteligente de AgroData. Puedo ayudarte con dudas sobre ganadería, insumos, gastos o manejo del rodeo. ¿En qué trabajamos hoy?" }],
           },
         ],
