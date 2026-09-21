@@ -1,5 +1,5 @@
 // Conexión con Firebase: acá se inicializa el proyecto y se exportan
-// las tres piezas que usa el resto de la app: "app", "auth" (login) y "db".
+// las piezas que usa el resto de la app: "app", "auth" (login), "db" e "IA".
 //
 // NOTA sobre el historial de este archivo:
 // En un momento sacamos la caché persistente offline porque un código
@@ -20,8 +20,10 @@ import {
   initializeFirestore,
   persistentLocalCache
 } from "firebase/firestore";
+// 1. Agregamos las funciones de IA de Firebase
+import { getAI, getGenerativeModel } from "firebase/ai";
 
-// Mantenés tus credenciales reales exactamente como las tenés
+// Credenciales de tu proyecto AgroData
 const firebaseConfig = {
   apiKey: "AIzaSyBTFA5wDQX5SHsI0ao4WqACh4SBp3PhDWE",
   authDomain: "agrodata-4d110.firebaseapp.com",
@@ -37,11 +39,11 @@ const app = initializeApp(firebaseConfig);
 // 2. Inicializa Autenticación (Login)
 export const auth = getAuth(app);
 
-// 3. Inicializa Firestore con soporte offline simple (sin gestor de
-// múltiples pestañas: fue lo que dejó la app trabada en "Guardando..."
-// para siempre la vez anterior que se probó). Tu propio cloudSync.js ya
-// maneja el guardado offline y la cola de pendientes por su cuenta, así
-// que esto solo cachea lecturas — no hace falta más.
+// 3. Inicializa Firestore
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({})
 });
+
+// 4. Inicializa y exporta la Inteligencia Artificial (Gemini 2.0 Flash)
+export const ai = getAI(app);
+export const model = getGenerativeModel(ai, { model: "gemini-2.0-flash" });
