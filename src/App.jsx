@@ -9525,7 +9525,8 @@ function MenuLateral({ abierto, onAbrir, onCerrar, navegarA, pantallaActual }) {
       >
         <div>
           {/* Opciones de navegación */}
-          <nav style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 20 }}>
+          <nav style={{ display: "flex", flexDirection: "column", gap: 2, paddingTop: 10 }}>
+            
             {/* 1. Inicio */}
             <OpcionMenu
               icono={<Home size={20} />}
@@ -9652,7 +9653,7 @@ function OpcionMenu({ icono, texto, mostrarTexto, activa, onClick }) {
         display: "flex",
         alignItems: "center",
         gap: 12,
-        padding: "10px 12px",
+        padding: "6px 12px",
         borderRadius: 8,
         border: "none",
         background: activa ? "var(--verde-monte)" : "transparent",
