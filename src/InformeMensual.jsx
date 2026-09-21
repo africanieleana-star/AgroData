@@ -61,6 +61,7 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
       ).length;
       
       const preñadas = listaAnimales.filter(a => {
+        if (a.fallecimiento && a.fallecimiento.fecha) return false;
         if (!APLICA_SERVICIO.includes(a.tipo)) return false;
         const yaParida =
           (a.paricion && a.paricion.fecha) ||
