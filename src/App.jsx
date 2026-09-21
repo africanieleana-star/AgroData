@@ -10286,7 +10286,6 @@ function FormularioNuevaCompra() {
             </button>
           )}
         </div>
-        </p>
 
         <label
           htmlFor="compra-observaciones"
@@ -10971,3 +10970,4 @@ function HistorialVentas({ onVerFicha }) {
       ))}
     </div>
   );
+}
