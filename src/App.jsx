@@ -10971,4 +10971,3 @@ function HistorialVentas({ onVerFicha }) {
       ))}
     </div>
   );
-}
