@@ -1,16 +1,5 @@
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
-
-// Para probar en tu computadora (localhost): genera un "token de depuración"
-if (import.meta.env.DEV) {
-  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-}
-
-export const appCheck = initializeAppCheck(app, {
-  provider: new ReCaptchaEnterpriseProvider("6LePacctAAAAAFcrz5I7MQhJd-2lJTLC4N6-V-Wy"),
-  isTokenAutoRefreshEnabled: true,
-});
-
 import { initializeApp } from "firebase/app";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import { getAuth } from "firebase/auth";
 import {
   initializeFirestore,
@@ -27,13 +16,24 @@ const firebaseConfig = {
   appId: "1:1087080177294:web:848d68837b7a332e5a33df",
 };
 
-// 1. Inicializa la app (ahora se exporta para poder usarla con Gemini)
+// 1. Inicializa la app (se exporta para poder usarla con Gemini)
 export const app = initializeApp(firebaseConfig);
 
-// 2. Login
+// 2. App Check: tiene que ir después de crear la app y antes de usar los servicios
+if (import.meta.env.DEV) {
+  // Para probar en tu computadora (localhost): genera un "token de depuración"
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+}
+
+export const appCheck = initializeAppCheck(app, {
+  provider: new ReCaptchaEnterpriseProvider("6LePacctAAAAAFcrz5I7MQhJd-2lJTLC4N6-V-Wy"),
+  isTokenAutoRefreshEnabled: true,
+});
+
+// 3. Login
 export const auth = getAuth(app);
 
-// 3. Base de datos con soporte offline
+// 4. Base de datos con soporte offline
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager(),
