@@ -1,12 +1,30 @@
 import React, { useState } from "react";
 
+// Trae la librería html2pdf.js desde internet, sin necesidad de instalar
+// nada con npm. La primera vez tarda un segundito en descargarla; las
+// siguientes veces que se genere un informe ya queda lista en memoria.
+function cargarHtml2Pdf() {
+  return new Promise((resolve, reject) => {
+    if (window.html2pdf) {
+      resolve(window.html2pdf);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js";
+    script.onload = () => resolve(window.html2pdf);
+    script.onerror = () => reject(new Error("No se pudo cargar la librería para generar el PDF."));
+    document.body.appendChild(script);
+  });
+}
+
 export default function InformeMensual({ animales = [], tareasSanidad = [], ventas = [] }) {
   const [cargando, setCargando] = useState(false);
 
-  const generarPDF = () => {
+  const generarPDF = async () => {
     setCargando(true);
 
     try {
+      const html2pdf = await cargarHtml2Pdf();
       // 1. Sanitización de listas de datos
       const listaAnimales = Array.isArray(animales) ? animales : [];
       const listaSanidad = Array.isArray(tareasSanidad) ? tareasSanidad : [];
