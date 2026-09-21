@@ -1,4 +1,4 @@
-import { Analytics } from '@vercel/analytics/react'
+import { Analytics } from '@vercel/analytics/react' 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   Tag,
