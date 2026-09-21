@@ -1,4 +1,4 @@
-import { model } from "./firebase";
+import { modelo } from "./gemini";
 
 // Convierte imágenes o comprobantes para Gemini
 async function fileToGenerativePart(file) {
@@ -53,7 +53,7 @@ export async function enviarMensajeChatAgro(mensaje) {
             parts: [{ text: "Hola, vas a actuar como el Asistente Técnico y Financiero de AgroData." }],
           },
           {
-            role: "model",
+            role: "modelo",
             parts: [{ text: "¡Hola! Soy AgroAI, el asistente inteligente de AgroData. Puedo ayudarte con dudas sobre ganadería, insumos, gastos o manejo del rodeo. ¿En qué trabajamos hoy?" }],
           },
         ],
