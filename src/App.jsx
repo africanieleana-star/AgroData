@@ -537,24 +537,14 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [fichaEnResumen, setFichaEnResumen] = useState(null);
   const [origenResumen, setOrigenResumen] = useState("listado"); // a dónde volver desde el resumen
   
-  // Filtro de "Mis Animales" (búsqueda, solapa de tipo y establecimiento).
-  // Se guarda acá (y no adentro de PantallaListado) para que no se pierda
-  // cuando entrás a una ficha y volvés: PantallaListado se desmonta al
-  // entrar a "resumen", así que si el filtro viviera ahí, se resetearía.
-  const [busquedaListado, setBusquedaListado] = useState("");
+   const [busquedaListado, setBusquedaListado] = useState("");
   const [categoriaFiltroListado, setCategoriaFiltroListado] = useState(null);
   const [establecimientoFiltroListado, setEstablecimientoFiltroListado] = useState(null);
   // Recuerda a qué altura de scroll estabas en "Mis Animales" al tocar
   // un animal, para volver ahí (no al principio de la lista) al apretar Volver.
+  // La restauración se hace DENTRO de PantallaListado (más abajo), una vez
+  // que la lista ya tiene los datos cargados y su altura real en pantalla.
   const scrollListadoRef = useRef(0);
-
-  // Cada vez que se vuelve a mostrar el listado, restaura esa altura.
-  useEffect(() => {
-    if (pantalla === "listado") {
-      const y = scrollListadoRef.current;
-      requestAnimationFrame(() => window.scrollTo(0, y));
-    }
-  }, [pantalla]);
   
   const [caravanaFormularioRecria, setCaravanaFormularioRecria] = useState(null);
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -569,6 +559,12 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const evitarPushHistorial = useRef(true); // true en el primer render, para no duplicar el estado inicial
 
   useEffect(() => {
+    // El scroll de cada pantalla lo restauramos nosotros a mano. Si no
+    // ponemos esto, al apretar el botón "atrás" físico del celular el
+    // navegador restaura solo el scroll que había en el momento en que
+    // se guardó esa pantalla en el historial (normalmente arriba de
+    // todo) y nos pisa la restauración manual.
+    window.history.scrollRestoration = "manual";
     // Dejamos "inicio" como el primer paso guardado en el historial
     window.history.replaceState({ pantalla: "inicio" }, "");
 
@@ -1721,6 +1717,7 @@ const irAIngresar = () => {
                   scrollListadoRef.current = window.scrollY;
                   irAVerResumen(f);
                 }}
+                scrollGuardado={scrollListadoRef.current}
                 busqueda={busquedaListado}
                 setBusqueda={setBusquedaListado}
                 categoriaFiltro={categoriaFiltroListado}
@@ -3943,6 +3940,7 @@ function EtiquetaEstado({ estado }) {
 function PantallaListado({
   onVolver,
   onVerFicha,
+  scrollGuardado,
   busqueda,
   setBusqueda,
   categoriaFiltro,
@@ -3953,7 +3951,7 @@ function PantallaListado({
   const [animales, setAnimales] = useState([]);
   const [animalesFallecidos, setAnimalesFallecidos] = useState([]);
   const [cargando, setCargando] = useState(true);
-
+  
     const [importando, setImportando] = useState(false);
   const [mensajeImportacion, setMensajeImportacion] = useState(null);
   const inputExcelRef = useRef(null);
@@ -4022,6 +4020,18 @@ function PantallaListado({
     return () => window.removeEventListener("agrodata:actualizado", recargar);
   }, []);
 
+  // Recién ahora la lista tiene los animales cargados (altura real en
+  // pantalla), así que podemos bajar hasta donde estabas antes de entrar
+  // a ver un animal. Si lo hiciéramos antes, la página todavía sería
+  // corta y el navegador no podría bajar tanto.
+  useEffect(() => {
+    if (cargando || !scrollGuardado) return;
+    const id = setTimeout(() => {
+      window.scrollTo(0, scrollGuardado);
+    }, 50);
+    return () => clearTimeout(id);
+  }, [cargando, scrollGuardado]);
+  
   const categoriasPresentes = useMemo(() => {
     const presentes = new Set(animales.map((a) => a.tipo).filter(Boolean));
     return TIPOS.map((t) => t.valor).filter((v) => presentes.has(v));
