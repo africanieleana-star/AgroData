@@ -25,6 +25,7 @@ const PREFIJOS_IGNORADOS = [
   "firebase-heartbeat",
   "agrodata:cuentaActual",
   "ultimoAvisoAlertas",
+  "__", // claves de prueba internas de algunas librerías
 ];
 
 const MAXIMO_PASOS = 20; // cuántas acciones se pueden ir deshaciendo
@@ -34,11 +35,6 @@ let pila = []; // cada paso: { cambios: { clave: valorAnterior | null }, etiquet
 let grupoAbierto = null;
 let temporizador = null;
 let restaurando = false;
-let instalado = false;
-let setOriginal = null;
-let removeOriginal = null;
-let setNuestro = null;
-let removeNuestro = null;
 const oyentes = new Set();
 
 function esIgnorada(clave) {
@@ -112,44 +108,8 @@ function cerrarGrupo() {
   avisarCambio();
 }
 
-function instalar() {
-  if (instalado) return;
-  setOriginal = localStorage.setItem;
-  removeOriginal = localStorage.removeItem;
-
-  setNuestro = function (clave, valor) {
-    anotarAntesDeCambiar(clave, String(valor));
-    return setOriginal.call(localStorage, clave, valor);
-  };
-  removeNuestro = function (clave) {
-    anotarAntesDeCambiar(clave, null);
-    return removeOriginal.call(localStorage, clave);
-  };
-
-  localStorage.setItem = setNuestro;
-  localStorage.removeItem = removeNuestro;
-
-  // Si el navegador no dejó reemplazar las funciones, se deja todo como
-  // estaba (sin "deshacer") en vez de arriesgar algo.
-  if (localStorage.setItem !== setNuestro || localStorage.removeItem !== removeNuestro) {
-    try {
-      Storage.prototype.removeItem.call(localStorage, "setItem");
-      Storage.prototype.removeItem.call(localStorage, "removeItem");
-    } catch (e) {
-      // nada
-    }
-    setOriginal = null;
-    removeOriginal = null;
-    return;
-  }
-  instalado = true;
-}
-
-function desinstalar() {
-  if (!instalado) return;
-  if (localStorage.setItem === setNuestro) localStorage.setItem = setOriginal;
-  if (localStorage.removeItem === removeNuestro) localStorage.removeItem = removeOriginal;
-  instalado = false;
+// Vacía todo el historial de "deshacer" (al entrar o salir de una sesión).
+function limpiarHistorial() {
   clearTimeout(temporizador);
   temporizador = null;
   grupoAbierto = null;
@@ -157,20 +117,45 @@ function desinstalar() {
   avisarCambio();
 }
 
+// Se engancha a los guardados/borrados del almacenamiento del navegador.
+// Se hace UNA sola vez, apenas arranca la app y ANTES de que arranque el
+// sincronizador con la nube (por eso este archivo se importa primero en
+// main.jsx). Así funciona igual en Chrome, Safari, Firefox, celular y PC.
+function enganchar() {
+  if (typeof window === "undefined" || typeof Storage === "undefined") return;
+  if (window.__agroDeshacerListo) return;
+  window.__agroDeshacerListo = true;
+
+  const setDelNavegador = Storage.prototype.setItem;
+  const removeDelNavegador = Storage.prototype.removeItem;
+
+  Storage.prototype.setItem = function (clave, valor) {
+    if (this === window.localStorage) anotarAntesDeCambiar(clave, String(valor));
+    return setDelNavegador.call(this, clave, valor);
+  };
+  Storage.prototype.removeItem = function (clave) {
+    if (this === window.localStorage) anotarAntesDeCambiar(clave, null);
+    return removeDelNavegador.call(this, clave);
+  };
+}
+
+enganchar();
+
 // Vuelve atrás la última acción. Devuelve el texto de lo que se deshizo
 // (o null si no había nada para deshacer).
 export function deshacerUltimaAccion() {
-  if (!instalado) return null;
   cerrarGrupo(); // por si hay una acción todavía "abierta"
   const paso = pila.pop();
   if (!paso) return null;
 
   restaurando = true; // para que este mismo "deshacer" no se anote como acción nueva
   try {
+    // Se usan las funciones normales de la app, así el sincronizador con
+    // la nube también se entera y sube lo que se deshizo.
     Object.keys(paso.cambios).forEach((clave) => {
       const valorAnterior = paso.cambios[clave];
-      if (valorAnterior === null) removeOriginal.call(localStorage, clave);
-      else setOriginal.call(localStorage, clave, valorAnterior);
+      if (valorAnterior === null) localStorage.removeItem(clave);
+      else localStorage.setItem(clave, valorAnterior);
     });
   } finally {
     restaurando = false;
@@ -190,11 +175,11 @@ export default function BotonDeshacer({ onDeshecho }) {
   const [etiqueta, setEtiqueta] = useState(null);
 
   useEffect(() => {
-    instalar();
+    limpiarHistorial(); // al entrar a la app se empieza con el historial vacío
     oyentes.add(setEtiqueta);
     return () => {
       oyentes.delete(setEtiqueta);
-      desinstalar();
+      limpiarHistorial(); // al cerrar sesión se borra, para no mezclar cuentas
     };
   }, []);
 
