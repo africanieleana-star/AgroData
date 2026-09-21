@@ -323,11 +323,32 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
               Documento digital generado automáticamente por la plataforma AgroData.
             </div>
 
-            <script>
-              window.onload = function() {
-                window.print();
-              };
-            </script>
+            <button
+              onclick="window.print()"
+              style="
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                background-color: #2E7D32;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                padding: 12px 18px;
+                font-size: 14px;
+                font-weight: bold;
+                cursor: pointer;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+                font-family: 'Helvetica Neue', Arial, sans-serif;
+              "
+            >
+              🖨️ Imprimir / Guardar como PDF
+            </button>
+
+            <style>
+              @media print {
+                button { display: none !important; }
+              }
+            </style>
           </body>
         </html>
       `;
