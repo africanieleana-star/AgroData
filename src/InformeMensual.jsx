@@ -71,9 +71,13 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
 
       const porcentajePrenez = totalCabezas > 0 ? ((preñadas / totalCabezas) * 100).toFixed(1) : "0.0";
 
-      // Conteos por categoría, para la fila de KPIs adicional
+      // Conteos por categoría, para la fila de KPIs adicional.
+      // No cuenta a los fallecidos, para que coincida con los conteos
+      // que ya se ven en la app (los fallecidos se muestran aparte).
       const contarPorTipo = (tipoBuscado) =>
-        listaAnimales.filter((a) => a.tipo === tipoBuscado).length;
+        listaAnimales.filter(
+          (a) => a.tipo === tipoBuscado && !(a.fallecimiento && a.fallecimiento.fecha)
+        ).length;
 
       const totalVacas = contarPorTipo("Vaca");
       const totalVaquillonas = contarPorTipo("Vaquillona");
