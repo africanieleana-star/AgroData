@@ -10435,7 +10435,7 @@ function HistorialCompras({ onVerFicha }) {
                   📎 Ver factura ({compra.facturaAdjunta.nombre})
                 </button>
               ) : (
-                
+                <a
                   href={compra.facturaAdjunta.dataUrl}
                   download={compra.facturaAdjunta.nombre}
                   style={{
