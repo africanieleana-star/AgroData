@@ -46,8 +46,6 @@ export async function preguntarAGemini(pregunta, contextoDelCampo) {
 
 const LARGO_MAXIMO_TEXTO = 5000; // más largo que esto = archivo adjunto (factura en base64, etc.)
 const CLAVES_IGNORADAS = /firebase|token|auth|apikey|password|session/i;
-const PALABRAS_BAJA = /muert|fallec|baja|vend|egres|faena|extravi|robad/i;
-const CLAVES_BAJA = /baja|vendid|muert|fallec|egres/i;
 
 const esObjeto = (x) => x && typeof x === "object" && !Array.isArray(x);
 const tieneCaravana = (x) => esObjeto(x) && x.caravana !== undefined;
@@ -136,15 +134,7 @@ function separarAnimales(datos) {
 }
 
 function esVivo(a) {
-  const estado = String(a.estado || a.situacion || "");
-  if (PALABRAS_BAJA.test(estado)) return false;
-  const marcadoComoBaja = Object.keys(a).some((k) => {
-    if (!CLAVES_BAJA.test(k)) return false;
-    const v = a[k];
-    if (!v) return false;
-    return !["false", "no", "0"].includes(String(v).toLowerCase());
-  });
-  return !marcadoComoBaja;
+  return !a.vendido && !(a.fallecimiento && a.fallecimiento.fecha);
 }
 
 // Resumen ya calculado: cantidad, distribución de campos con pocos valores
