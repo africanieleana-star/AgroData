@@ -12,30 +12,44 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
       const listaSanidad = Array.isArray(tareasSanidad) ? tareasSanidad : [];
       const listaVentas = Array.isArray(ventas) ? ventas : [];
 
-      // 2. Función interna para obtener un Estado Reproductivo bien detallado
-      const obtenerEstadoDetallado = (a) => {
-        // Busca la propiedad en todas las variantes posibles de tu app
-        const valorEstado = a.estadoReproductivo || a.estadoRepro || a.repro || a.estado || a.prenes;
-        
-        // Si hay datos de parición o servicio, los agrega como detalle extra
-        const detalleExtra = a.fechaParicion ? ` (Parición: ${a.fechaParicion})` 
-          : a.fechaServicio ? ` (Servicio: ${a.fechaServicio})` 
-          : "";
+      // 2. Función interna para obtener el Estado Reproductivo real,
+      // usando los mismos campos que guarda AgroData (tacto, paricion,
+      // historialCrias, fallecimiento). Solo Vaca / Vaquillona / Ternera
+      // tienen estado reproductivo; Toro es reproductor; Novillo y
+      // Ternero están en crecimiento.
+      const APLICA_SERVICIO = ["Vaca", "Vaquillona", "Ternera"];
 
-        if (valorEstado && valorEstado !== "Normal") {
-          return `${valorEstado}${detalleExtra}`;
+      const obtenerEstadoDetallado = (a) => {
+        // Fallecidos: se marca primero, sin importar la categoría
+        if (a.fallecimiento && a.fallecimiento.fecha) {
+          return `✝ Falleció (${a.fallecimiento.fecha})`;
         }
 
-        // Si la categoría es un macho, aclaramos según el tipo
-        const cat = (a.categoria || a.tipo || a.tipoAnimal || "").toLowerCase();
-        if (cat.includes("toro") || cat.includes("torito") || cat.includes("padrillo")) {
+        if (a.tipo === "Toro") {
           return "Reproductor";
         }
-        if (cat.includes("ternero") || cat.includes("novillo") || cat.includes("novillito")) {
+        if (a.tipo === "Novillo" || a.tipo === "Ternero") {
           return "No aplica (En crecimiento)";
         }
+        if (!APLICA_SERVICIO.includes(a.tipo)) {
+          return "Sin categoría / Sin diagnóstico";
+        }
 
-        // Si no tiene estado específico registrado
+        // Ya parió: por el campo "paricion" o por tener al menos una cría cargada
+        const yaParida =
+          (a.paricion && a.paricion.fecha) ||
+          (Array.isArray(a.historialCrias) && a.historialCrias.length > 0);
+        if (yaParida) {
+          return `Parida${a.paricion?.fecha ? ` (${a.paricion.fecha})` : ""}`;
+        }
+
+        if (a.tacto && a.tacto.resultado === "Preniada") {
+          return `Preñada${a.tacto.fecha ? ` (Tacto: ${a.tacto.fecha})` : ""}`;
+        }
+        if (a.tacto && a.tacto.resultado === "Vacia") {
+          return `Vacía${a.tacto.fecha ? ` (Tacto: ${a.tacto.fecha})` : ""}`;
+        }
+
         return "Vacía / Sin diagnóstico";
       };
 
@@ -43,32 +57,48 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
       const totalCabezas = listaAnimales.length;
       
       const preñadas = listaAnimales.filter(a => {
-        const est = (a.estadoReproductivo || a.estadoRepro || a.repro || a.estado || "").toLowerCase();
-        return est.includes("preña") || est.includes("preñada");
+        if (!APLICA_SERVICIO.includes(a.tipo)) return false;
+        const yaParida =
+          (a.paricion && a.paricion.fecha) ||
+          (Array.isArray(a.historialCrias) && a.historialCrias.length > 0);
+        return !yaParida && a.tacto && a.tacto.resultado === "Preniada";
       }).length;
 
       const porcentajePrenez = totalCabezas > 0 ? ((preñadas / totalCabezas) * 100).toFixed(1) : "0.0";
 
       // 4. Filas dinámicas para la tabla de animales con detalle completo
-      const filasAnimales = listaAnimales.length > 0 
-        ? listaAnimales.map((a, i) => {
-            const caravanaReal = a.caravana || a.id || `A-${i+1}`;
-            const categoriaReal = a.categoria || a.tipo || a.tipoAnimal || a.categoriaAnimal || 'Sin cat.';
-            const razaReal = a.raza || 'N/D';
-            const estadoDetallado = obtenerEstadoDetallado(a);
-            const obsReal = a.observaciones || a.notas || '-';
+      const formatearFechaAR = (fechaISO) => {
+        if (!fechaISO) return null;
+        const partes = fechaISO.split("-");
+        if (partes.length !== 3) return fechaISO;
+        const [anio, mes, dia] = partes;
+        return `${dia}/${mes}/${anio}`;
+      };
 
-            return `
-              <tr>
-                <td style="text-align: center; font-weight: bold;">${caravanaReal}</td>
-                <td>${categoriaReal}</td>
-                <td>${razaReal}</td>
-                <td style="text-align: center; font-size: 10px;">${estadoDetallado}</td>
-                <td>${obsReal}</td>
-              </tr>
-            `;
-          }).join('')
-        : `<tr><td colspan="5" style="text-align: center; color: #888;">No hay animales registrados en el sistema.</td></tr>`;
+      const filasAnimales = listaAnimales.length > 0
+        ? [...listaAnimales]
+            .sort((a, b) => (a.caravana || "").localeCompare(b.caravana || ""))
+            .map((a) => {
+              const caravanaReal = a.caravana || "Sin caravana";
+              const categoriaReal = a.tipo || "Sin categoría";
+              const razaReal = a.raza || "N/D";
+              const fechaNacReal = formatearFechaAR(a.fechaNacimiento) || "Sin registrar";
+              const estadoDetallado = obtenerEstadoDetallado(a);
+              const obsReal = a.observacionesAnimal || "-";
+              const fallecio = Boolean(a.fallecimiento && a.fallecimiento.fecha);
+
+              return `
+                <tr style="${fallecio ? "background-color: #FDECEA;" : ""}">
+                  <td style="text-align: center; font-weight: bold;">${caravanaReal}</td>
+                  <td>${categoriaReal}</td>
+                  <td>${razaReal}</td>
+                  <td style="text-align: center;">${fechaNacReal}</td>
+                  <td style="text-align: center; font-size: 10px; ${fallecio ? "color: #C62828; font-weight: bold;" : ""}">${estadoDetallado}</td>
+                  <td>${obsReal}</td>
+                </tr>
+              `;
+            }).join('')
+        : `<tr><td colspan="6" style="text-align: center; color: #888;">No hay animales registrados en el sistema.</td></tr>`;
 
       // 5. Filas dinámicas para sanidad
       const filasSanidad = listaSanidad.length > 0
@@ -284,9 +314,10 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
               <table>
                 <thead>
                   <tr>
-                    <th style="width: 15%; text-align: center;">Caravana</th>
-                    <th style="width: 20%;">Categoría</th>
-                    <th style="width: 20%;">Raza</th>
+                    <th style="width: 12%; text-align: center;">Caravana</th>
+                    <th style="width: 15%;">Categoría</th>
+                    <th style="width: 15%;">Raza</th>
+                    <th style="width: 13%; text-align: center;">Fecha Nac.</th>
                     <th style="width: 25%; text-align: center;">Estado Repro. / Detalle</th>
                     <th style="width: 20%;">Observaciones</th>
                   </tr>
