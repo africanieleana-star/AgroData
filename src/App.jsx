@@ -9091,6 +9091,13 @@ function ChatBot() {
   const [pensando, setPensando] = useState(false);
   const reconocimientoRef = useRef(null);
   const listaRef = useRef(null);
+  const [cancelandoVoz, setCancelandoVoz] = useState(false);
+  const [avisoVoz, setAvisoVoz] = useState(false);
+  const grabandoRef = useRef(false);
+  const textoVozRef = useRef("");
+  const cancelarVozRef = useRef(false);
+  const inicioPresionRef = useRef(0);
+  const inicioXRef = useRef(0);
 
   // Configura el reconocimiento de voz una sola vez (si el navegador lo soporta)
   useEffect(() => {
@@ -9098,14 +9105,32 @@ function ChatBot() {
     if (!SpeechRecognitionAPI) return;
     const reconocimiento = new SpeechRecognitionAPI();
     reconocimiento.lang = "es-AR";
-    reconocimiento.continuous = false;
-    reconocimiento.interimResults = false;
+    reconocimiento.continuous = true; // sigue grabando mientras mantengas apretado
+    reconocimiento.interimResults = true; // va mostrando lo que escucha
     reconocimiento.onresult = (evento) => {
-      const texto = evento.results[0][0].transcript;
-      enviarPregunta(texto);
+      const texto = Array.from(evento.results)
+        .map((r) => r[0].transcript)
+        .join(" ")
+        .trim();
+      textoVozRef.current = texto;
+      setEntrada(texto);
     };
-    reconocimiento.onend = () => setEscuchando(false);
-    reconocimiento.onerror = () => setEscuchando(false);
+    reconocimiento.onend = () => {
+      grabandoRef.current = false;
+      setEscuchando(false);
+      setCancelandoVoz(false);
+      const texto = textoVozRef.current.trim();
+      textoVozRef.current = "";
+      if (cancelarVozRef.current || !texto) {
+        cancelarVozRef.current = false;
+        setEntrada("");
+        return;
+      }
+      enviarPregunta(texto); // al soltar el botón se manda la consulta
+    };
+    reconocimiento.onerror = () => {
+      cancelarVozRef.current = true; // si hubo un error, no se manda nada
+    };
     reconocimientoRef.current = reconocimiento;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -9119,12 +9144,50 @@ function ChatBot() {
 
   const soportaVoz = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
 
-  const iniciarEscucha = () => {
-    if (!reconocimientoRef.current || escuchando) return;
+  // Como WhatsApp: mantené apretado para grabar, soltá para enviar,
+  // deslizá el dedo hacia la izquierda y soltá para cancelar.
+  const empezarGrabacion = (e) => {
+    if (!reconocimientoRef.current || grabandoRef.current) return;
+    if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
+    if (window.speechSynthesis) window.speechSynthesis.cancel(); // corta la voz del bot
+    grabandoRef.current = true;
+    inicioXRef.current = e.clientX;
+    inicioPresionRef.current = Date.now();
+    cancelarVozRef.current = false;
+    textoVozRef.current = "";
+    setEntrada("");
+    setCancelandoVoz(false);
+    setAvisoVoz(false);
     setEscuchando(true);
-    reconocimientoRef.current.start();
+    try {
+      reconocimientoRef.current.start();
+    } catch (err) {
+      grabandoRef.current = false;
+      setEscuchando(false);
+    }
   };
 
+  const moverDedo = (e) => {
+    if (!grabandoRef.current) return;
+    setCancelandoVoz(e.clientX - inicioXRef.current < -60);
+  };
+
+  const soltarGrabacion = (e) => {
+    if (!grabandoRef.current) return;
+    const muyCorto = Date.now() - inicioPresionRef.current < 500;
+    const cancelar =
+      e.type === "pointercancel" || e.clientX - inicioXRef.current < -60 || muyCorto;
+    if (muyCorto) {
+      setAvisoVoz(true);
+      setTimeout(() => setAvisoVoz(false), 2500);
+    }
+    if (cancelar) {
+      cancelarVozRef.current = true;
+      reconocimientoRef.current.abort();
+    } else {
+      reconocimientoRef.current.stop();
+    }
+  };
   const enviarPregunta = async (textoManual) => {
     const pregunta = (textoManual !== undefined ? textoManual : entrada).trim();
     if (!pregunta) return;
@@ -9287,7 +9350,15 @@ function ChatBot() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") enviarPregunta();
               }}
-              placeholder="Escribí tu pregunta..."
+              placeholder={
+                cancelandoVoz
+                  ? "Soltá para cancelar"
+                  : escuchando
+                  ? "🎙️ Grabando... soltá para enviar"
+                  : avisoVoz
+                  ? "Mantené apretado el 🎙️ para hablar"
+                  : "Escribí tu pregunta..."
+              }
               style={{
                 flex: 1,
                 boxSizing: "border-box",
@@ -9301,21 +9372,35 @@ function ChatBot() {
               }}
             />
             {soportaVoz && (
-              <button
+                           <button
                 type="button"
-                onClick={iniciarEscucha}
-                title="Preguntar por voz"
+                onPointerDown={empezarGrabacion}
+                onPointerMove={moverDedo}
+                onPointerUp={soltarGrabacion}
+                onPointerCancel={soltarGrabacion}
+                onContextMenu={(e) => e.preventDefault()}
+                title="Mantené apretado para hablar"
                 style={{
                   width: 38,
                   border: "none",
                   borderRadius: 10,
-                  background: escuchando ? "var(--terracota)" : "var(--marron-cuero)",
+                  background: cancelandoVoz
+                    ? "#8A2B2B"
+                    : escuchando
+                    ? "var(--terracota)"
+                    : "var(--marron-cuero)",
                   color: "#FBF7ED",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   flexShrink: 0,
+                  transform: escuchando ? "scale(1.25)" : "scale(1)",
+                  transition: "transform 0.15s",
+                  touchAction: "none",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
+                  WebkitTouchCallout: "none",
                 }}
               >
                 <Mic size={16} />
