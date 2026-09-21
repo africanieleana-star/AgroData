@@ -3525,6 +3525,11 @@ function registrarCompra(datosCompra, animalesComprados) {
     caravanasFinales.push(caravana);
   });
 
+  const fechaPagoEstimada =
+    datosCompra.formaPago === "Plazo" && datosCompra.plazoDias
+      ? fechaAISO(sumarDiasISO(datosCompra.fecha, Number(datosCompra.plazoDias)))
+      : null;
+
   const nuevaCompra = {
     id: `${Date.now()}`,
     fecha: datosCompra.fecha,
@@ -3533,9 +3538,14 @@ function registrarCompra(datosCompra, animalesComprados) {
     precioPorUnidad: datosCompra.precioPorUnidad || null,
     cantidadKilos: datosCompra.cantidadKilos || null,
     montoTotal: datosCompra.montoTotal || null,
+    formaPago: datosCompra.formaPago || null,
+    plazoDias: datosCompra.plazoDias || null,
+    fechaPagoEstimada,
+    facturaAdjunta: datosCompra.facturaAdjunta || null,
     observaciones: datosCompra.observaciones || null,
     animales: caravanasFinales,
   };
+  
   guardarCompras([...compras, nuevaCompra]);
   emitirActualizacionDatos();
   return { compra: nuevaCompra, omitidas };
@@ -8178,6 +8188,51 @@ function CampoTexto({ id, etiqueta, tipo = "text", valor, onChange, placeholder 
   );
 }
 
+// Campo de dinero: guarda solo dígitos por dentro (para poder calcular),
+// pero muestra "$13.000.000" mientras se escribe.
+function formatearNumeroConPuntos(soloDigitos) {
+  if (!soloDigitos) return "";
+  return soloDigitos.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+function CampoMoneda({ id, etiqueta, valor, onChange, placeholder }) {
+  const manejarCambio = (e) => {
+    const soloDigitos = e.target.value.replace(/[^\d]/g, "");
+    onChange(soloDigitos);
+  };
+  const valorMostrado = valor ? `$${formatearNumeroConPuntos(valor)}` : "";
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label
+        htmlFor={id}
+        style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--marron-oscuro)", marginBottom: 5 }}
+      >
+        {etiqueta}
+      </label>
+      <input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        placeholder={placeholder}
+        value={valorMostrado}
+        onChange={manejarCambio}
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 15,
+          padding: "12px 14px",
+          borderRadius: 10,
+          border: "2px solid var(--borde)",
+          background: "#FFFDF8",
+          color: "var(--marron-oscuro)",
+        }}
+      />
+    </div>
+  );
+}
+
 function PanelCalculosToro({ calculos }) {
   return (
     <div
@@ -9856,6 +9911,7 @@ function FormularioNuevaCompra() {
   const [tipoNuevo, setTipoNuevo] = useState(null);
   const [razaNueva, setRazaNueva] = useState("");
   const [colorNueva, setColorNueva] = useState("");
+  const [cantidadTotalComprada, setCantidadTotalComprada] = useState("");
 
   const [fecha, setFecha] = useState("");
   const [vendedor, setVendedor] = useState("");
@@ -9863,8 +9919,39 @@ function FormularioNuevaCompra() {
   const [precioPorUnidad, setPrecioPorUnidad] = useState("");
   const [cantidadKilos, setCantidadKilos] = useState("");
   const [montoTotal, setMontoTotal] = useState("");
+  const [formaPago, setFormaPago] = useState("");
+  const [plazoDias, setPlazoDias] = useState("");
+  const [facturaAdjunta, setFacturaAdjunta] = useState(null); // {nombre, dataUrl, tipo}
+  const [subiendoFactura, setSubiendoFactura] = useState(false);
+  const facturaInputRef = useRef(null);
   const [observaciones, setObservaciones] = useState("");
 
+  const manejarFactura = async (e) => {
+    const archivo = e.target.files[0];
+    e.target.value = "";
+    if (!archivo) return;
+    setSubiendoFactura(true);
+    try {
+      let dataUrl, tipo;
+      if (archivo.type.startsWith("image/")) {
+        dataUrl = await comprimirImagen(archivo, 1400, 0.75);
+        tipo = "imagen";
+      } else {
+        dataUrl = await new Promise((resolve, reject) => {
+          const lector = new FileReader();
+          lector.onload = (ev) => resolve(ev.target.result);
+          lector.onerror = () => reject(new Error("No se pudo leer el archivo."));
+          lector.readAsDataURL(archivo);
+        });
+        tipo = "archivo";
+      }
+      setFacturaAdjunta({ nombre: archivo.name, dataUrl, tipo });
+    } catch (err) {
+      alert("No se pudo cargar la factura.");
+    } finally {
+      setSubiendoFactura(false);
+    }
+  };
   const agregarAnimalALista = () => {
     const numero = caravanaNueva.trim();
     if (!numero || !tipoNuevo) {
@@ -9901,18 +9988,25 @@ function FormularioNuevaCompra() {
         precioPorUnidad: precioPorUnidad.trim() || null,
         cantidadKilos: cantidadKilos.trim() || null,
         montoTotal: montoTotal.trim() || null,
+        formaPago: formaPago || null,
+        plazoDias: formaPago === "Plazo" ? plazoDias.trim() || null : null,
+        facturaAdjunta: facturaAdjunta || null,
         observaciones: observaciones.trim() || null,
       },
       animalesAAgregar
     );
 
     setAnimalesAAgregar([]);
+    setCantidadTotalComprada("");
     setFecha("");
     setVendedor("");
     setPrecioPorKilo("");
     setPrecioPorUnidad("");
     setCantidadKilos("");
     setMontoTotal("");
+    setFormaPago("");
+    setPlazoDias("");
+    setFacturaAdjunta(null);
     setObservaciones("");
 
     let mensaje = `✅ Compra registrada. ${compra.animales.length} animal(es) se agregaron al rodeo.`;
@@ -9937,6 +10031,35 @@ function FormularioNuevaCompra() {
         >
           1. Cargá los animales comprados {animalesAAgregar.length > 0 && `(${animalesAAgregar.length})`}
         </h3>
+
+        <CampoTexto
+          id="compra-cantidad-total"
+          etiqueta="¿Cuántos animales compraste en total? (opcional, para verificar)"
+          tipo="text"
+          placeholder="Ej: 50"
+          valor={cantidadTotalComprada}
+          onChange={setCantidadTotalComprada}
+        />
+
+        {cantidadTotalComprada.trim() && (
+          <div
+            style={{
+              marginBottom: 14,
+              padding: "10px 12px",
+              borderRadius: 10,
+              fontSize: 12.5,
+              fontWeight: 700,
+              textAlign: "center",
+              background: Number(cantidadTotalComprada) === animalesAAgregar.length ? "#E9F0E2" : "#FDF2E9",
+              color: Number(cantidadTotalComprada) === animalesAAgregar.length ? "var(--verde-exito)" : "var(--terracota)",
+              border: Number(cantidadTotalComprada) === animalesAAgregar.length ? "1px solid var(--verde-exito)" : "1px solid var(--terracota)",
+            }}
+          >
+            {Number(cantidadTotalComprada) === animalesAAgregar.length
+              ? `✅ Cargaste los ${animalesAAgregar.length} animales.`
+              : `⚠️ Llevás ${animalesAAgregar.length} de ${cantidadTotalComprada} animales cargados.`}
+          </div>
+        )}
 
         <div className="grilla-formulario" style={{ marginBottom: 10 }}>
           <CampoTexto id="compra-caravana" etiqueta="N° de caravana" tipo="text" placeholder="Ej: B201" valor={caravanaNueva} onChange={setCaravanaNueva} />
@@ -10046,15 +10169,123 @@ function FormularioNuevaCompra() {
           <CampoTexto id="compra-fecha" etiqueta="Fecha de compra" tipo="date" valor={fecha} onChange={setFecha} />
           <CampoTexto id="compra-vendedor" etiqueta="Comprado a / establecimiento" tipo="text" placeholder="Ej: Consignataria Rural SA" valor={vendedor} onChange={setVendedor} />
           <div className="columna-completa">
-            <CampoTexto id="compra-monto-total" etiqueta="Valor total pagado" tipo="text" placeholder="Ej: 3200000" valor={montoTotal} onChange={setMontoTotal} />
+            <CampoMoneda id="compra-monto-total" etiqueta="Valor total pagado" placeholder="Ej: $3.200.000" valor={montoTotal} onChange={setMontoTotal} />
           </div>
-          <CampoTexto id="compra-precio-kilo" etiqueta="Precio por kilo (opcional)" tipo="text" placeholder="Ej: 2600" valor={precioPorKilo} onChange={setPrecioPorKilo} />
-          <CampoTexto id="compra-precio-unidad" etiqueta="Precio por unidad (opcional)" tipo="text" placeholder="Ej: 480000" valor={precioPorUnidad} onChange={setPrecioPorUnidad} />
+          <CampoMoneda id="compra-precio-kilo" etiqueta="Precio por kilo (opcional)" placeholder="Ej: $2.600" valor={precioPorKilo} onChange={setPrecioPorKilo} />
+          <CampoMoneda id="compra-precio-unidad" etiqueta="Precio por unidad (opcional)" placeholder="Ej: $480.000" valor={precioPorUnidad} onChange={setPrecioPorUnidad} />
           <CampoTexto id="compra-kilos" etiqueta="Cantidad de kilos (opcional)" tipo="text" placeholder="Ej: 200" valor={cantidadKilos} onChange={setCantidadKilos} />
         </div>
 
         <p style={{ fontSize: 11.5, color: "#8A7A63", fontStyle: "italic", margin: "0 0 14px" }}>
           Si cargás el "Valor total pagado", ese es el monto que se usa. Los campos de precio por kilo / por unidad son opcionales, por si preferís calcularlo así en vez de poner el total directamente.
+        </p>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--marron-oscuro)", marginBottom: 6 }}>
+            Forma de pago
+          </label>
+          <select
+            value={formaPago}
+            onChange={(e) => setFormaPago(e.target.value)}
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "12px 14px",
+              borderRadius: 10,
+              border: "2px solid var(--borde)",
+              background: "#FFFDF8",
+              fontSize: 14,
+              fontWeight: 600,
+              color: "var(--marron-oscuro)",
+            }}
+          >
+            <option value="">Sin especificar</option>
+            <option value="Contado">Contado</option>
+            <option value="Plazo">Plazo</option>
+            <option value="Tarjeta">Tarjeta</option>
+            <option value="Cheque">Cheque</option>
+            <option value="Transferencia">Transferencia</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+
+        {formaPago === "Plazo" && (
+          <CampoTexto
+            id="compra-plazo-dias"
+            etiqueta="Plazo de pago (días)"
+            tipo="text"
+            placeholder="Ej: 30"
+            valor={plazoDias}
+            onChange={setPlazoDias}
+          />
+        )}
+
+        <div style={{ marginTop: 4, marginBottom: 4 }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--marron-oscuro)", marginBottom: 6 }}>
+            Factura / comprobante (opcional)
+          </label>
+          <input
+            type="file"
+            accept="image/*,.pdf"
+            ref={facturaInputRef}
+            onChange={manejarFactura}
+            style={{ display: "none" }}
+          />
+          {facturaAdjunta ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1px solid var(--borde)",
+                background: "#FFFDF8",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--marron-oscuro)",
+                  fontWeight: 600,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                📎 {facturaAdjunta.nombre}
+              </span>
+              <button
+                type="button"
+                onClick={() => setFacturaAdjunta(null)}
+                style={{ background: "none", border: "none", color: "#C62828", cursor: "pointer", fontSize: 14, flexShrink: 0 }}
+              >
+                ❌
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => facturaInputRef.current && facturaInputRef.current.click()}
+              disabled={subiendoFactura}
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: 10,
+                border: "2px dashed var(--verde-salvia)",
+                background: "#FFFDF8",
+                color: "var(--verde-monte)",
+                fontFamily: "'PP Neue Montreal Bold', serif",
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: subiendoFactura ? "not-allowed" : "pointer",
+              }}
+            >
+              {subiendoFactura ? "Cargando..." : "📎 Adjuntar factura (foto o PDF)"}
+            </button>
+          )}
+        </div>
         </p>
 
         <label
@@ -10110,7 +10341,8 @@ function FormularioNuevaCompra() {
 
 function HistorialCompras({ onVerFicha }) {
   const [compras, setCompras] = useState([]);
-
+  const [facturaAmpliada, setFacturaAmpliada] = useState(null);
+  
   useEffect(() => {
     setCompras(leerCompras());
     const recargar = () => setCompras(leerCompras());
@@ -10163,14 +10395,69 @@ function HistorialCompras({ onVerFicha }) {
           </div>
 
           <FilaDato etiqueta="Comprado a" valor={compra.vendedor} />
-          <FilaDato etiqueta="Precio por kilo" valor={compra.precioPorKilo ? `$${compra.precioPorKilo}` : null} />
-          <FilaDato etiqueta="Precio por unidad" valor={compra.precioPorUnidad ? `$${compra.precioPorUnidad}` : null} />
+          <FilaDato etiqueta="Forma de pago" valor={compra.formaPago} />
+          <FilaDato
+            etiqueta="Plazo de pago"
+            valor={
+              compra.formaPago === "Plazo" && compra.plazoDias
+                ? `${compra.plazoDias} días (vence: ${compra.fechaPagoEstimada ? formatearFechaDDMMYYYY(parseISO(compra.fechaPagoEstimada)) : "sin calcular"})`
+                : null
+            }
+          />
+          <FilaDato etiqueta="Precio por kilo" valor={compra.precioPorKilo ? formatearMonto(Number(compra.precioPorKilo)) : null} />
+          <FilaDato etiqueta="Precio por unidad" valor={compra.precioPorUnidad ? formatearMonto(Number(compra.precioPorUnidad)) : null} />
           <FilaDato etiqueta="Cantidad de kilos" valor={compra.cantidadKilos ? `${compra.cantidadKilos} kg` : null} />
           <FilaDato
             etiqueta="Monto total"
             valor={calcularMontoCompra(compra) !== null ? formatearMonto(calcularMontoCompra(compra)) : null}
           />
           {compra.observaciones && <FilaDato etiqueta="Observaciones" valor={compra.observaciones} />}
+
+          {compra.facturaAdjunta && (
+            <div style={{ marginTop: 8, marginBottom: 4 }}>
+              {compra.facturaAdjunta.tipo === "imagen" ? (
+                <button
+                  type="button"
+                  onClick={() => setFacturaAmpliada(compra.facturaAdjunta.dataUrl)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 10px",
+                    borderRadius: 8,
+                    border: "1px solid var(--verde-salvia)",
+                    background: "#F5F2EC",
+                    color: "var(--verde-monte)",
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  📎 Ver factura ({compra.facturaAdjunta.nombre})
+                </button>
+              ) : (
+                
+                  href={compra.facturaAdjunta.dataUrl}
+                  download={compra.facturaAdjunta.nombre}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 10px",
+                    borderRadius: 8,
+                    border: "1px solid var(--verde-salvia)",
+                    background: "#F5F2EC",
+                    color: "var(--verde-monte)",
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    textDecoration: "none",
+                  }}
+                >
+                  📎 Descargar factura ({compra.facturaAdjunta.nombre})
+                </a>
+              )}
+            </div>
+          )}
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
             {compra.animales.map((caravana) => {
@@ -10198,6 +10485,7 @@ function HistorialCompras({ onVerFicha }) {
           </div>
         </div>
       ))}
+      {facturaAmpliada && <VisorImagenModal src={facturaAmpliada} onCerrar={() => setFacturaAmpliada(null)} />}
     </div>
   );
 }
