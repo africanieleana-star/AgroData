@@ -100,6 +100,7 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
         <!DOCTYPE html>
         <html>
           <head>
+            <meta charset="UTF-8" />
             <title>AgroData - Informe Técnico Consolidado</title>
             <style>
               @page { size: A4; margin: 18mm; }
@@ -124,7 +125,7 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
               table { page-break-inside: auto; }
               tr { page-break-inside: avoid; page-break-after: auto; }
               thead { display: table-header-group; }
-              .seccion { page-break-inside: avoid; }
+              .seccion-titulo { page-break-after: avoid; }
               @media print {
                 body { background-color: #FFFFFF; padding: 0; }
                 .hoja-a4 { box-shadow: none; margin: 0; width: auto; min-height: 0; }
@@ -348,7 +349,7 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
       
       // 8. Generamos un Blob y lo abrimos en una pestaña realmente aparte
       // (esto es lo que evita que se "pise" la app en celulares/PWA)
-      const blob = new Blob([htmlInforme], { type: "text/html" });
+      const blob = new Blob([htmlInforme], { type: "text/html;charset=utf-8" });
       const urlBlob = URL.createObjectURL(blob);
 
       const link = document.createElement("a");
