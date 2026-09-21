@@ -66,6 +66,19 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
 
       const porcentajePrenez = totalCabezas > 0 ? ((preñadas / totalCabezas) * 100).toFixed(1) : "0.0";
 
+      // Conteos por categoría, para la fila de KPIs adicional
+      const contarPorTipo = (tipoBuscado) =>
+        listaAnimales.filter((a) => a.tipo === tipoBuscado).length;
+
+      const totalVacas = contarPorTipo("Vaca");
+      const totalVaquillonas = contarPorTipo("Vaquillona");
+      const totalToros = contarPorTipo("Toro");
+      const totalNovillos = contarPorTipo("Novillo");
+      const totalTerneras = contarPorTipo("Ternera");
+      const totalTerneros = contarPorTipo("Ternero");
+      const totalFallecidos = listaAnimales.filter(
+        (a) => a.fallecimiento && a.fallecimiento.fecha
+      ).length;
       // 4. Filas dinámicas para la tabla de animales con detalle completo
       const formatearFechaAR = (fechaISO) => {
         if (!fechaISO) return null;
@@ -305,6 +318,38 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
               <div class="kpi-card">
                 <div class="kpi-label">Tareas Aplicadas</div>
                 <div class="kpi-valor">${listaSanidad.length}</div>
+              </div>
+            </div>
+
+            <!-- Detalle por categoría -->
+            <div class="kpi-grid">
+              <div class="kpi-card">
+                <div class="kpi-label">Vacas</div>
+                <div class="kpi-valor">${totalVacas}</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">Vaquillonas</div>
+                <div class="kpi-valor">${totalVaquillonas}</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">Toros</div>
+                <div class="kpi-valor">${totalToros}</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">Novillos</div>
+                <div class="kpi-valor">${totalNovillos}</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">Terneras</div>
+                <div class="kpi-valor">${totalTerneras}</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">Terneros</div>
+                <div class="kpi-valor">${totalTerneros}</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">Fallecidos</div>
+                <div class="kpi-valor" style="color: #C62828;">${totalFallecidos}</div>
               </div>
             </div>
 
