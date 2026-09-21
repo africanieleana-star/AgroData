@@ -1,29 +1,11 @@
-// Conexión con Firebase: acá se inicializa el proyecto y se exportan
-// las piezas que usa el resto de la app: "app", "auth" (login), "db" e "IA".
-//
-// NOTA sobre el historial de este archivo:
-// En un momento sacamos la caché persistente offline porque un código
-// viejo (ya eliminado) mandaba cientos de escrituras de golpe cada vez
-// que se abría la pantalla de Inicio, y eso saturaba la cola de subida
-// de Firestore, dejando la app trabada en "Guardando...".
-//
-// Después la volvimos a activar con "persistentMultipleTabManager"
-// (para que funcione bien con varias pestañas abiertas a la vez), pero
-// esa pieza volvió a trabar la app en "Guardando..." para siempre,
-// incluso en redes distintas y en modo incógnito. Como esta app se usa
-// normalmente en una sola pestaña, se saca esa pieza y se deja el
-// guardado offline simple, que es más estable.
-
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import {
   initializeFirestore,
-  persistentLocalCache
+  persistentLocalCache,
+  persistentMultipleTabManager,
 } from "firebase/firestore";
-// 1. Agregamos las funciones de IA de Firebase
-import { getAI, getGenerativeModel } from "firebase/ai";
 
-// Credenciales de tu proyecto AgroData
 const firebaseConfig = {
   apiKey: "AIzaSyBTFA5wDQX5SHsI0ao4WqACh4SBp3PhDWE",
   authDomain: "agrodata-4d110.firebaseapp.com",
@@ -33,10 +15,10 @@ const firebaseConfig = {
   appId: "1:1087080177294:web:848d68837b7a332e5a33df",
 };
 
-// 1. Inicializa la app
-const app = initializeApp(firebaseConfig);
+// 1. Inicializa la app (ahora se exporta para poder usarla con Gemini)
+export const app = initializeApp(firebaseConfig);
 
-// 2. Inicializa Autenticación (Login)
+// 2. Login
 export const auth = getAuth(app);
 
 // 3. Base de datos con soporte offline
