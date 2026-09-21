@@ -3559,6 +3559,99 @@ function eliminarCompra(compraId) {
   emitirActualizacionDatos();
 }
 
+// Edita los datos de una compra ya registrada (por si se cargó algo mal).
+// No toca la lista de animales de la compra. Sí mantiene al día los datos
+// que se copiaron a las fichas (fecha y vendedor), pero solo si esos campos
+// de la ficha no fueron modificados a mano después.
+function actualizarCompra(compraId, datos) {
+  const compras = leerCompras();
+  const original = compras.find((c) => c.id === compraId);
+  if (!original) return null;
+
+  const fechaPagoEstimada =
+    datos.formaPago === "Plazo" && datos.plazoDias
+      ? fechaAISO(sumarDiasISO(datos.fecha, Number(datos.plazoDias)))
+      : null;
+
+  const actualizada = {
+    ...original,
+    fecha: datos.fecha,
+    vendedor: datos.vendedor || null,
+    precioPorKilo: datos.precioPorKilo || null,
+    precioPorUnidad: datos.precioPorUnidad || null,
+    cantidadKilos: datos.cantidadKilos || null,
+    montoTotal: datos.montoTotal || null,
+    formaPago: datos.formaPago || null,
+    plazoDias: datos.formaPago === "Plazo" ? datos.plazoDias || null : null,
+    fechaPagoEstimada,
+    facturaAdjunta: datos.facturaAdjunta || null,
+    observaciones: datos.observaciones || null,
+  };
+
+  const cambioFechaOVendedor =
+    original.fecha !== actualizada.fecha ||
+    (original.vendedor || null) !== (actualizada.vendedor || null);
+
+  if (cambioFechaOVendedor) {
+    const textoAuto = (fecha, vendedor) => `Comprado el ${fecha}${vendedor ? ` a ${vendedor}` : ""}.`;
+    const obsVieja = textoAuto(original.fecha, original.vendedor);
+    const obsNueva = textoAuto(actualizada.fecha, actualizada.vendedor);
+    (original.animales || []).forEach((caravana) => {
+      const ficha = leerAnimalPorCaravana(caravana);
+      if (!ficha) return;
+      ficha.compra = { fecha: actualizada.fecha, vendedor: actualizada.vendedor };
+      if ((ficha.establecimiento || null) === (original.vendedor || null)) {
+        ficha.establecimiento = actualizada.vendedor;
+      }
+      if (ficha.observacionesAnimal === obsVieja) {
+        ficha.observacionesAnimal = obsNueva;
+      }
+      try {
+        localStorage.setItem(`animal:${caravana}`, JSON.stringify(ficha));
+      } catch (e) {
+        console.error("No se pudo actualizar la ficha", caravana, e);
+      }
+    });
+  }
+
+  guardarCompras(compras.map((c) => (c.id === compraId ? actualizada : c)));
+  emitirActualizacionDatos();
+  return actualizada;
+}
+
+// La factura se guarda como texto (base64) dentro de los datos que se sincronizan
+// con la nube, y Firestore limita cada documento a 1 MB EN TOTAL. Por eso la
+// factura tiene que ser liviana: las fotos se comprimen hasta entrar en el
+// límite y los PDF que lo superan se rechazan con un aviso claro.
+const LIMITE_FACTURA_CARACTERES = 250000; // ~185 KB de archivo real
+
+async function procesarArchivoFactura(archivo) {
+  if (archivo.type.startsWith("image/")) {
+    const intentos = [[1400, 0.7], [1200, 0.6], [1100, 0.5], [1000, 0.45]];
+    let dataUrl = null;
+    for (const [ancho, calidad] of intentos) {
+      dataUrl = await comprimirImagen(archivo, ancho, calidad);
+      if (dataUrl.length <= LIMITE_FACTURA_CARACTERES) break;
+    }
+    if (dataUrl.length > LIMITE_FACTURA_CARACTERES) {
+      throw new Error("La foto sigue siendo muy pesada aun comprimida. Sacala de nuevo con menos resolución o más cerca del texto.");
+    }
+    return { nombre: archivo.name, dataUrl, tipo: "imagen" };
+  }
+  const dataUrl = await new Promise((resolve, reject) => {
+    const lector = new FileReader();
+    lector.onload = (ev) => resolve(ev.target.result);
+    lector.onerror = () => reject(new Error("No se pudo leer el archivo."));
+    lector.readAsDataURL(archivo);
+  });
+  if (dataUrl.length > LIMITE_FACTURA_CARACTERES) {
+    throw new Error(
+      `El PDF pesa ${Math.round(archivo.size / 1024)} KB y el máximo es unos 180 KB. Probá sacándole una foto o una captura a la factura: las fotos se comprimen solas.`
+    );
+  }
+  return { nombre: archivo.name, dataUrl, tipo: "archivo" };
+}
+
 // ============================================================
 // VENTAS: se guardan todas juntas bajo una sola clave, igual que
 // las tareas manuales. Cada venta "agrupa" uno o varios animales.
@@ -9932,26 +10025,14 @@ function FormularioNuevaCompra() {
     if (!archivo) return;
     setSubiendoFactura(true);
     try {
-      let dataUrl, tipo;
-      if (archivo.type.startsWith("image/")) {
-        dataUrl = await comprimirImagen(archivo, 1400, 0.75);
-        tipo = "imagen";
-      } else {
-        dataUrl = await new Promise((resolve, reject) => {
-          const lector = new FileReader();
-          lector.onload = (ev) => resolve(ev.target.result);
-          lector.onerror = () => reject(new Error("No se pudo leer el archivo."));
-          lector.readAsDataURL(archivo);
-        });
-        tipo = "archivo";
-      }
-      setFacturaAdjunta({ nombre: archivo.name, dataUrl, tipo });
+      setFacturaAdjunta(await procesarArchivoFactura(archivo));
     } catch (err) {
-      alert("No se pudo cargar la factura.");
+      alert(err.message || "No se pudo cargar la factura.");
     } finally {
       setSubiendoFactura(false);
     }
   };
+  
   const agregarAnimalALista = () => {
     const numero = caravanaNueva.trim();
     if (!numero || !tipoNuevo) {
@@ -10341,6 +10422,7 @@ function FormularioNuevaCompra() {
 function HistorialCompras({ onVerFicha }) {
   const [compras, setCompras] = useState([]);
   const [facturaAmpliada, setFacturaAmpliada] = useState(null);
+ const [editandoId, setEditandoId] = useState(null);
   
   useEffect(() => {
     setCompras(leerCompras());
@@ -10373,6 +10455,17 @@ function HistorialCompras({ onVerFicha }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {comprasOrdenadas.map((compra) => (
+        compra.id === editandoId ? (
+          <FormularioEditarCompra
+            key={compra.id}
+            compra={compra}
+            onCancelar={() => setEditandoId(null)}
+            onGuardado={() => {
+              setEditandoId(null);
+              setCompras(leerCompras());
+            }}
+          />
+        ) : (
         <div key={compra.id} style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 12, padding: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
             <div>
@@ -10383,14 +10476,24 @@ function HistorialCompras({ onVerFicha }) {
                 {compra.animales.length} animal(es) comprado(s)
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => eliminar(compra)}
-              title="Eliminar este registro de compra"
-              style={{ background: "none", border: "none", color: "#C62828", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
-            >
-              Eliminar
-            </button>
+             <div style={{ display: "flex", gap: 14 }}>
+              <button
+                type="button"
+                onClick={() => setEditandoId(compra.id)}
+                title="Corregir los datos de esta compra"
+                style={{ background: "none", border: "none", color: "var(--verde-monte)", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+              >
+                ✏️ Editar
+              </button>
+              <button
+                type="button"
+                onClick={() => eliminar(compra)}
+                title="Eliminar este registro de compra"
+                style={{ background: "none", border: "none", color: "#C62828", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+              >
+                Eliminar
+              </button>
+            </div>
           </div>
 
           <FilaDato etiqueta="Comprado a" valor={compra.vendedor} />
@@ -10480,11 +10583,263 @@ function HistorialCompras({ onVerFicha }) {
                   N° {caravana}
                 </button>
               );
-            })}
+              })}
           </div>
         </div>
+        )
       ))}
       {facturaAmpliada && <VisorImagenModal src={facturaAmpliada} onCerrar={() => setFacturaAmpliada(null)} />}
+    </div>
+  );
+}
+
+function FormularioEditarCompra({ compra, onCancelar, onGuardado }) {
+  const [fecha, setFecha] = useState(compra.fecha || "");
+  const [vendedor, setVendedor] = useState(compra.vendedor || "");
+  const [montoTotal, setMontoTotal] = useState(compra.montoTotal ? String(compra.montoTotal) : "");
+  const [precioPorKilo, setPrecioPorKilo] = useState(compra.precioPorKilo ? String(compra.precioPorKilo) : "");
+  const [precioPorUnidad, setPrecioPorUnidad] = useState(compra.precioPorUnidad ? String(compra.precioPorUnidad) : "");
+  const [cantidadKilos, setCantidadKilos] = useState(compra.cantidadKilos ? String(compra.cantidadKilos) : "");
+  const [formaPago, setFormaPago] = useState(compra.formaPago || "");
+  const [plazoDias, setPlazoDias] = useState(compra.plazoDias ? String(compra.plazoDias) : "");
+  const [observaciones, setObservaciones] = useState(compra.observaciones || "");
+  const [facturaAdjunta, setFacturaAdjunta] = useState(compra.facturaAdjunta || null);
+  const [subiendoFactura, setSubiendoFactura] = useState(false);
+  const facturaInputRef = useRef(null);
+
+  const manejarFactura = async (e) => {
+    const archivo = e.target.files[0];
+    e.target.value = "";
+    if (!archivo) return;
+    setSubiendoFactura(true);
+    try {
+      setFacturaAdjunta(await procesarArchivoFactura(archivo));
+    } catch (err) {
+      alert(err.message || "No se pudo cargar la factura.");
+    } finally {
+      setSubiendoFactura(false);
+    }
+  };
+
+  const guardar = () => {
+    if (!fecha.trim()) {
+      alert("La fecha de compra no puede quedar vacía.");
+      return;
+    }
+    actualizarCompra(compra.id, {
+      fecha: fecha.trim(),
+      vendedor: vendedor.trim() || null,
+      montoTotal: montoTotal.trim() || null,
+      precioPorKilo: precioPorKilo.trim() || null,
+      precioPorUnidad: precioPorUnidad.trim() || null,
+      cantidadKilos: cantidadKilos.trim() || null,
+      formaPago: formaPago || null,
+      plazoDias: plazoDias.trim() || null,
+      facturaAdjunta: facturaAdjunta || null,
+      observaciones: observaciones.trim() || null,
+    });
+    onGuardado();
+  };
+
+  const idBase = `editar-compra-${compra.id}`;
+
+  return (
+    <div style={{ background: "#FFFDF8", border: "2px solid var(--verde-salvia)", borderRadius: 12, padding: 14 }}>
+      <h3
+        style={{
+          fontFamily: "'PP Neue Montreal Bold', serif",
+          fontSize: 15,
+          fontWeight: 600,
+          color: "var(--marron-oscuro)",
+          margin: "0 0 4px",
+        }}
+      >
+        Editar compra
+      </h3>
+      <p style={{ fontSize: 11.5, color: "#8A7A63", fontStyle: "italic", margin: "0 0 14px" }}>
+        Acá se corrigen los datos de la compra. Los {compra.animales.length} animal(es) no se modifican: para cambiar raza, color u otros datos, entrá a su ficha.
+      </p>
+
+      <div className="grilla-formulario">
+        <CampoTexto id={`${idBase}-fecha`} etiqueta="Fecha de compra" tipo="date" valor={fecha} onChange={setFecha} />
+        <CampoTexto id={`${idBase}-vendedor`} etiqueta="Comprado a / establecimiento" tipo="text" placeholder="Ej: Consignataria Rural SA" valor={vendedor} onChange={setVendedor} />
+        <div className="columna-completa">
+          <CampoMoneda id={`${idBase}-monto`} etiqueta="Valor total pagado" placeholder="Ej: $3.200.000" valor={montoTotal} onChange={setMontoTotal} />
+        </div>
+        <CampoMoneda id={`${idBase}-kilo`} etiqueta="Precio por kilo (opcional)" placeholder="Ej: $2.600" valor={precioPorKilo} onChange={setPrecioPorKilo} />
+        <CampoMoneda id={`${idBase}-unidad`} etiqueta="Precio por unidad (opcional)" placeholder="Ej: $480.000" valor={precioPorUnidad} onChange={setPrecioPorUnidad} />
+        <CampoTexto id={`${idBase}-kilos`} etiqueta="Cantidad de kilos (opcional)" tipo="text" placeholder="Ej: 200" valor={cantidadKilos} onChange={setCantidadKilos} />
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--marron-oscuro)", marginBottom: 6 }}>
+          Forma de pago
+        </label>
+        <select
+          value={formaPago}
+          onChange={(e) => setFormaPago(e.target.value)}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: "12px 14px",
+            borderRadius: 10,
+            border: "2px solid var(--borde)",
+            background: "#FFFDF8",
+            fontSize: 14,
+            fontWeight: 600,
+            color: "var(--marron-oscuro)",
+          }}
+        >
+          <option value="">Sin especificar</option>
+          <option value="Contado">Contado</option>
+          <option value="Plazo">Plazo</option>
+          <option value="Tarjeta">Tarjeta</option>
+          <option value="Cheque">Cheque</option>
+          <option value="Transferencia">Transferencia</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+
+      {formaPago === "Plazo" && (
+        <CampoTexto id={`${idBase}-plazo`} etiqueta="Plazo de pago (días)" tipo="text" placeholder="Ej: 30" valor={plazoDias} onChange={setPlazoDias} />
+      )}
+
+      <div style={{ marginTop: 4, marginBottom: 12 }}>
+        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--marron-oscuro)", marginBottom: 6 }}>
+          Factura / comprobante (opcional)
+        </label>
+        <input type="file" accept="image/*,.pdf" ref={facturaInputRef} onChange={manejarFactura} style={{ display: "none" }} />
+        {facturaAdjunta ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: "1px solid var(--borde)",
+              background: "#FFFDF8",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 12.5,
+                color: "var(--marron-oscuro)",
+                fontWeight: 600,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              📎 {facturaAdjunta.nombre}
+            </span>
+            <div style={{ display: "flex", gap: 12, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => facturaInputRef.current && facturaInputRef.current.click()}
+                disabled={subiendoFactura}
+                style={{ background: "none", border: "none", color: "var(--verde-monte)", cursor: "pointer", fontSize: 12.5, fontWeight: 700 }}
+              >
+                {subiendoFactura ? "Cargando..." : "Reemplazar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFacturaAdjunta(null)}
+                style={{ background: "none", border: "none", color: "#C62828", cursor: "pointer", fontSize: 12.5, fontWeight: 700 }}
+              >
+                Quitar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => facturaInputRef.current && facturaInputRef.current.click()}
+            disabled={subiendoFactura}
+            style={{
+              width: "100%",
+              padding: "12px",
+              borderRadius: 10,
+              border: "2px dashed var(--verde-salvia)",
+              background: "#FFFDF8",
+              color: "var(--verde-monte)",
+              fontFamily: "'PP Neue Montreal Bold', serif",
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: subiendoFactura ? "not-allowed" : "pointer",
+            }}
+          >
+            {subiendoFactura ? "Cargando..." : "📎 Adjuntar factura (foto o PDF)"}
+          </button>
+        )}
+      </div>
+
+      <label
+        htmlFor={`${idBase}-obs`}
+        style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--marron-oscuro)", marginBottom: 5 }}
+      >
+        Observaciones
+      </label>
+      <textarea
+        id={`${idBase}-obs`}
+        rows={2}
+        value={observaciones}
+        onChange={(e) => setObservaciones(e.target.value)}
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 14,
+          padding: "12px 14px",
+          borderRadius: 10,
+          border: "2px solid var(--borde)",
+          background: "#FFFDF8",
+          color: "var(--marron-oscuro)",
+          resize: "vertical",
+          marginBottom: 14,
+        }}
+      />
+
+      <div style={{ display: "flex", gap: 10 }}>
+        <button
+          type="button"
+          onClick={onCancelar}
+          style={{
+            flex: 1,
+            padding: "13px",
+            borderRadius: 12,
+            border: "2px solid var(--borde)",
+            background: "transparent",
+            color: "var(--marron-oscuro)",
+            fontWeight: 700,
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={guardar}
+          disabled={subiendoFactura}
+          style={{
+            flex: 2,
+            padding: "13px",
+            borderRadius: 12,
+            border: "none",
+            background: "var(--marron-cuero)",
+            color: "#FBF7ED",
+            fontFamily: "'PP Neue Montreal Bold', serif",
+            fontWeight: 600,
+            fontSize: 14.5,
+            cursor: subiendoFactura ? "not-allowed" : "pointer",
+            opacity: subiendoFactura ? 0.5 : 1,
+          }}
+        >
+          Guardar cambios
+        </button>
+      </div>
     </div>
   );
 }
