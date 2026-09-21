@@ -54,7 +54,11 @@ export default function InformeMensual({ animales = [], tareasSanidad = [], vent
       };
 
       // 3. Cálculos estadísticos para las tarjetas superiores (KPIs)
-      const totalCabezas = listaAnimales.length;
+      // "Total Rodeos" cuenta solo animales vivos, sin los fallecidos
+      // (los fallecidos se muestran aparte, en su propio KPI y en la tabla)
+      const totalCabezas = listaAnimales.filter(
+        (a) => !(a.fallecimiento && a.fallecimiento.fecha)
+      ).length;
       
       const preñadas = listaAnimales.filter(a => {
         if (!APLICA_SERVICIO.includes(a.tipo)) return false;
