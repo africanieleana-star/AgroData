@@ -23,9 +23,13 @@ export const modelo = getGenerativeModel(ai, {
 
 export async function preguntarAGemini(pregunta, contextoDelCampo) {
   const hoy = new Date().toLocaleDateString("es-AR");
+  
+  // Si no viene contexto, lee los datos guardados en la app automáticamente
+  const contextoActual = contextoDelCampo || obtenerContextoDelCampo();
+
   const prompt =
     `Fecha de hoy: ${hoy}\n\n` +
-    `DATOS DEL CAMPO:\n${contextoDelCampo}\n\n` +
+    `${contextoActual}\n\n` +
     `PREGUNTA DEL PRODUCTOR: ${pregunta}`;
 
   const resultado = await modelo.generateContent(prompt);
@@ -65,6 +69,39 @@ export function armarContextoCompleto({ animales = [], compras = [], eventos = [
     eventos.forEach((e) => {
       texto += `- Fecha: ${e.fecha || "N/D"}, Tipo: ${e.tipo || "General"}, Descripción: ${e.descripcion || "Sin detalle"}\n`;
     });
+  }
+
+  return texto;
+}
+
+// Función que junta la información almacenada en AgroData
+export function obtenerContextoDelCampo() {
+  let texto = "=== DATOS DEL CAMPO REGISTRADOS EN AGRODATA ===\n\n";
+
+  try {
+    // 1. Leer Animales
+    const animales = JSON.parse(localStorage.getItem("agrodata_animales") || "[]");
+    texto += "--- HACIENDA Y ANIMALES ---\n";
+    if (animales.length === 0) {
+      texto += "No hay animales registrados.\n";
+    } else {
+      animales.forEach((a) => {
+        texto += `- Caravana: ${a.caravana || "Sin ID"}, Categoría: ${a.categoria || "N/D"}, Raza: ${a.raza || "N/D"}, Estado: ${a.estado || "N/D"}, Potrero: ${a.potrero || "N/D"}\n`;
+      });
+    }
+
+    // 2. Leer Tareas y Compras / Gastos
+    const tareas = JSON.parse(localStorage.getItem("tareas_manuales") || "[]");
+    texto += "\n--- REGISTRO DE TAREAS, SANIDAD Y GASTOS ---\n";
+    if (tareas.length === 0) {
+      texto += "No hay tareas o gastos registrados.\n";
+    } else {
+      tareas.forEach((t) => {
+        texto += `- Tarea: ${t.texto || "Sin detalle"}, Fecha/Estado: ${t.completada ? "Completada" : "Pendiente"}\n`;
+      });
+    }
+  } catch (e) {
+    console.error("Error al leer datos para la IA:", e);
   }
 
   return texto;
