@@ -985,6 +985,11 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   };
 
   const irAListado = () => {
+    // Entrada "limpia" a Mis Animales (desde el menú o desde Inicio):
+    // siempre arriba de todo. El scroll guardado solo se usa cuando se
+    // vuelve de ver una ficha (ver el onVerFicha que le pasamos a
+    // PantallaListado, más abajo).
+    scrollListadoRef.current = 0;
     setPantalla("listado");
   };
 
@@ -1690,7 +1695,7 @@ const irAIngresar = () => {
             }}
           >
             {pantalla === "inicio" && (
-              <PantallaInicio onNavegar={(destino) => setPantalla(destino)} />
+              <PantallaInicio onNavegar={navegarA} />
             )}
             {pantalla === "buscar" && (
               <PantallaBuscar
