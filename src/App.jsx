@@ -3074,7 +3074,139 @@ const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "S
 
 // Recorre todos los animales guardados y arma los datos agregados para el
 // dashboard. Solo usa datos que ya están cargados (historialCrias, tacto),
-// nunca estima ni inventa. Si se pasa un año, filtra las crías de ese año;
+// nunca estima ni inventa. Si se pasa un año, filtra las crías de ese año;// Unifica variantes del mismo nombre de padre/pajuela antes de agruparlas
+// en el gráfico: saca el prefijo "Padre: " (si vino así de alguna carga
+// vieja), espacios de más al principio/final y espacios dobles en el medio.
+// No cambia mayúsculas/minúsculas del nombre mostrado, solo las ignora
+// para decidir si dos variantes son "la misma".
+function normalizarNombrePadreParaAgrupar(nombre) {
+  if (!nombre) return "";
+  return nombre
+    .trim()
+    .replace(/^padre:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function calcularEstadisticasReproductivas(animales, anioFiltro) {
+  const nacimientosPorMes = MESES_CORTOS.map((mes) => ({ mes, cantidad: 0 }));
+  const conteoSexo = { Macho: 0, Hembra: 0 };
+  const conteoPorPadre = {}; // { claveNormalizada: { nombreMostrado, total, Macho, Hembra } }
+  const nacimientosPorAnioMap = {};
+  let totalNacimientos = 0;
+
+  animales.forEach((ficha) => {
+    if (!Array.isArray(ficha.historialCrias)) return;
+    ficha.historialCrias.forEach((cria) => {
+      if (!cria.fechaNacimiento) return;
+      const partes = cria.fechaNacimiento.split("-");
+      if (partes.length !== 3) return;
+      const [anio, mes] = partes;
+
+      if (!isNaN(Number(anio))) {
+        nacimientosPorAnioMap[anio] = (nacimientosPorAnioMap[anio] || 0) + 1;
+      }
+
+      if (anioFiltro && anio !== String(anioFiltro)) return;
+
+      const mesIndice = Number(mes) - 1;
+      if (mesIndice >= 0 && mesIndice < 12) {
+        nacimientosPorMes[mesIndice].cantidad += 1;
+      }
+      totalNacimientos += 1;
+
+      if (cria.sexo === "Macho") conteoSexo.Macho += 1;
+      else if (cria.sexo === "Hembra") conteoSexo.Hembra += 1;
+
+      const padreOriginal = cria.nombrePadre && cria.nombrePadre !== "Sin registrar" ? cria.nombrePadre : null;
+      if (padreOriginal) {
+        const padreNormalizado = normalizarNombrePadreParaAgrupar(padreOriginal);
+        if (padreNormalizado) {
+          const clave = padreNormalizado.toLowerCase();
+          if (!conteoPorPadre[clave]) {
+            conteoPorPadre[clave] = { nombreMostrado: padreNormalizado, total: 0, Macho: 0, Hembra: 0 };
+          } else if (padreNormalizado.length > conteoPorPadre[clave].nombreMostrado.length) {
+            // Entre variantes del mismo nombre, se muestra la más completa
+            // (ej: "Rauch o Carloncho (Hijo de Prolijo)" antes que "Rauch o Carloncho").
+            conteoPorPadre[clave].nombreMostrado = padreNormalizado;
+          }
+          conteoPorPadre[clave].total += 1;
+          if (cria.sexo === "Macho") conteoPorPadre[clave].Macho += 1;
+          else if (cria.sexo === "Hembra") conteoPorPadre[clave].Hembra += 1;
+        }
+      }
+    });
+  });
+
+  const porSexo = [
+    { name: "Macho", value: conteoSexo.Macho },
+    { name: "Hembra", value: conteoSexo.Hembra },
+  ].filter((s) => s.value > 0);
+
+  const porServicio = Object.values(conteoPorPadre)
+    .map((datos) => ({ nombre: datos.nombreMostrado, cantidad: datos.total, Hembra: datos.Hembra, Macho: datos.Macho }))
+    .sort((a, b) => b.cantidad - a.cantidad);
+
+  const nacimientosPorAnio = Object.entries(nacimientosPorAnioMap)
+    .map(([anio, cantidad]) => ({ anio, cantidad }))
+    .sort((a, b) => a.anio.localeCompare(b.anio));
+
+  let preñadas = 0, vacias = 0, paridas = 0, totalHembras = 0;
+  let totalActivos = 0, totalFallecidos = 0;
+  const conteoPorCategoria = {};
+
+  animales.forEach((ficha) => {
+    const esFallecido = Boolean(ficha.fallecimiento && ficha.fallecimiento.fecha);
+    const esVendido = Boolean(ficha.vendido);
+
+    if (esFallecido) totalFallecidos += 1;
+
+    if (!esFallecido && !esVendido) {
+      totalActivos += 1;
+      if (ficha.tipo) conteoPorCategoria[ficha.tipo] = (conteoPorCategoria[ficha.tipo] || 0) + 1;
+
+      const estado = estadoReproductivoDe(ficha);
+      if (estado) {
+        if (estado.texto === "Preñada") { preñadas += 1; totalHembras += 1; }
+        else if (estado.texto === "Vacía") { vacias += 1; totalHembras += 1; }
+        else if (estado.texto === "Parida") { paridas += 1; totalHembras += 1; }
+      }
+    }
+  });
+
+  const tasaPrenez = (preñadas + vacias) > 0 ? Math.round((preñadas / (preñadas + vacias)) * 100) : null;
+  const tasaMortalidad = (totalActivos + totalFallecidos) > 0
+    ? Math.round((totalFallecidos / (totalActivos + totalFallecidos)) * 100)
+    : null;
+
+  const porCategoria = Object.entries(conteoPorCategoria)
+    .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+    .sort((a, b) => b.cantidad - a.cantidad);
+
+  const pesosDestete = [];
+  const gananciasSuplementacion = [];
+  const gananciasVerdeo = [];
+  animales.forEach((ficha) => {
+    if (!ficha.recria) return;
+    const peso = parseFloat(String(ficha.recria.pesoDestete205 || "").replace(",", "."));
+    if (!isNaN(peso)) pesosDestete.push(peso);
+    const gs = parseFloat(String(ficha.recria.gananciaDiariaSuplementacion || "").replace(",", "."));
+    if (!isNaN(gs)) gananciasSuplementacion.push(gs);
+    const gv = parseFloat(String(ficha.recria.gananciaDiariaVerdeo || "").replace(",", "."));
+    if (!isNaN(gv)) gananciasVerdeo.push(gv);
+  });
+  const promedio = (arr) => (arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+
+  return {
+    totalHembras, preñadas, vacias, paridas, tasaPrenez,
+    totalNacimientos, nacimientosPorMes, nacimientosPorAnio,
+    porSexo, porServicio, porCategoria,
+    totalActivos, totalFallecidos, tasaMortalidad,
+    pesoDestetePromedio: promedio(pesosDestete),
+    gananciaSuplementacionPromedio: promedio(gananciasSuplementacion),
+    gananciaVerdeoPromedio: promedio(gananciasVerdeo),
+  };
+}
 // si no, toma todas.
 function calcularEstadisticasReproductivas(animales, anioFiltro) {
   const nacimientosPorMes = MESES_CORTOS.map((mes) => ({ mes, cantidad: 0 }));
