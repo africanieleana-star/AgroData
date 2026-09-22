@@ -2618,42 +2618,61 @@ function PantallaEstadisticas({ onVolver }) {
               )}
             </div>
 
-            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16 }}>
-              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
+                     <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16 }} className="columna-completa">
+              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 4px" }}>
                 Crías por padre / servicio
               </h3>
               {stats.porServicio.length === 0 ? (
-                <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic" }}>Sin datos para este año.</p>
+                <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic", margin: "8px 0 0" }}>Sin datos para este año.</p>
               ) : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={stats.porServicio} layout="vertical" margin={{ left: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
-                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11 }} width={80} />
-                    <Tooltip />
-                    <Bar dataKey="cantidad" fill="#8B5A2B" radius={[0, 6, 6, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <>
+                  <p style={{ fontSize: 11, color: "#8A7A63", margin: "0 0 12px" }}>
+                    {stats.porServicio.length} padre(s)/pajuela(s) con crías registradas
+                  </p>
+                  <ResponsiveContainer width="100%" height={Math.max(200, stats.porServicio.length * 34)}>
+                    <BarChart
+                      data={stats.porServicio}
+                      layout="vertical"
+                      margin={{ left: 10, right: 20 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
+                      <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                      <YAxis
+                        type="category"
+                        dataKey="nombre"
+                        tick={{ fontSize: 11.5 }}
+                        width={140}
+                        interval={0}
+                      />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="Hembra" stackId="cria" fill="#4F6B3A" name="Hembra" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="Macho" stackId="cria" fill="#8B5A2B" name="Macho" radius={[0, 6, 6, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </>
               )}
             </div>
 
-            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16 }}>
+            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16 }} className="columna-completa">
               <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
                 Rodeo por categoría
               </h3>
               {stats.porCategoria.length === 0 ? (
                 <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic" }}>Sin animales en stock.</p>
               ) : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie data={stats.porCategoria} dataKey="cantidad" nameKey="nombre" cx="50%" cy="50%" outerRadius={70} label>
+                <ResponsiveContainer width="100%" height={Math.max(160, stats.porCategoria.length * 42)}>
+                  <BarChart data={stats.porCategoria} layout="vertical" margin={{ left: 10, right: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <YAxis type="category" dataKey="nombre" tick={{ fontSize: 12 }} width={95} />
+                    <Tooltip />
+                    <Bar dataKey="cantidad" radius={[0, 6, 6, 0]}>
                       {stats.porCategoria.map((entry, index) => (
                         <Cell key={entry.nombre} fill={COLORES[index % COLORES.length]} />
                       ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
               )}
             </div>
@@ -3060,7 +3079,7 @@ const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "S
 function calcularEstadisticasReproductivas(animales, anioFiltro) {
   const nacimientosPorMes = MESES_CORTOS.map((mes) => ({ mes, cantidad: 0 }));
   const conteoSexo = { Macho: 0, Hembra: 0 };
-  const conteoPorPadre = {};
+  const conteoPorPadre = {}; // { nombre: { total, Macho, Hembra } }
   const nacimientosPorAnioMap = {};
   let totalNacimientos = 0;
 
@@ -3072,8 +3091,6 @@ function calcularEstadisticasReproductivas(animales, anioFiltro) {
       if (partes.length !== 3) return;
       const [anio, mes] = partes;
 
-      // Se cuenta para el gráfico histórico "Nacimientos por año",
-      // sin importar el año elegido en el selector.
       if (!isNaN(Number(anio))) {
         nacimientosPorAnioMap[anio] = (nacimientosPorAnioMap[anio] || 0) + 1;
       }
@@ -3090,7 +3107,12 @@ function calcularEstadisticasReproductivas(animales, anioFiltro) {
       else if (cria.sexo === "Hembra") conteoSexo.Hembra += 1;
 
       const padre = cria.nombrePadre && cria.nombrePadre !== "Sin registrar" ? cria.nombrePadre : null;
-      if (padre) conteoPorPadre[padre] = (conteoPorPadre[padre] || 0) + 1;
+      if (padre) {
+        if (!conteoPorPadre[padre]) conteoPorPadre[padre] = { total: 0, Macho: 0, Hembra: 0 };
+        conteoPorPadre[padre].total += 1;
+        if (cria.sexo === "Macho") conteoPorPadre[padre].Macho += 1;
+        else if (cria.sexo === "Hembra") conteoPorPadre[padre].Hembra += 1;
+      }
     });
   });
 
@@ -3099,17 +3121,16 @@ function calcularEstadisticasReproductivas(animales, anioFiltro) {
     { name: "Hembra", value: conteoSexo.Hembra },
   ].filter((s) => s.value > 0);
 
+  // Se muestran todos los padres/pajuelas con crías (sin recortar a 6),
+  // ordenados de mayor a menor cantidad de crías.
   const porServicio = Object.entries(conteoPorPadre)
-    .map(([nombre, cantidad]) => ({ nombre, cantidad }))
-    .sort((a, b) => b.cantidad - a.cantidad)
-    .slice(0, 6);
+    .map(([nombre, datos]) => ({ nombre, cantidad: datos.total, Hembra: datos.Hembra, Macho: datos.Macho }))
+    .sort((a, b) => b.cantidad - a.cantidad);
 
   const nacimientosPorAnio = Object.entries(nacimientosPorAnioMap)
     .map(([anio, cantidad]) => ({ anio, cantidad }))
     .sort((a, b) => a.anio.localeCompare(b.anio));
 
-  // Foto de hoy del rodeo: se excluyen fallecidos y vendidos, tanto del
-  // conteo por categoría como del estado reproductivo.
   let preñadas = 0, vacias = 0, paridas = 0, totalHembras = 0;
   let totalActivos = 0, totalFallecidos = 0;
   const conteoPorCategoria = {};
@@ -3142,8 +3163,6 @@ function calcularEstadisticasReproductivas(animales, anioFiltro) {
     .map(([nombre, cantidad]) => ({ nombre, cantidad }))
     .sort((a, b) => b.cantidad - a.cantidad);
 
-  // Indicadores de recría: promedio solo entre los animales que tienen
-  // el dato cargado. No se estima nada de los que no lo tienen.
   const pesosDestete = [];
   const gananciasSuplementacion = [];
   const gananciasVerdeo = [];
