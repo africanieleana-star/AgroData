@@ -540,11 +540,25 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
    const [busquedaListado, setBusquedaListado] = useState("");
   const [categoriaFiltroListado, setCategoriaFiltroListado] = useState(null);
   const [establecimientoFiltroListado, setEstablecimientoFiltroListado] = useState(null);
-  // Recuerda a qué altura de scroll estabas en "Mis Animales" al tocar
+   // Recuerda a qué altura de scroll estabas en "Mis Animales" al tocar
   // un animal, para volver ahí (no al principio de la lista) al apretar Volver.
   // La restauración se hace DENTRO de PantallaListado (más abajo), una vez
   // que la lista ya tiene los datos cargados y su altura real en pantalla.
   const scrollListadoRef = useRef(0);
+
+  // Invalida esa altura guardada apenas te vas de "Mis Animales" hacia
+  // cualquier lado que NO sea ver una ficha (por ejemplo, a Estadísticas
+  // desde el menú). Así, sin importar CÓMO vuelvas después a Mis Animales
+  // (con el menú, o con el botón "atrás" físico del celular), arranca
+  // siempre arriba de todo — salvo que vengas justo de ver una ficha.
+  const pantallaAnteriorRef = useRef(pantalla);
+  useEffect(() => {
+    const anterior = pantallaAnteriorRef.current;
+    if (anterior === "listado" && pantalla !== "resumen") {
+      scrollListadoRef.current = 0;
+    }
+    pantallaAnteriorRef.current = pantalla;
+  }, [pantalla]);
   
   const [caravanaFormularioRecria, setCaravanaFormularioRecria] = useState(null);
   const [menuAbierto, setMenuAbierto] = useState(false);
