@@ -4026,13 +4026,16 @@ function PantallaListado({
   }, []);
 
   // Recién ahora la lista tiene los animales cargados (altura real en
-  // pantalla), así que podemos bajar hasta donde estabas antes de entrar
-  // a ver un animal. Si lo hiciéramos antes, la página todavía sería
-  // corta y el navegador no podría bajar tanto.
+  // pantalla). Si hay una altura guardada (volviste de ver una ficha),
+  // bajamos hasta ahí; si no (entraste de cero desde el menú, Inicio,
+  // u otra pantalla), llevamos explícitamente arriba de todo — el
+  // navegador NO resetea el scroll solo, así que si no lo hacemos acá
+  // queda pegado en lo que tenía la pantalla anterior (ej: Estadísticas).
   useEffect(() => {
-    if (cargando || !scrollGuardado) return;
+    if (cargando) return;
+    const destino = scrollGuardado || 0;
     const id = setTimeout(() => {
-      window.scrollTo(0, scrollGuardado);
+      window.scrollTo(0, destino);
     }, 50);
     return () => clearTimeout(id);
   }, [cargando, scrollGuardado]);
