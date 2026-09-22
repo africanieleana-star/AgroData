@@ -3079,6 +3079,12 @@ const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "S
 // vieja), espacios de más al principio/final y espacios dobles en el medio.
 // No cambia mayúsculas/minúsculas del nombre mostrado, solo las ignora
 // para decidir si dos variantes son "la misma".
+// Unifica variantes del mismo nombre de padre/pajuela antes de agruparlas
+// en el gráfico. Saca el prefijo "Padre: ", espacios de más, y para decidir
+// si dos nombres son "el mismo toro" ignora lo que esté entre paréntesis
+// (ej: "Rauch o Carloncho" y "Rauch o Carloncho (Hijo de Prolijo)" se tratan
+// como el mismo). El nombre que se muestra en el gráfico es siempre el más
+// completo de todas las variantes encontradas.
 function normalizarNombrePadreParaAgrupar(nombre) {
   if (!nombre) return "";
   return nombre
@@ -3086,6 +3092,14 @@ function normalizarNombrePadreParaAgrupar(nombre) {
     .replace(/^padre:\s*/i, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function claveAgrupacionPadre(nombreNormalizado) {
+  return nombreNormalizado
+    .replace(/\([^)]*\)/g, "") // saca cualquier "(...)"
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 function calcularEstadisticasReproductivas(animales, anioFiltro) {
@@ -3122,17 +3136,19 @@ function calcularEstadisticasReproductivas(animales, anioFiltro) {
       if (padreOriginal) {
         const padreNormalizado = normalizarNombrePadreParaAgrupar(padreOriginal);
         if (padreNormalizado) {
-          const clave = padreNormalizado.toLowerCase();
-          if (!conteoPorPadre[clave]) {
-            conteoPorPadre[clave] = { nombreMostrado: padreNormalizado, total: 0, Macho: 0, Hembra: 0 };
-          } else if (padreNormalizado.length > conteoPorPadre[clave].nombreMostrado.length) {
-            // Entre variantes del mismo nombre, se muestra la más completa
-            // (ej: "Rauch o Carloncho (Hijo de Prolijo)" antes que "Rauch o Carloncho").
-            conteoPorPadre[clave].nombreMostrado = padreNormalizado;
+          const clave = claveAgrupacionPadre(padreNormalizado);
+          if (clave) {
+            if (!conteoPorPadre[clave]) {
+              conteoPorPadre[clave] = { nombreMostrado: padreNormalizado, total: 0, Macho: 0, Hembra: 0 };
+            } else if (padreNormalizado.length > conteoPorPadre[clave].nombreMostrado.length) {
+              // Entre variantes del mismo toro, se muestra la más completa
+              // (ej: "Rauch o Carloncho (Hijo de Prolijo)" antes que "Rauch o Carloncho").
+              conteoPorPadre[clave].nombreMostrado = padreNormalizado;
+            }
+            conteoPorPadre[clave].total += 1;
+            if (cria.sexo === "Macho") conteoPorPadre[clave].Macho += 1;
+            else if (cria.sexo === "Hembra") conteoPorPadre[clave].Hembra += 1;
           }
-          conteoPorPadre[clave].total += 1;
-          if (cria.sexo === "Macho") conteoPorPadre[clave].Macho += 1;
-          else if (cria.sexo === "Hembra") conteoPorPadre[clave].Hembra += 1;
         }
       }
     });
