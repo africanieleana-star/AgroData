@@ -2441,24 +2441,36 @@ function PantallaInicio({ onNavegar }) {
 
 function PantallaEstadisticas({ onVolver }) {
   const [animales, setAnimales] = useState([]);
+  const [ventas, setVentas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [anioSel, setAnioSel] = useState(null);
 
   useEffect(() => {
     const lista = leerTodosLosAnimalesGuardados();
     setAnimales(lista);
+    setVentas(leerVentas());
     const anios = obtenerAniosConDatos(lista);
     setAnioSel(anios[0] || String(new Date().getFullYear()));
     setCargando(false);
+
+    const recargar = () => {
+      setAnimales(leerTodosLosAnimalesGuardados());
+      setVentas(leerVentas());
+    };
+    window.addEventListener("agrodata:actualizado", recargar);
+    return () => window.removeEventListener("agrodata:actualizado", recargar);
   }, []);
 
   const aniosDisponibles = useMemo(() => obtenerAniosConDatos(animales), [animales]);
   const stats = useMemo(() => calcularEstadisticasReproductivas(animales, anioSel), [animales, anioSel]);
+  const statsVentas = useMemo(() => calcularEstadisticasVentasAnio(ventas, anioSel), [ventas, anioSel]);
 
   const mortalidad = useMemo(() => calcularMortalidadPorCategoria(animales), [animales]);
   const hayMortalidad = Object.values(mortalidad).some((n) => n > 0);
 
   const COLORES = ["#3E4E2F", "#8B5A2B", "#8A9A6B", "#A8452F", "#714823", "#4F6B3A"];
+  const formatearKg = (v) => (v === null ? "—" : `${v.toFixed(1)} kg`);
+  const formatearKgDia = (v) => (v === null ? "—" : `${v.toFixed(2)} kg/d`);
 
   return (
     <div style={{ background: "var(--crema)", border: "1px solid var(--borde)", borderRadius: 16, padding: "22px 18px", boxShadow: "0 2px 10px rgba(59,42,29,0.06)" }}>
@@ -2468,7 +2480,7 @@ function PantallaEstadisticas({ onVolver }) {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
         <h2 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 18, fontWeight: 600, color: "var(--marron-oscuro)", margin: 0 }}>
-          Resumen reproductivo
+          Panel de estadísticas
         </h2>
         {aniosDisponibles.length > 0 && (
           <select
@@ -2491,35 +2503,48 @@ function PantallaEstadisticas({ onVolver }) {
         </p>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8, marginBottom: 24 }}>
-            <TarjetaKPI numero={stats.totalHembras} etiqueta="Hembras en servicio" color="var(--verde-monte)" />
+          {/* KPIs del rodeo, foto de hoy */}
+          <SeccionTitulo texto="Rodeo hoy" />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8, marginBottom: 22 }}>
+            <TarjetaKPI numero={stats.totalActivos} etiqueta="Total en stock" color="var(--verde-monte)" />
             <TarjetaKPI numero={stats.preñadas} etiqueta="Preñadas" color="var(--verde-exito)" />
             <TarjetaKPI numero={stats.vacias} etiqueta="Vacías" color="var(--terracota)" />
-            <TarjetaKPI numero={stats.totalNacimientos} etiqueta={`Nacimientos ${anioSel || ""}`} color="var(--marron-cuero)" />
+            <TarjetaKPI numero={stats.tasaPrenez !== null ? `${stats.tasaPrenez}%` : "—"} etiqueta="Tasa de preñez" color="var(--marron-cuero)" />
+            <TarjetaKPI numero={stats.tasaMortalidad !== null ? `${stats.tasaMortalidad}%` : "—"} etiqueta="Mortalidad general" color="var(--terracota)" />
+          </div>
+
+          {/* KPIs de producción del año elegido */}
+          <SeccionTitulo texto={`Producción ${anioSel || ""}`} />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8, marginBottom: 22 }}>
+            <TarjetaKPI numero={stats.totalNacimientos} etiqueta="Nacimientos" color="var(--verde-monte)" />
+            <TarjetaKPI numero={formatearKg(stats.pesoDestetePromedio)} etiqueta="Peso prom. destete" color="var(--marron-cuero)" />
+            <TarjetaKPI numero={formatearKgDia(stats.gananciaSuplementacionPromedio)} etiqueta="Gan. diaria (suplem.)" color="var(--verde-exito)" />
+            <TarjetaKPI numero={formatearKgDia(stats.gananciaVerdeoPromedio)} etiqueta="Gan. diaria (verdeo)" color="var(--verde-salvia)" />
+          </div>
+
+          {/* KPIs comerciales del año elegido */}
+          <SeccionTitulo texto={`Ventas ${anioSel || ""}`} />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8, marginBottom: 24 }}>
+            <TarjetaKPI numero={statsVentas.cantidadVentas} etiqueta="Ventas" color="var(--marron-cuero)" />
+            <TarjetaKPI numero={statsVentas.cantidadAnimalesVendidos} etiqueta="Animales vendidos" color="var(--verde-monte)" />
+            <TarjetaKPI numero={formatearMonto(statsVentas.totalFacturado)} etiqueta="Facturado" color="var(--verde-exito)" />
           </div>
 
           {hayMortalidad && (
             <div style={{ background: "#FDF2E9", border: "1px solid var(--terracota)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
               <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--terracota)", margin: "0 0 12px" }}>
-                ⚠️ Mortalidad
+                ⚠️ Mortalidad por categoría
               </h3>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8 }}>
-                {mortalidad.Terneros > 0 && (
-                  <TarjetaKPI numero={mortalidad.Terneros} etiqueta="Mortalidad Terneros" color="var(--terracota)" />
-                )}
-                {mortalidad.Vacas > 0 && (
-                  <TarjetaKPI numero={mortalidad.Vacas} etiqueta="Mortalidad Vacas" color="var(--terracota)" />
-                )}
-                {mortalidad.Toros > 0 && (
-                  <TarjetaKPI numero={mortalidad.Toros} etiqueta="Mortalidad Toros" color="var(--terracota)" />
-                )}
-                {mortalidad.Vaquillonas > 0 && (
-                  <TarjetaKPI numero={mortalidad.Vaquillonas} etiqueta="Mortalidad Vaquillonas" color="var(--terracota)" />
-                )}
+                {mortalidad.Terneros > 0 && <TarjetaKPI numero={mortalidad.Terneros} etiqueta="Terneros" color="var(--terracota)" />}
+                {mortalidad.Vacas > 0 && <TarjetaKPI numero={mortalidad.Vacas} etiqueta="Vacas" color="var(--terracota)" />}
+                {mortalidad.Toros > 0 && <TarjetaKPI numero={mortalidad.Toros} etiqueta="Toros" color="var(--terracota)" />}
+                {mortalidad.Vaquillonas > 0 && <TarjetaKPI numero={mortalidad.Vaquillonas} etiqueta="Vaquillonas" color="var(--terracota)" />}
               </div>
             </div>
           )}
 
+          {/* Nacimientos por mes (año elegido) */}
           <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
             <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
               Nacimientos por mes {anioSel ? `(${anioSel})` : ""}
@@ -2534,6 +2559,42 @@ function PantallaEstadisticas({ onVolver }) {
               </LineChart>
             </ResponsiveContainer>
           </div>
+
+          {/* Evolución histórica de nacimientos */}
+          {stats.nacimientosPorAnio.length > 1 && (
+            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
+              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
+                Evolución de nacimientos por año
+              </h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={stats.nacimientosPorAnio}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
+                  <XAxis dataKey="anio" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="cantidad" fill="#8A9A6B" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Facturación por mes (año elegido) */}
+          {statsVentas.totalFacturado > 0 && (
+            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
+              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
+                Facturación por mes {anioSel ? `(${anioSel})` : ""}
+              </h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={statsVentas.facturadoPorMes}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
+                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
+                  <Tooltip formatter={(value) => formatearMonto(value)} />
+                  <Bar dataKey="monto" fill="#714823" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           <div className="grilla-formulario" style={{ gap: 16 }}>
             <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16 }}>
@@ -2575,9 +2636,76 @@ function PantallaEstadisticas({ onVolver }) {
                 </ResponsiveContainer>
               )}
             </div>
+
+            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16 }}>
+              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
+                Rodeo por categoría
+              </h3>
+              {stats.porCategoria.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic" }}>Sin animales en stock.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={stats.porCategoria} dataKey="cantidad" nameKey="nombre" cx="50%" cy="50%" outerRadius={70} label>
+                      {stats.porCategoria.map((entry, index) => (
+                        <Cell key={entry.nombre} fill={COLORES[index % COLORES.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16 }}>
+              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
+                Estado reproductivo
+              </h3>
+              {(() => {
+                const dataEstado = [
+                  { name: "Preñadas", value: stats.preñadas, color: "#4F6B3A" },
+                  { name: "Vacías", value: stats.vacias, color: "#A8452F" },
+                  { name: "Paridas", value: stats.paridas, color: "#8B5A2B" },
+                ].filter((d) => d.value > 0);
+                if (dataEstado.length === 0) {
+                  return <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic" }}>Sin tactos cargados.</p>;
+                }
+                return (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie data={dataEstado} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
+                        {dataEstado.map((entry) => (
+                          <Cell key={entry.name} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                );
+              })()}
+            </div>
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function SeccionTitulo({ texto }) {
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        color: "var(--verde-salvia)",
+        textTransform: "uppercase",
+        letterSpacing: 0.4,
+        marginBottom: 8,
+      }}
+    >
+      {texto}
     </div>
   );
 }
@@ -2933,6 +3061,7 @@ function calcularEstadisticasReproductivas(animales, anioFiltro) {
   const nacimientosPorMes = MESES_CORTOS.map((mes) => ({ mes, cantidad: 0 }));
   const conteoSexo = { Macho: 0, Hembra: 0 };
   const conteoPorPadre = {};
+  const nacimientosPorAnioMap = {};
   let totalNacimientos = 0;
 
   animales.forEach((ficha) => {
@@ -2942,6 +3071,13 @@ function calcularEstadisticasReproductivas(animales, anioFiltro) {
       const partes = cria.fechaNacimiento.split("-");
       if (partes.length !== 3) return;
       const [anio, mes] = partes;
+
+      // Se cuenta para el gráfico histórico "Nacimientos por año",
+      // sin importar el año elegido en el selector.
+      if (!isNaN(Number(anio))) {
+        nacimientosPorAnioMap[anio] = (nacimientosPorAnioMap[anio] || 0) + 1;
+      }
+
       if (anioFiltro && anio !== String(anioFiltro)) return;
 
       const mesIndice = Number(mes) - 1;
@@ -2968,18 +3104,69 @@ function calcularEstadisticasReproductivas(animales, anioFiltro) {
     .sort((a, b) => b.cantidad - a.cantidad)
     .slice(0, 6);
 
-  // Estado reproductivo actual del rodeo (foto de hoy, no depende del año filtrado)
+  const nacimientosPorAnio = Object.entries(nacimientosPorAnioMap)
+    .map(([anio, cantidad]) => ({ anio, cantidad }))
+    .sort((a, b) => a.anio.localeCompare(b.anio));
+
+  // Foto de hoy del rodeo: se excluyen fallecidos y vendidos, tanto del
+  // conteo por categoría como del estado reproductivo.
   let preñadas = 0, vacias = 0, paridas = 0, totalHembras = 0;
+  let totalActivos = 0, totalFallecidos = 0;
+  const conteoPorCategoria = {};
+
   animales.forEach((ficha) => {
-    const estado = estadoReproductivoDe(ficha);
-    if (!estado) return;
-    totalHembras += 1;
-    if (estado.texto === "Preñada") preñadas += 1;
-    else if (estado.texto === "Vacía") vacias += 1;
-    else if (estado.texto === "Parida") paridas += 1;
+    const esFallecido = Boolean(ficha.fallecimiento && ficha.fallecimiento.fecha);
+    const esVendido = Boolean(ficha.vendido);
+
+    if (esFallecido) totalFallecidos += 1;
+
+    if (!esFallecido && !esVendido) {
+      totalActivos += 1;
+      if (ficha.tipo) conteoPorCategoria[ficha.tipo] = (conteoPorCategoria[ficha.tipo] || 0) + 1;
+
+      const estado = estadoReproductivoDe(ficha);
+      if (estado) {
+        if (estado.texto === "Preñada") { preñadas += 1; totalHembras += 1; }
+        else if (estado.texto === "Vacía") { vacias += 1; totalHembras += 1; }
+        else if (estado.texto === "Parida") { paridas += 1; totalHembras += 1; }
+      }
+    }
   });
 
-  return { totalHembras, preñadas, vacias, paridas, totalNacimientos, nacimientosPorMes, porSexo, porServicio };
+  const tasaPrenez = (preñadas + vacias) > 0 ? Math.round((preñadas / (preñadas + vacias)) * 100) : null;
+  const tasaMortalidad = (totalActivos + totalFallecidos) > 0
+    ? Math.round((totalFallecidos / (totalActivos + totalFallecidos)) * 100)
+    : null;
+
+  const porCategoria = Object.entries(conteoPorCategoria)
+    .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+    .sort((a, b) => b.cantidad - a.cantidad);
+
+  // Indicadores de recría: promedio solo entre los animales que tienen
+  // el dato cargado. No se estima nada de los que no lo tienen.
+  const pesosDestete = [];
+  const gananciasSuplementacion = [];
+  const gananciasVerdeo = [];
+  animales.forEach((ficha) => {
+    if (!ficha.recria) return;
+    const peso = parseFloat(String(ficha.recria.pesoDestete205 || "").replace(",", "."));
+    if (!isNaN(peso)) pesosDestete.push(peso);
+    const gs = parseFloat(String(ficha.recria.gananciaDiariaSuplementacion || "").replace(",", "."));
+    if (!isNaN(gs)) gananciasSuplementacion.push(gs);
+    const gv = parseFloat(String(ficha.recria.gananciaDiariaVerdeo || "").replace(",", "."));
+    if (!isNaN(gv)) gananciasVerdeo.push(gv);
+  });
+  const promedio = (arr) => (arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+
+  return {
+    totalHembras, preñadas, vacias, paridas, tasaPrenez,
+    totalNacimientos, nacimientosPorMes, nacimientosPorAnio,
+    porSexo, porServicio, porCategoria,
+    totalActivos, totalFallecidos, tasaMortalidad,
+    pesoDestetePromedio: promedio(pesosDestete),
+    gananciaSuplementacionPromedio: promedio(gananciasSuplementacion),
+    gananciaVerdeoPromedio: promedio(gananciasVerdeo),
+  };
 }
 
 // Cuenta cuántos animales de cada categoría tienen fallecimiento cargado.
@@ -3824,6 +4011,28 @@ function calcularMontoVenta(venta) {
 function formatearMonto(valor) {
   if (valor === null || valor === undefined || isNaN(valor)) return "$0";
   return `$${Math.round(valor).toLocaleString("es-AR")}`;
+}
+
+// Calcula la facturación mes a mes y los totales de ventas para un año
+// puntual. Solo usa ventas que ya están guardadas — no inventa nada.
+function calcularEstadisticasVentasAnio(ventas, anioFiltro) {
+  const facturadoPorMes = MESES_CORTOS.map((mes) => ({ mes, monto: 0 }));
+  let totalFacturado = 0;
+  let cantidadAnimalesVendidos = 0;
+  let cantidadVentas = 0;
+
+  ventas.forEach((venta) => {
+    const fecha = parseISO(venta.fecha);
+    if (!fecha) return;
+    if (anioFiltro && String(fecha.getFullYear()) !== String(anioFiltro)) return;
+    const monto = calcularMontoVenta(venta) || 0;
+    facturadoPorMes[fecha.getMonth()].monto += monto;
+    totalFacturado += monto;
+    cantidadAnimalesVendidos += venta.animales?.length || 0;
+    cantidadVentas += 1;
+  });
+
+  return { facturadoPorMes, totalFacturado, cantidadAnimalesVendidos, cantidadVentas };
 }
 
 // Junta los vencimientos de pago (30/60/90 días) de todas las ventas
