@@ -2439,11 +2439,31 @@ function PantallaInicio({ onNavegar }) {
   );
 }
 
+// Corta un texto largo agregando "…" al final, para que los nombres de
+// toros/categorías no rompan el diseño en pantallas chicas. El texto
+// completo se sigue viendo en el tooltip al tocar/pasar el mouse.
+function truncarTexto(texto, maxLargo) {
+  if (!texto) return "";
+  return texto.length > maxLargo ? `${texto.slice(0, maxLargo - 1)}…` : texto;
+}
+
 function PantallaEstadisticas({ onVolver }) {
   const [animales, setAnimales] = useState([]);
   const [ventas, setVentas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [anioSel, setAnioSel] = useState(null);
+
+  // Detecta el ancho de pantalla para achicar textos, columnas y ejes de
+  // los gráficos en celulares, sin tocar nada en notebook/tablet.
+  const [anchoVentana, setAnchoVentana] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1200
+  );
+  useEffect(() => {
+    const alRedimensionar = () => setAnchoVentana(window.innerWidth);
+    window.addEventListener("resize", alRedimensionar);
+    return () => window.removeEventListener("resize", alRedimensionar);
+  }, []);
+  const esMobile = anchoVentana < 640;
 
   useEffect(() => {
     const lista = leerTodosLosAnimalesGuardados();
@@ -2472,8 +2492,19 @@ function PantallaEstadisticas({ onVolver }) {
   const formatearKg = (v) => (v === null ? "—" : `${v.toFixed(1)} kg`);
   const formatearKgDia = (v) => (v === null ? "—" : `${v.toFixed(2)} kg/d`);
 
+  // Grilla de tarjetas KPI: en celular se fuerzan 2 columnas prolijas;
+  // en pantallas más grandes se acomodan solas según el ancho disponible.
+  const estiloGrillaKPI = {
+    display: "grid",
+    gridTemplateColumns: esMobile ? "repeat(2, 1fr)" : "repeat(auto-fit, minmax(110px, 1fr))",
+    gap: 8,
+  };
+
+  const largoMaxNombre = esMobile ? 13 : 22;
+  const fontEjes = esMobile ? 10.5 : 11;
+
   return (
-    <div style={{ background: "var(--crema)", border: "1px solid var(--borde)", borderRadius: 16, padding: "22px 18px", boxShadow: "0 2px 10px rgba(59,42,29,0.06)" }}>
+    <div style={{ background: "var(--crema)", border: "1px solid var(--borde)", borderRadius: 16, padding: esMobile ? "18px 12px" : "22px 18px", boxShadow: "0 2px 10px rgba(59,42,29,0.06)" }}>
       <button type="button" onClick={onVolver} style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", color: "var(--marron-cuero-oscuro)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: 0, marginBottom: 14 }}>
         <ArrowLeft size={14} /> Volver
       </button>
@@ -2505,7 +2536,7 @@ function PantallaEstadisticas({ onVolver }) {
         <>
           {/* KPIs del rodeo, foto de hoy */}
           <SeccionTitulo texto="Rodeo hoy" />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8, marginBottom: 22 }}>
+          <div style={{ ...estiloGrillaKPI, marginBottom: 22 }}>
             <TarjetaKPI numero={stats.totalActivos} etiqueta="Total en stock" color="var(--verde-monte)" />
             <TarjetaKPI numero={stats.preñadas} etiqueta="Preñadas" color="var(--verde-exito)" />
             <TarjetaKPI numero={stats.vacias} etiqueta="Vacías" color="var(--terracota)" />
@@ -2515,7 +2546,7 @@ function PantallaEstadisticas({ onVolver }) {
 
           {/* KPIs de producción del año elegido */}
           <SeccionTitulo texto={`Producción ${anioSel || ""}`} />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8, marginBottom: 22 }}>
+          <div style={{ ...estiloGrillaKPI, marginBottom: 22 }}>
             <TarjetaKPI numero={stats.totalNacimientos} etiqueta="Nacimientos" color="var(--verde-monte)" />
             <TarjetaKPI numero={formatearKg(stats.pesoDestetePromedio)} etiqueta="Peso prom. destete" color="var(--marron-cuero)" />
             <TarjetaKPI numero={formatearKgDia(stats.gananciaSuplementacionPromedio)} etiqueta="Gan. diaria (suplem.)" color="var(--verde-exito)" />
@@ -2524,18 +2555,18 @@ function PantallaEstadisticas({ onVolver }) {
 
           {/* KPIs comerciales del año elegido */}
           <SeccionTitulo texto={`Ventas ${anioSel || ""}`} />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8, marginBottom: 24 }}>
+          <div style={{ ...estiloGrillaKPI, marginBottom: 24 }}>
             <TarjetaKPI numero={statsVentas.cantidadVentas} etiqueta="Ventas" color="var(--marron-cuero)" />
             <TarjetaKPI numero={statsVentas.cantidadAnimalesVendidos} etiqueta="Animales vendidos" color="var(--verde-monte)" />
             <TarjetaKPI numero={formatearMonto(statsVentas.totalFacturado)} etiqueta="Facturado" color="var(--verde-exito)" />
           </div>
 
           {hayMortalidad && (
-            <div style={{ background: "#FDF2E9", border: "1px solid var(--terracota)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
+            <div style={{ background: "#FDF2E9", border: "1px solid var(--terracota)", borderRadius: 14, padding: esMobile ? 12 : 16, marginBottom: 18 }}>
               <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--terracota)", margin: "0 0 12px" }}>
                 ⚠️ Mortalidad por categoría
               </h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8 }}>
+              <div style={estiloGrillaKPI}>
                 {mortalidad.Terneros > 0 && <TarjetaKPI numero={mortalidad.Terneros} etiqueta="Terneros" color="var(--terracota)" />}
                 {mortalidad.Vacas > 0 && <TarjetaKPI numero={mortalidad.Vacas} etiqueta="Vacas" color="var(--terracota)" />}
                 {mortalidad.Toros > 0 && <TarjetaKPI numero={mortalidad.Toros} etiqueta="Toros" color="var(--terracota)" />}
@@ -2545,15 +2576,18 @@ function PantallaEstadisticas({ onVolver }) {
           )}
 
           {/* Nacimientos por mes (año elegido) */}
-          <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
-            <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
+          <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: esMobile ? 12 : 16, marginBottom: 18 }}>
+            <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 4px" }}>
               Nacimientos por mes {anioSel ? `(${anioSel})` : ""}
             </h3>
-            <ResponsiveContainer width="100%" height={220}>
+            <p style={{ fontSize: 11, color: "#8A7A63", margin: "0 0 12px", fontStyle: "italic" }}>
+              Partos registrados en el año elegido, mes a mes.
+            </p>
+            <ResponsiveContainer width="100%" height={esMobile ? 190 : 220}>
               <LineChart data={stats.nacimientosPorMes}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
-                <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <XAxis dataKey="mes" tick={{ fontSize: fontEjes }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: fontEjes }} width={28} />
                 <Tooltip />
                 <Line type="monotone" dataKey="cantidad" stroke="#3E4E2F" strokeWidth={2.5} dot={{ r: 3 }} />
               </LineChart>
@@ -2562,15 +2596,15 @@ function PantallaEstadisticas({ onVolver }) {
 
           {/* Evolución histórica de nacimientos */}
           {stats.nacimientosPorAnio.length > 1 && (
-            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
+            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: esMobile ? 12 : 16, marginBottom: 18 }}>
               <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
                 Evolución de nacimientos por año
               </h3>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={esMobile ? 180 : 200}>
                 <BarChart data={stats.nacimientosPorAnio}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
-                  <XAxis dataKey="anio" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="anio" tick={{ fontSize: fontEjes }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: fontEjes }} width={28} />
                   <Tooltip />
                   <Bar dataKey="cantidad" fill="#8A9A6B" radius={[6, 6, 0, 0]} />
                 </BarChart>
@@ -2580,15 +2614,15 @@ function PantallaEstadisticas({ onVolver }) {
 
           {/* Facturación por mes (año elegido) */}
           {statsVentas.totalFacturado > 0 && (
-            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
+            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: esMobile ? 12 : 16, marginBottom: 18 }}>
               <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
                 Facturación por mes {anioSel ? `(${anioSel})` : ""}
               </h3>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={esMobile ? 180 : 200}>
                 <BarChart data={statsVentas.facturadoPorMes}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
-                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
+                  <XAxis dataKey="mes" tick={{ fontSize: fontEjes }} />
+                  <YAxis tick={{ fontSize: fontEjes }} width={38} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
                   <Tooltip formatter={(value) => formatearMonto(value)} />
                   <Bar dataKey="monto" fill="#714823" radius={[6, 6, 0, 0]} />
                 </BarChart>
@@ -2597,87 +2631,39 @@ function PantallaEstadisticas({ onVolver }) {
           )}
 
           <div className="grilla-formulario" style={{ gap: 16 }}>
-            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16 }}>
-              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
+            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: esMobile ? 12 : 16 }}>
+              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 4px" }}>
                 Crías por sexo
               </h3>
+              <p style={{ fontSize: 10.5, color: "#8A7A63", margin: "0 0 8px", fontStyle: "italic" }}>
+                Nacimientos del año {anioSel || ""}. No es el stock actual.
+              </p>
               {stats.porSexo.length === 0 ? (
                 <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic" }}>Sin datos para este año.</p>
               ) : (
-                <ResponsiveContainer width="100%" height={200}>
+                <ResponsiveContainer width="100%" height={esMobile ? 180 : 200}>
                   <PieChart>
-                    <Pie data={stats.porSexo} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
+                    <Pie
+                      data={stats.porSexo}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={esMobile ? 58 : 70}
+                      label={!esMobile}
+                    >
                       {stats.porSexo.map((entry, index) => (
                         <Cell key={entry.name} fill={COLORES[index % COLORES.length]} />
                       ))}
                     </Pie>
                     <Tooltip />
-                    <Legend />
+                    <Legend wrapperStyle={{ fontSize: fontEjes }} />
                   </PieChart>
                 </ResponsiveContainer>
               )}
             </div>
 
-                     <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16 }} className="columna-completa">
-              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 4px" }}>
-                Crías por padre / servicio
-              </h3>
-              {stats.porServicio.length === 0 ? (
-                <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic", margin: "8px 0 0" }}>Sin datos para este año.</p>
-              ) : (
-                <>
-                  <p style={{ fontSize: 11, color: "#8A7A63", margin: "0 0 12px" }}>
-                    {stats.porServicio.length} padre(s)/pajuela(s) con crías registradas
-                  </p>
-                  <ResponsiveContainer width="100%" height={Math.max(200, stats.porServicio.length * 34)}>
-                    <BarChart
-                      data={stats.porServicio}
-                      layout="vertical"
-                      margin={{ left: 10, right: 20 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
-                      <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                      <YAxis
-                        type="category"
-                        dataKey="nombre"
-                        tick={{ fontSize: 11.5 }}
-                        width={140}
-                        interval={0}
-                      />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="Hembra" stackId="cria" fill="#4F6B3A" name="Hembra" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="Macho" stackId="cria" fill="#8B5A2B" name="Macho" radius={[0, 6, 6, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </>
-              )}
-            </div>
-
-            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16 }} className="columna-completa">
-              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
-                Rodeo por categoría
-              </h3>
-              {stats.porCategoria.length === 0 ? (
-                <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic" }}>Sin animales en stock.</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={Math.max(160, stats.porCategoria.length * 42)}>
-                  <BarChart data={stats.porCategoria} layout="vertical" margin={{ left: 10, right: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
-                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <YAxis type="category" dataKey="nombre" tick={{ fontSize: 12 }} width={95} />
-                    <Tooltip />
-                    <Bar dataKey="cantidad" radius={[0, 6, 6, 0]}>
-                      {stats.porCategoria.map((entry, index) => (
-                        <Cell key={entry.nombre} fill={COLORES[index % COLORES.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: 16 }}>
+            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: esMobile ? 12 : 16 }}>
               <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 12px" }}>
                 Estado reproductivo
               </h3>
@@ -2691,19 +2677,90 @@ function PantallaEstadisticas({ onVolver }) {
                   return <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic" }}>Sin tactos cargados.</p>;
                 }
                 return (
-                  <ResponsiveContainer width="100%" height={200}>
+                  <ResponsiveContainer width="100%" height={esMobile ? 180 : 200}>
                     <PieChart>
-                      <Pie data={dataEstado} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
+                      <Pie
+                        data={dataEstado}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={esMobile ? 58 : 70}
+                        label={!esMobile}
+                      >
                         {dataEstado.map((entry) => (
                           <Cell key={entry.name} fill={entry.color} />
                         ))}
                       </Pie>
                       <Tooltip />
-                      <Legend />
+                      <Legend wrapperStyle={{ fontSize: fontEjes }} />
                     </PieChart>
                   </ResponsiveContainer>
                 );
               })()}
+            </div>
+
+            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: esMobile ? 12 : 16 }} className="columna-completa">
+              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 4px" }}>
+                Crías por padre / servicio
+              </h3>
+              {stats.porServicio.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic", margin: "8px 0 0" }}>Sin datos para este año.</p>
+              ) : (
+                <>
+                  <p style={{ fontSize: 11, color: "#8A7A63", margin: "0 0 12px" }}>
+                    {stats.porServicio.length} padre(s)/pajuela(s) con crías registradas
+                  </p>
+                  <ResponsiveContainer width="100%" height={Math.max(esMobile ? 170 : 200, stats.porServicio.length * (esMobile ? 30 : 34))}>
+                    <BarChart
+                      data={stats.porServicio}
+                      layout="vertical"
+                      margin={{ left: 4, right: 16 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
+                      <XAxis type="number" allowDecimals={false} tick={{ fontSize: fontEjes }} />
+                      <YAxis
+                        type="category"
+                        dataKey="nombre"
+                        tick={{ fontSize: fontEjes }}
+                        width={esMobile ? 82 : 140}
+                        interval={0}
+                        tickFormatter={(v) => truncarTexto(v, largoMaxNombre)}
+                      />
+                      <Tooltip labelFormatter={(v) => v} />
+                      <Legend wrapperStyle={{ fontSize: fontEjes }} />
+                      <Bar dataKey="Hembra" stackId="cria" fill="#4F6B3A" name="Hembra" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="Macho" stackId="cria" fill="#8B5A2B" name="Macho" radius={[0, 6, 6, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </>
+              )}
+            </div>
+
+            <div style={{ background: "#FFFDF8", border: "1px solid var(--borde)", borderRadius: 14, padding: esMobile ? 12 : 16 }} className="columna-completa">
+              <h3 style={{ fontFamily: "'PP Neue Montreal Bold', serif", fontSize: 14.5, fontWeight: 600, color: "var(--marron-oscuro)", margin: "0 0 4px" }}>
+                Rodeo por categoría
+              </h3>
+              <p style={{ fontSize: 10.5, color: "#8A7A63", margin: "0 0 8px", fontStyle: "italic" }}>
+                Animales que están hoy en el rodeo, sin importar cuándo nacieron.
+              </p>
+              {stats.porCategoria.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic" }}>Sin animales en stock.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={Math.max(esMobile ? 140 : 160, stats.porCategoria.length * (esMobile ? 36 : 42))}>
+                  <BarChart data={stats.porCategoria} layout="vertical" margin={{ left: 4, right: 16 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2DCCB" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: fontEjes }} />
+                    <YAxis type="category" dataKey="nombre" tick={{ fontSize: fontEjes }} width={esMobile ? 68 : 95} />
+                    <Tooltip />
+                    <Bar dataKey="cantidad" radius={[0, 6, 6, 0]}>
+                      {stats.porCategoria.map((entry, index) => (
+                        <Cell key={entry.nombre} fill={COLORES[index % COLORES.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         </>
