@@ -4447,7 +4447,7 @@ function PantallaListado({
       lista = lista.filter((a) => (a.caravana || "").toLowerCase().includes(texto));
     }
     return [...lista].sort((a, b) => (a.caravana || "").localeCompare(b.caravana || ""));
-  }, [animales, animalesFallecidos, busqueda, categoriaFiltro, establecimientoFiltro]);
+  }, [animales, animalesFallecidos, busqueda, categoriaFiltro, establecimientoFiltro, loteFiltro, estadoFiltro]);
 
   const eliminarAnimalDelListado = (caravanaABorrar) => {
     if (!window.confirm(`¿Estás segura de eliminar la ficha N° ${caravanaABorrar}? Esta acción no se puede deshacer.`)) return;
@@ -4934,7 +4934,7 @@ function PantallaRecria({ onVolver, onEditar }) {
       lista = lista.filter((a) => (a.caravana || "").toLowerCase().includes(texto));
     }
     return [...lista].sort((a, b) => (a.caravana || "").localeCompare(b.caravana || ""));
-}, [animales, busqueda, categoriaFiltro, establecimientoFiltro, loteFiltro, estadoFiltro]);
+  }, [animales, busqueda, categoriaFiltro]);
 
   const eliminarAnimalDelListado = (caravanaABorrar) => {
     if (!window.confirm(`¿Estás segura de eliminar la ficha N° ${caravanaABorrar}? Esta acción no se puede deshacer.`))
