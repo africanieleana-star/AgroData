@@ -4687,162 +4687,211 @@ function PantallaListado({
         )}
       </div>
 
-      {/* Filtros por categoría */}
-      {categoriasPresentes.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
-          <button
-            type="button"
-            onClick={() => setCategoriaFiltro(null)}
+      {/* ===== Panel de filtros (todo agrupado y prolijo) ===== */}
+      <div
+        style={{
+          background: "#FBF8F1",
+          border: "1px solid var(--borde)",
+          borderRadius: 14,
+          padding: "14px 14px 16px",
+          marginBottom: 18,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <span
             style={{
-              padding: "7px 12px",
-              borderRadius: 999,
-              border: categoriaFiltro === null ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
-              background: categoriaFiltro === null ? "var(--verde-monte)" : "#FFFDF8",
-              color: categoriaFiltro === null ? "#FBF7ED" : "var(--marron-oscuro)",
-              fontSize: 12.5,
-              fontWeight: 600,
-              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 700,
+              color: "var(--verde-monte)",
+              textTransform: "uppercase",
+              letterSpacing: 0.4,
             }}
           >
-            Todas ({animales.length})
-          </button>
-          {categoriasPresentes.map((cat) => {
-            const activo = categoriaFiltro === cat;
-            return (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setCategoriaFiltro(activo ? null : cat)}
-                style={{
-                  padding: "7px 12px",
-                  borderRadius: 999,
-                  border: activo ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
-                  background: activo ? "var(--verde-monte)" : "#FFFDF8",
-                  color: activo ? "#FBF7ED" : "var(--marron-oscuro)",
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                {cat} ({conteoPorCategoria[cat] || 0})
-              </button>
-            );
-          })}
-          {animalesFallecidos.length > 0 && (
+            🔎 Filtros
+          </span>
+          {(categoriaFiltro || establecimientoFiltro || loteFiltro || estadoFiltro) && (
             <button
               type="button"
-              onClick={() => setCategoriaFiltro(categoriaFiltro === "Fallecidos" ? null : "Fallecidos")}
+              onClick={() => {
+                setCategoriaFiltro(null);
+                setEstablecimientoFiltro(null);
+                setLoteFiltro(null);
+                setEstadoFiltro(null);
+              }}
               style={{
-                padding: "7px 12px",
-                borderRadius: 999,
-                border: categoriaFiltro === "Fallecidos" ? "2px solid #5A5A5A" : "2px solid var(--borde)",
-                background: categoriaFiltro === "Fallecidos" ? "#5A5A5A" : "#FFFDF8",
-                color: categoriaFiltro === "Fallecidos" ? "#FBF7ED" : "var(--marron-oscuro)",
-                fontSize: 12.5,
-                fontWeight: 600,
+                background: "none",
+                border: "none",
+                color: "var(--terracota)",
+                fontSize: 11.5,
+                fontWeight: 700,
                 cursor: "pointer",
+                padding: 0,
               }}
             >
-              ✝ Fallecidos ({animalesFallecidos.length})
+              ✕ Limpiar filtros
             </button>
           )}
         </div>
-      )}
 
-            {/* Filtro por establecimiento */}
-      {establecimientosPresentes.length > 0 && (
-        <div style={{ marginBottom: 18 }}>
-          <label
-            htmlFor="filtro-establecimiento"
-            style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#8A7A63", marginBottom: 6 }}
-          >
-            Filtrar por establecimiento
-          </label>
-          <select
-            id="filtro-establecimiento"
-            value={establecimientoFiltro || ""}
-            onChange={(e) => setEstablecimientoFiltro(e.target.value || null)}
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "10px 12px",
-              borderRadius: 10,
-              border: "2px solid var(--borde)",
-              background: "#FFFDF8",
-              fontSize: 13.5,
-              fontWeight: 600,
-              color: "var(--marron-oscuro)",
-            }}
-          >
-            <option value="">Todos los establecimientos</option>
-            {establecimientosPresentes.map((est) => (
-              <option key={est} value={est}>{est}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-            {/* Filtro por lote / parcela */}
-      {lotesPresentes.length > 0 && (
-        <div style={{ marginBottom: 18 }}>
-          <label
-            htmlFor="filtro-lote"
-            style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#8A7A63", marginBottom: 6 }}
-          >
-            Filtrar por lote / parcela
-          </label>
-          <select
-            id="filtro-lote"
-            value={loteFiltro || ""}
-            onChange={(e) => setLoteFiltro(e.target.value || null)}
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "10px 12px",
-              borderRadius: 10,
-              border: "2px solid var(--borde)",
-              background: "#FFFDF8",
-              fontSize: 13.5,
-              fontWeight: 600,
-              color: "var(--marron-oscuro)",
-            }}
-          >
-            <option value="">Todos los lotes</option>
-            {lotesPresentes.map((lote) => (
-              <option key={lote} value={lote}>{lote}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Filtro por estado reproductivo */}
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: "#8A7A63", marginBottom: 6 }}>
-          Filtrar por estado reproductivo
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {[null, "Parida", "Preñada", "Vacía"].map((est) => {
-            const activo = estadoFiltro === est;
-            return (
+        {/* Categoría */}
+        {categoriasPresentes.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#8A7A63", marginBottom: 6 }}>
+              Categoría
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               <button
-                key={est || "todos"}
                 type="button"
-                onClick={() => setEstadoFiltro(est)}
+                onClick={() => setCategoriaFiltro(null)}
                 style={{
-                  padding: "7px 12px",
+                  padding: "6px 11px",
                   borderRadius: 999,
-                  border: activo ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
-                  background: activo ? "var(--verde-monte)" : "#FFFDF8",
-                  color: activo ? "#FBF7ED" : "var(--marron-oscuro)",
-                  fontSize: 12.5,
+                  border: categoriaFiltro === null ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
+                  background: categoriaFiltro === null ? "var(--verde-monte)" : "#FFFDF8",
+                  color: categoriaFiltro === null ? "#FBF7ED" : "var(--marron-oscuro)",
+                  fontSize: 12,
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
               >
-              {est || "Todos"} ({est ? conteoPorEstado[est] : conteoPorEstado.total})
+                Todas ({animales.length})
               </button>
-            );
-          })}
+              {categoriasPresentes.map((cat) => {
+                const activo = categoriaFiltro === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCategoriaFiltro(activo ? null : cat)}
+                    style={{
+                      padding: "6px 11px",
+                      borderRadius: 999,
+                      border: activo ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
+                      background: activo ? "var(--verde-monte)" : "#FFFDF8",
+                      color: activo ? "#FBF7ED" : "var(--marron-oscuro)",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {cat} ({conteoPorCategoria[cat] || 0})
+                  </button>
+                );
+              })}
+              {animalesFallecidos.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setCategoriaFiltro(categoriaFiltro === "Fallecidos" ? null : "Fallecidos")}
+                  style={{
+                    padding: "6px 11px",
+                    borderRadius: 999,
+                    border: categoriaFiltro === "Fallecidos" ? "2px solid #5A5A5A" : "2px solid var(--borde)",
+                    background: categoriaFiltro === "Fallecidos" ? "#5A5A5A" : "#FFFDF8",
+                    color: categoriaFiltro === "Fallecidos" ? "#FBF7ED" : "var(--marron-oscuro)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  ✝ Fallecidos ({animalesFallecidos.length})
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Establecimiento y Lote: uno al lado del otro en pantallas grandes */}
+        {(establecimientosPresentes.length > 0 || lotesPresentes.length > 0) && (
+          <div className="grilla-formulario" style={{ gap: 10, marginBottom: 14 }}>
+            {establecimientosPresentes.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: "#8A7A63", marginBottom: 6 }}>
+                  Establecimiento
+                </div>
+                <select
+                  id="filtro-establecimiento"
+                  value={establecimientoFiltro || ""}
+                  onChange={(e) => setEstablecimientoFiltro(e.target.value || null)}
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "9px 10px",
+                    borderRadius: 10,
+                    border: "2px solid var(--borde)",
+                    background: "#FFFDF8",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "var(--marron-oscuro)",
+                  }}
+                >
+                  <option value="">Todos los establecimientos</option>
+                  {establecimientosPresentes.map((est) => (
+                    <option key={est} value={est}>{est}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {lotesPresentes.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: "#8A7A63", marginBottom: 6 }}>
+                  Lote / parcela
+                </div>
+                <select
+                  id="filtro-lote"
+                  value={loteFiltro || ""}
+                  onChange={(e) => setLoteFiltro(e.target.value || null)}
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "9px 10px",
+                    borderRadius: 10,
+                    border: "2px solid var(--borde)",
+                    background: "#FFFDF8",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "var(--marron-oscuro)",
+                  }}
+                >
+                  <option value="">Todos los lotes</option>
+                  {lotesPresentes.map((lote) => (
+                    <option key={lote} value={lote}>{lote}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Estado reproductivo */}
+        <div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: "#8A7A63", marginBottom: 6 }}>
+            Estado reproductivo
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {[null, "Parida", "Preñada", "Vacía"].map((est) => {
+              const activo = estadoFiltro === est;
+              return (
+                <button
+                  key={est || "todos"}
+                  type="button"
+                  onClick={() => setEstadoFiltro(est)}
+                  style={{
+                    padding: "6px 11px",
+                    borderRadius: 999,
+                    border: activo ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
+                    background: activo ? "var(--verde-monte)" : "#FFFDF8",
+                    color: activo ? "#FBF7ED" : "var(--marron-oscuro)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  {est || "Todos"} ({est ? conteoPorEstado[est] : conteoPorEstado.total})
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
