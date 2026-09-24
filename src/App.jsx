@@ -4386,6 +4386,7 @@ function PantallaListado({
   // u otra pantalla), llevamos explícitamente arriba de todo — el
   // navegador NO resetea el scroll solo, así que si no lo hacemos acá
   // queda pegado en lo que tenía la pantalla anterior (ej: Estadísticas).
+  
   useEffect(() => {
     if (cargando) return;
     const destino = scrollGuardado || 0;
@@ -4448,6 +4449,34 @@ function PantallaListado({
     }
     return [...lista].sort((a, b) => (a.caravana || "").localeCompare(b.caravana || ""));
   }, [animales, animalesFallecidos, busqueda, categoriaFiltro, establecimientoFiltro, loteFiltro, estadoFiltro]);
+
+    const conteoPorEstado = useMemo(() => {
+    // Se aplican todos los filtros MENOS el de estado, para que los
+    // números de los botones muestren lo que hay en cada opción.
+    let lista = categoriaFiltro === "Fallecidos" ? animalesFallecidos : animales;
+    if (categoriaFiltro && categoriaFiltro !== "Fallecidos") {
+      lista = lista.filter((a) => a.tipo === categoriaFiltro);
+    }
+    if (establecimientoFiltro) {
+      lista = lista.filter((a) => (a.establecimiento || "").trim() === establecimientoFiltro);
+    }
+    if (loteFiltro) {
+      lista = lista.filter((a) => (a.loteParcela || "").trim() === loteFiltro);
+    }
+    const texto = busqueda.trim().toLowerCase();
+    if (texto) {
+      lista = lista.filter((a) => (a.caravana || "").toLowerCase().includes(texto));
+    }
+
+    const conteo = { Parida: 0, Preñada: 0, Vacía: 0 };
+    lista.forEach((a) => {
+      const estado = estadoReproductivoDe(a);
+      if (estado && conteo[estado.texto] !== undefined) {
+        conteo[estado.texto] += 1;
+      }
+    });
+    return { total: lista.length, ...conteo };
+  }, [animales, animalesFallecidos, busqueda, categoriaFiltro, establecimientoFiltro, loteFiltro]);
 
   const eliminarAnimalDelListado = (caravanaABorrar) => {
     if (!window.confirm(`¿Estás segura de eliminar la ficha N° ${caravanaABorrar}? Esta acción no se puede deshacer.`)) return;
@@ -4810,7 +4839,7 @@ function PantallaListado({
                   cursor: "pointer",
                 }}
               >
-                {est || "Todos"}
+              {est || "Todos"} ({est ? conteoPorEstado[est] : conteoPorEstado.total})
               </button>
             );
           })}
