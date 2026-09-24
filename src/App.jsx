@@ -55,46 +55,41 @@ const APLICA_SERVICIO = ["Vaca", "Vaquillona", "Ternera"];
 // como por el chatbot para responder preguntas sobre vacunas y fechas.
 const PLANES_SANITARIOS = {
   Terneros: [
-    { meses: "Diciembre", tarea: "Antiparasitario (según H.P.G.)" },
+    { meses: "Diciembre", tarea: "Antiparasitario" },
     { meses: "Marzo", tarea: "Vacuna Brucelosis" },
     { meses: "Marzo, Junio - Julio", tarea: "Vacuna Aftosa" },
     { meses: "Abril, Diciembre", tarea: "Vacuna de Cobre" },
     { meses: "Octubre - Noviembre", tarea: "Vacuna Neumonía" },
     { meses: "Octubre - Noviembre", tarea: "Vacuna Mancha" },
     { meses: "Octubre - Noviembre", tarea: "Vacuna Querato-conjuntivitis" },
-    { meses: "Noviembre", tarea: "Antiparasitario" },
   ],
   Vaquillonas: [
     { meses: "Marzo", tarea: "Vacuna Carbunclo" },
     { meses: "Marzo", tarea: "Antiparasitario" },
     { meses: "Marzo", tarea: "Vacuna Aftosa" },
-    { meses: "Marzo - Abril", tarea: "Refuerzo de Cobre" },
+    { meses: "Marzo, Agosto", tarea: "Vacuna de Cobre" },
     { meses: "Mayo - Junio", tarea: "Vacuna Diarrea-Neonatal" },
-    { meses: "Abril - Mayo", tarea: "Vacunas Reproductivas" },
-    { meses: "Agosto - Septiembre", tarea: "Refuerzo Cobre / Reproductivas" },
-    { meses: "Septiembre", tarea: "Antiparasitario" },
+    { meses: "Abril, Agosto - Septiembre", tarea: "Vacunas Reproductivas" },
+    { meses: "Marzo, Septiembre", tarea: "Antiparasitario" },
   ],
   Vacas: [
-    { meses: "Marzo", tarea: "Vacunas Reproductivas" },
+    { meses: "Marzo, Septiembre - Octubre", tarea: "Vacunas Reproductivas" },
     { meses: "Marzo", tarea: "Vacuna Carbunclo" },
-    { meses: "Marzo", tarea: "Refuerzo de Cobre" },
+    { meses: "Marzo, Junio, Octubre", tarea: "Refuerzo de Cobre" },
     { meses: "Marzo", tarea: "Vacuna Aftosa" },
     { meses: "Junio", tarea: "Vacuna Diarrea-Neonatal" },
-    { meses: "Junio", tarea: "Refuerzo de Cobre" },
-    { meses: "Septiembre", tarea: "Vacunas Reproductivas" },
     { meses: "Septiembre", tarea: "Antiparasitario" },
-    { meses: "Octubre", tarea: "Refuerzo de Cobre" },
   ],
   Toros: [
     { meses: "Marzo", tarea: "Vacuna Carbunclo" },
-    { meses: "Mayo - Junio", tarea: "Vacunas Reproductivas" },
-    { meses: "Mayo - Junio", tarea: "Antiparasitario" },
-    { meses: "Mayo - Junio", tarea: "Control de Toros (Raspado venéreo)" },
-    { meses: "Mayo - Junio", tarea: "Refuerzo de Cobre" },
+    { meses: "Mayo, Septiembre", tarea: "Vacunas Reproductivas" },
+    { meses: "Mayo", tarea: "Antiparasitario" },
+    { meses: "Mayo", tarea: "Control de Toros" },
+    { meses: "Mayo - Septiembre", tarea: "Refuerzo de Cobre" },
     { meses: "Septiembre", tarea: "Vacunas Reproductivas" },
-    { meses: "Septiembre", tarea: "Refuerzo de Cobre" },
   ],
 };
+
 
 // Lee los registros de sanidad ya cargados desde la pantalla "Sanidad"
 // (se guardan bajo la clave "tareas_manuales", con el texto que empieza
@@ -10344,14 +10339,14 @@ function PantallaSanidad() {
   const PLANES = {
     Terneros: {
       tareas: [
-        { meses: "Diciembre", tarea: "Antiparasitario" },
-        { meses: "Marzo", tarea: "Vacuna Brucelosis" },
-        { meses: "Marzo, Junio - Julio", tarea: "Vacuna Aftosa" },
-        { meses: "Abril, Diciembre", tarea: "Vacuna de Cobre" },
-        { meses: "Octubre - Noviembre", tarea: "Vacuna Neumonía" },
-        { meses: "Octubre - Noviembre", tarea: "Vacuna Mancha" },
-        { meses: "Octubre - Noviembre", tarea: "Vacuna Querato-conjuntivitis" },
-        { meses: "Noviembre", tarea: "Antiparasitario" },
+    { meses: "Diciembre", tarea: "Antiparasitario" },
+    { meses: "Marzo", tarea: "Vacuna Brucelosis" },
+    { meses: "Marzo, Junio - Julio", tarea: "Vacuna Aftosa" },
+    { meses: "Abril, Diciembre", tarea: "Vacuna de Cobre" },
+    { meses: "Octubre - Noviembre", tarea: "Vacuna Neumonía" },
+    { meses: "Octubre - Noviembre", tarea: "Vacuna Mancha" },
+    { meses: "Octubre - Noviembre", tarea: "Vacuna Querato-conjuntivitis" },
+
       ],
       notas: [
         "💡 Tomar muestras de materia fecal para hacer H.P.G. y desparasitar de forma estratégica.",
@@ -10360,28 +10355,24 @@ function PantallaSanidad() {
     },
     Vaquillonas: {
       tareas: [
-        { meses: "Marzo", tarea: "Vacuna Carbunclo" },
-        { meses: "Marzo", tarea: "Antiparasitario" },
-        { meses: "Marzo", tarea: "Vacuna Aftosa" },
-        { meses: "Marzo - Abril", tarea: "Refuerzo de Cobre" },
-        { meses: "Mayo - Junio", tarea: "Vacuna Diarrea-Neonatal" },
-        { meses: "Abril - Mayo", tarea: "Vacunas Reproductivas" },
-        { meses: "Agosto - Septiembre", tarea: "Refuerzo Cobre / Reproductivas" },
-        { meses: "Septiembre", tarea: "Antiparasitario" },
+    { meses: "Marzo", tarea: "Vacuna Carbunclo" },
+    { meses: "Marzo", tarea: "Antiparasitario" },
+    { meses: "Marzo", tarea: "Vacuna Aftosa" },
+    { meses: "Marzo, Agosto", tarea: "Vacuna de Cobre" },
+    { meses: "Mayo - Junio", tarea: "Vacuna Diarrea-Neonatal" },
+    { meses: "Abril, Agosto - Septiembre", tarea: "Vacunas Reproductivas" },
+    { meses: "Marzo, Septiembre", tarea: "Antiparasitario" },
       ],
       notas: []
     },
     Vacas: {
       tareas: [
-        { meses: "Marzo", tarea: "Vacunas Reproductivas" },
-        { meses: "Marzo", tarea: "Vacuna Carbunclo" },
-        { meses: "Marzo", tarea: "Refuerzo de Cobre" },
-        { meses: "Marzo", tarea: "Vacuna Aftosa" },
-        { meses: "Junio", tarea: "Vacuna Diarrea-Neonatal" },
-        { meses: "Junio", tarea: "Refuerzo de Cobre" },
-        { meses: "Septiembre", tarea: "Vacunas Reproductivas" },
-        { meses: "Septiembre", tarea: "Antiparasitario" },
-        { meses: "Octubre", tarea: "Refuerzo de Cobre" },
+    { meses: "Marzo, Septiembre - Octubre", tarea: "Vacunas Reproductivas" },
+    { meses: "Marzo", tarea: "Vacuna Carbunclo" },
+    { meses: "Marzo, Junio, Octubre", tarea: "Refuerzo de Cobre" },
+    { meses: "Marzo", tarea: "Vacuna Aftosa" },
+    { meses: "Junio", tarea: "Vacuna Diarrea-Neonatal" },
+    { meses: "Septiembre", tarea: "Antiparasitario" },
       ],
       notas: [
         "🔬 En el mismo momento del Tacto / Ecografía, hacer el sangrado para diagnóstico de Brucelosis.",
@@ -10391,13 +10382,12 @@ function PantallaSanidad() {
     },
     Toros: {
       tareas: [
-        { meses: "Marzo", tarea: "Vacuna Carbunclo" },
-        { meses: "Mayo - Junio", tarea: "Vacunas Reproductivas" },
-        { meses: "Mayo - Junio", tarea: "Antiparasitario" },
-        { meses: "Mayo - Junio", tarea: "Control de Toros (Raspado venéreo)" },
-        { meses: "Mayo - Junio", tarea: "Refuerzo de Cobre" },
-        { meses: "Septiembre", tarea: "Vacunas Reproductivas" },
-        { meses: "Septiembre", tarea: "Refuerzo de Cobre" },
+    { meses: "Marzo", tarea: "Vacuna Carbunclo" },
+    { meses: "Mayo, Septiembre", tarea: "Vacunas Reproductivas" },
+    { meses: "Mayo", tarea: "Antiparasitario" },
+    { meses: "Mayo", tarea: "Control de Toros" },
+    { meses: "Mayo - Septiembre", tarea: "Refuerzo de Cobre" },
+    { meses: "Septiembre", tarea: "Vacunas Reproductivas" },
       ],
       notas: []
     },
