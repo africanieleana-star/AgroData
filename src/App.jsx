@@ -10616,7 +10616,7 @@ function PantallaSanidad() {
             Períodos de Resguardo
           </h3>
           <p style={{ fontSize: 12, color: "#8A7A63", margin: "0 0 14px" }}>
-            Animales con restricciones de venta o faena por aplicación de fármacos[cite: 2].
+            Animales con restricciones de venta o faena por aplicación de fármacos.
           </p>
 
           <div style={{ padding: "12px", background: "#FDF2E9", border: "1px solid var(--terracota)", borderRadius: 12 }}>
