@@ -4648,50 +4648,6 @@ function PantallaListado({
         </p>
       )}
 
-      {/* Buscador por caravana */}
-      <div style={{ position: "relative", marginBottom: 14 }}>
-        <input
-          type="text"
-          inputMode="numeric"
-          autoComplete="off"
-          placeholder="Filtrar por número de caravana"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 15,
-            padding: "12px 38px 12px 14px",
-            borderRadius: 10,
-            border: "2px solid var(--borde)",
-            background: "#FFFDF8",
-            color: "var(--marron-oscuro)",
-          }}
-        />
-        {busqueda && (
-          <button
-            type="button"
-            onClick={() => setBusqueda("")}
-            aria-label="Limpiar búsqueda"
-            style={{
-              position: "absolute",
-              right: 10,
-              top: "50%",
-              transform: "translateY(-50%)",
-              background: "none",
-              border: "none",
-              color: "#8A7A63",
-              cursor: "pointer",
-              padding: 4,
-              display: "flex",
-            }}
-          >
-            <X size={16} />
-          </button>
-        )}
-      </div>
-
       {/* ===== Panel de filtros (todo agrupado y prolijo) ===== */}
       <div
         style={{
@@ -4714,10 +4670,11 @@ function PantallaListado({
           >
             🔎 Filtros
           </span>
-          {(categoriaFiltro || establecimientoFiltro || loteFiltro || estadoFiltro) && (
+          {(categoriaFiltro || establecimientoFiltro || loteFiltro || estadoFiltro || busqueda) && (
             <button
               type="button"
               onClick={() => {
+                setBusqueda("");
                 setCategoriaFiltro(null);
                 setEstablecimientoFiltro(null);
                 setLoteFiltro(null);
@@ -4738,7 +4695,57 @@ function PantallaListado({
           )}
         </div>
 
-        {/* Categoría */}
+        {/* Caravana */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: "#8A7A63", marginBottom: 6 }}>
+            Caravana
+          </div>
+          <div style={{ position: "relative" }}>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="Filtrar por número de caravana"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 14,
+                padding: "10px 38px 10px 12px",
+                borderRadius: 10,
+                border: "2px solid var(--borde)",
+                background: "#FFFDF8",
+                color: "var(--marron-oscuro)",
+              }}
+            />
+            {busqueda && (
+              <button
+                type="button"
+                onClick={() => setBusqueda("")}
+                aria-label="Limpiar búsqueda"
+                style={{
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  color: "#8A7A63",
+                  cursor: "pointer",
+                  padding: 4,
+                  display: "flex",
+                }}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Categoría */}        
+        
         {categoriasPresentes.length > 0 && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 11.5, fontWeight: 600, color: "#8A7A63", marginBottom: 6 }}>
