@@ -55,13 +55,13 @@ const APLICA_SERVICIO = ["Vaca", "Vaquillona", "Ternera"];
 // como por el chatbot para responder preguntas sobre vacunas y fechas.
 const PLANES_SANITARIOS = {
   Terneros: [
-    { meses: "Marzo - Abril", tarea: "Antiparasitario (según H.P.G.)" },
+    { meses: "Diciembre", tarea: "Antiparasitario (según H.P.G.)" },
     { meses: "Marzo", tarea: "Vacuna Brucelosis" },
-    { meses: "Marzo - Abril", tarea: "Vacuna Aftosa" },
-    { meses: "Mayo", tarea: "Refuerzo de Cobre" },
-    { meses: "Septiembre - Octubre", tarea: "Vacuna Neumonía" },
-    { meses: "Septiembre - Octubre", tarea: "Vacuna Mancha" },
-    { meses: "Septiembre - Octubre", tarea: "Vacuna Querato-conjuntivitis" },
+    { meses: "Marzo, Junio - Julio", tarea: "Vacuna Aftosa" },
+    { meses: "Abril, Diciembre", tarea: "Vacuna de Cobre" },
+    { meses: "Octubre - Noviembre", tarea: "Vacuna Neumonía" },
+    { meses: "Octubre - Noviembre", tarea: "Vacuna Mancha" },
+    { meses: "Octubre - Noviembre", tarea: "Vacuna Querato-conjuntivitis" },
     { meses: "Noviembre", tarea: "Antiparasitario" },
   ],
   Vaquillonas: [
