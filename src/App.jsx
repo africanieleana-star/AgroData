@@ -635,6 +635,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [raza, setRaza] = useState("");
   const [color, setColor] = useState("");
   const [establecimiento, setEstablecimiento] = useState("");
+  const [loteParcela, setLoteParcela] = useState("");
   const [fechaNacimiento, setFechaNacimiento] = useState("");
   const [caravanaMadreManual, setCaravanaMadreManual] = useState("");
   const [nombrePadreManual, setNombrePadreManual] = useState("");
@@ -833,6 +834,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setRaza("");
     setColor("");
     setEstablecimiento("");
+    setLoteParcela("");
     setFechaNacimiento("");
     setCaravanaMadreManual("");
     setObservacionesAnimal("");
@@ -904,6 +906,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setRaza(f.raza || "");
     setColor(f.color || "");
     setEstablecimiento(f.establecimiento || "");
+    setLoteParcela(f.loteParcela || "");
     setFechaNacimiento(f.fechaNacimiento || f.cria?.fechaNacimiento || "");
     setCaravanaMadreManual(f.caravanaMadre || f.cria?.caravanaMadre || "");
     setNombrePadreManual(f.nombrePadre || f.cria?.nombrePadre || "");
@@ -1075,6 +1078,7 @@ const irAIngresar = () => {
   setRaza("");
   setColor("");
   setEstablecimiento("");
+  setLoteParcela("");
   setFechaNacimiento("");
   setCaravanaMadreManual("");
   setNombrePadreManual("");
@@ -1323,6 +1327,7 @@ const irAIngresar = () => {
         raza: raza.trim() || null,
         color: color.trim() || null,
         establecimiento: establecimiento.trim() || null,
+        loteParcela: loteParcela.trim() || null,  
         fechaNacimiento: fechaNacimiento || null,
         caravanaMadre: caravanaMadreManual.trim() || null,
         nombrePadre: nombrePadreManual.trim() || null,
@@ -1478,6 +1483,7 @@ const irAIngresar = () => {
     raza,
     color,
     establecimiento,
+    loteParcela,
     fechaNacimiento,
     caravanaMadreManual,
     nombrePadreManual,
@@ -1818,6 +1824,8 @@ const irAIngresar = () => {
                 setColor={setColor}
                 establecimiento={establecimiento}
                 setEstablecimiento={setEstablecimiento}
+                loteParcela={loteParcela}
+                setLoteParcela={setLoteParcela}
                 fechaNacimiento={fechaNacimiento}
                 setFechaNacimiento={setFechaNacimiento}
                 caravanaMadreManual={caravanaMadreManual}
@@ -4768,6 +4776,7 @@ function PantallaListado({
                     <div style={{ fontSize: 12, color: "#8A7A63", fontWeight: 500, marginTop: 2 }}>
                       {a.tipo || "Sin categoría"}
                       {a.establecimiento ? ` · ${a.establecimiento}` : ""}
+                      {a.loteParcela ? ` · Lote: ${a.loteParcela}` : ""}
                     </div>
                   </div>
                   <EtiquetaEstado estado={estado} />
@@ -6554,6 +6563,8 @@ function PantallaFormulario({
   setColor,
   establecimiento,
   setEstablecimiento,
+  loteParcela,
+  setLoteParcela,
   fechaNacimiento,
   setFechaNacimiento,
   caravanaMadreManual,
@@ -6721,6 +6732,14 @@ function PantallaFormulario({
           placeholder="Ej: Campo Norte, La Esperanza (opcional)"
           valor={establecimiento}
           onChange={setEstablecimiento}
+        />
+        <CampoTexto
+          id="lote-parcela"
+          etiqueta="Lote / Parcela"
+          tipo="text"
+          placeholder="Ej: Lote 3, Potrero Norte (opcional)"
+          valor={loteParcela}
+          onChange={setLoteParcela}
         />
       </div>
 
