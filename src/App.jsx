@@ -4424,6 +4424,7 @@ function PantallaListado({
   }, [animales]);
 
   const animalesFiltrados = useMemo(() => {
+    
     // Si está elegido el botón "Fallecidos", se muestra esa lista aparte;
     // si no, se muestran los animales en stock.
     let lista = categoriaFiltro === "Fallecidos" ? animalesFallecidos : animales;
