@@ -537,9 +537,13 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [fichaEnResumen, setFichaEnResumen] = useState(null);
   const [origenResumen, setOrigenResumen] = useState("listado"); // a dónde volver desde el resumen
   
-   const [busquedaListado, setBusquedaListado] = useState("");
+  const [busquedaListado, setBusquedaListado] = useState("");
   const [categoriaFiltroListado, setCategoriaFiltroListado] = useState(null);
   const [establecimientoFiltroListado, setEstablecimientoFiltroListado] = useState(null);
+  const [loteFiltroListado, setLoteFiltroListado] = useState(null);
+  const [estadoFiltroListado, setEstadoFiltroListado] = useState(null);
+
+  
    // Recuerda a qué altura de scroll estabas en "Mis Animales" al tocar
   // un animal, para volver ahí (no al principio de la lista) al apretar Volver.
   // La restauración se hace DENTRO de PantallaListado (más abajo), una vez
@@ -1749,6 +1753,10 @@ const irAIngresar = () => {
                 setCategoriaFiltro={setCategoriaFiltroListado}
                 establecimientoFiltro={establecimientoFiltroListado}
                 setEstablecimientoFiltro={setEstablecimientoFiltroListado}
+                loteFiltro={loteFiltroListado}
+                setLoteFiltro={setLoteFiltroListado}
+                estadoFiltro={estadoFiltroListado}
+                setEstadoFiltro={setEstadoFiltroListado}
               />
             )}
 
@@ -4295,12 +4303,16 @@ function PantallaListado({
   setCategoriaFiltro,
   establecimientoFiltro,
   setEstablecimientoFiltro,
+  loteFiltro, 
+  setLoteFiltro, 
+  estadoFiltro, 
+  setEstadoFiltro
 }) {
   const [animales, setAnimales] = useState([]);
   const [animalesFallecidos, setAnimalesFallecidos] = useState([]);
   const [cargando, setCargando] = useState(true);
-  
-    const [importando, setImportando] = useState(false);
+
+  const [importando, setImportando] = useState(false);
   const [mensajeImportacion, setMensajeImportacion] = useState(null);
   const inputExcelRef = useRef(null);
 
@@ -4395,6 +4407,13 @@ function PantallaListado({
     return Array.from(presentes).sort((a, b) => a.localeCompare(b));
   }, [animales]);
 
+    const lotesPresentes = useMemo(() => {
+    const presentes = new Set(
+      animales.map((a) => (a.loteParcela || "").trim()).filter(Boolean)
+    );
+    return Array.from(presentes).sort((a, b) => a.localeCompare(b));
+  }, [animales]);
+
   const conteoPorCategoria = useMemo(() => {
     const conteo = {};
     animales.forEach((a) => {
@@ -4414,6 +4433,14 @@ function PantallaListado({
     if (establecimientoFiltro) {
       lista = lista.filter((a) => (a.establecimiento || "").trim() === establecimientoFiltro);
     }
+
+        if (loteFiltro) {
+      lista = lista.filter((a) => (a.loteParcela || "").trim() === loteFiltro);
+    }
+    if (estadoFiltro) {
+      lista = lista.filter((a) => estadoReproductivoDe(a)?.texto === estadoFiltro);
+    }
+    
     const texto = busqueda.trim().toLowerCase();
     if (texto) {
       lista = lista.filter((a) => (a.caravana || "").toLowerCase().includes(texto));
@@ -4725,6 +4752,70 @@ function PantallaListado({
         </div>
       )}
 
+            {/* Filtro por lote / parcela */}
+      {lotesPresentes.length > 0 && (
+        <div style={{ marginBottom: 18 }}>
+          <label
+            htmlFor="filtro-lote"
+            style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#8A7A63", marginBottom: 6 }}
+          >
+            Filtrar por lote / parcela
+          </label>
+          <select
+            id="filtro-lote"
+            value={loteFiltro || ""}
+            onChange={(e) => setLoteFiltro(e.target.value || null)}
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: "2px solid var(--borde)",
+              background: "#FFFDF8",
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: "var(--marron-oscuro)",
+            }}
+          >
+            <option value="">Todos los lotes</option>
+            {lotesPresentes.map((lote) => (
+              <option key={lote} value={lote}>{lote}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Filtro por estado reproductivo */}
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "#8A7A63", marginBottom: 6 }}>
+          Filtrar por estado reproductivo
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {[null, "Parida", "Preñada", "Vacía"].map((est) => {
+            const activo = estadoFiltro === est;
+            return (
+              <button
+                key={est || "todos"}
+                type="button"
+                onClick={() => setEstadoFiltro(est)}
+                style={{
+                  padding: "7px 12px",
+                  borderRadius: 999,
+                  border: activo ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
+                  background: activo ? "var(--verde-monte)" : "#FFFDF8",
+                  color: activo ? "#FBF7ED" : "var(--marron-oscuro)",
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {est || "Todos"}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Lista de animales */}
       {cargando ? (
         <p style={{ fontSize: 13, color: "#8A7A63", textAlign: "center" }}>Cargando...</p>
@@ -4842,7 +4933,7 @@ function PantallaRecria({ onVolver, onEditar }) {
       lista = lista.filter((a) => (a.caravana || "").toLowerCase().includes(texto));
     }
     return [...lista].sort((a, b) => (a.caravana || "").localeCompare(b.caravana || ""));
-  }, [animales, busqueda, categoriaFiltro]);
+}, [animales, busqueda, categoriaFiltro, establecimientoFiltro, loteFiltro, estadoFiltro]);
 
   const eliminarAnimalDelListado = (caravanaABorrar) => {
     if (!window.confirm(`¿Estás segura de eliminar la ficha N° ${caravanaABorrar}? Esta acción no se puede deshacer.`))
