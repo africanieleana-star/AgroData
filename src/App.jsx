@@ -4408,12 +4408,17 @@ function PantallaListado({
     return Array.from(presentes).sort((a, b) => a.localeCompare(b));
   }, [animales]);
 
-    const lotesPresentes = useMemo(() => {
+  const lotesPresentes = useMemo(() => {
+    // Si hay un establecimiento elegido, solo se listan los lotes de ese establecimiento.
+    // Si no hay ninguno elegido, se listan todos los lotes.
+    const base = establecimientoFiltro
+      ? animales.filter((a) => (a.establecimiento || "").trim() === establecimientoFiltro)
+      : animales;
     const presentes = new Set(
-      animales.map((a) => (a.loteParcela || "").trim()).filter(Boolean)
+      base.map((a) => (a.loteParcela || "").trim()).filter(Boolean)
     );
     return Array.from(presentes).sort((a, b) => a.localeCompare(b));
-  }, [animales]);
+  }, [animales, establecimientoFiltro]);
 
   const conteoPorCategoria = useMemo(() => {
     const conteo = {};
@@ -4811,8 +4816,10 @@ function PantallaListado({
                 <select
                   id="filtro-establecimiento"
                   value={establecimientoFiltro || ""}
-                  onChange={(e) => setEstablecimientoFiltro(e.target.value || null)}
-                  style={{
+                  onChange={(e) => {
+                    setEstablecimientoFiltro(e.target.value || null);
+                    setLoteFiltro(null);
+                  }}                  style={{
                     width: "100%",
                     boxSizing: "border-box",
                     padding: "9px 10px",
