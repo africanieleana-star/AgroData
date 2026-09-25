@@ -530,6 +530,13 @@ function iniciarEscuchaEnVivo(uid) {
   );
 }
 
+function detenerEscuchaEnVivo() {
+  if (cancelarListenerNube) {
+    cancelarListenerNube();
+    cancelarListenerNube = null;
+  }
+}
+
 // La carga inicial y la escucha en vivo van en la MISMA suscripción, así
 // no se leen los animales dos veces (una por getDocs, otra por onSnapshot)
 // cada vez que se abre la app — eso duplicaba las lecturas facturables.
