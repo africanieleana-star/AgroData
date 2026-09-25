@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import * as XLSX from "xlsx";
 import { listarBackups, restaurarBackup, obtenerDatosActuales, obtenerDatosDeBackup, recuperarAnimalesDesdeSubcoleccion, limpiarAnimalesHuerfanos, migrarTodosLosAnimalesAhora } from "./cloudSync";
 
 // Arma y dispara la descarga de un archivo .json en la PC del usuario,
