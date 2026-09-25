@@ -679,6 +679,10 @@ async function subirLoteAnimales() {
       else ultimoSubidoPorAnimal.set(caravana, JSON.stringify(datos));
     });
     fallosLoteAnimales = 0;
+    // El backup diario también se dispara desde acá: antes solo pasaba
+    // al subir el documento grande, y un usuario que solo carga/edita
+    // animales (típico en la importación masiva) nunca lo activaba.
+    actualizarBackupDeHoy(leerTodoLocalStorage());
   } catch (e) {
     fallosLoteAnimales += 1;
     console.error("No se pudo subir el lote de animales:", e);
