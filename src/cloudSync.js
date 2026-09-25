@@ -394,6 +394,11 @@ async function subirAhora() {
           }
         });
 
+        datosFinales = datosNube;
+        transaction.set(referencia, { datos: datosNube, actualizado: nuevaMarca });
+      })
+    );
+
     ultimaVersionConocida = nuevaMarca;
 
     // Sacamos del registro solo lo que se subió (salvo lo que se volvió
@@ -882,18 +887,9 @@ export async function iniciarSincronizacion(uid) {
       originalSetItem("agrodata:cuentaActual", uid);
       subirAhora();
       return;
-    
-          }
-          cambiosPendientes[clave] = { t: "set", n: ++secuenciaCambios };
-        });
-        guardarCambiosPendientes();
-      }
-      pendienteDeSubir = true;
-      originalSetItem("agrodata:cuentaActual", uid);
-      subirAhora();
-      return;
+    }
 
-     const referencia = doc(db, "usuarios", uid);
+    const referencia = doc(db, "usuarios", uid);
     const snapshot = await conTiempoLimite(getDoc(referencia));
 
     if (snapshot.exists() && snapshot.data().datos) {
