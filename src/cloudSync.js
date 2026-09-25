@@ -58,6 +58,7 @@ let restaurando = false;
 let timeoutGuardado = null;
 let ultimaVersionConocida = null; // última versión de la nube que este dispositivo conoce
 let cancelarListenerNube = null; // corta la escucha en vivo al cerrar sesión
+let cancelarListenerAnimales = null; // corta la escucha en vivo de animales al cerrar sesión
 
 // Hay un cambio local que todavía no se confirmó guardado en la nube.
 // (En memoria, para uso inmediato; la versión que sobrevive a que la
@@ -67,6 +68,13 @@ let pendienteDeSubir = false;
 // Semáforo: evita que dos guardados se disparen al mismo tiempo.
 let subidaEnCurso = false;
 let pullEnCurso = false;
+
+// True si queda algo sin confirmar subido, sea del documento grande o
+// de la cola de animales. Así "Guardando..." / "Sincronizado" refleja
+// las DOS colas, no solo el documento grande.
+function hayAlgoPendiente() {
+  return pendienteDeSubir || animalesPendientes.size > 0 || loteAnimalesEnCurso;
+}
 
 let intentosFallidos = 0;
 const ESPERAS_REINTENTO = [3000, 8000, 20000, 45000]; // 3s, 8s, 20s, 45s...
@@ -123,6 +131,12 @@ const PREFIJOS_RESERVADOS = [
 
 function esClaveReservada(clave) {
   return PREFIJOS_RESERVADOS.some((prefijo) => clave.startsWith(prefijo));
+}
+
+// Los animales YA NO viajan dentro del documento grande ("datos"): tienen
+// su propio documento en usuarios/{uid}/animales/{caravana}.
+function esClaveDeAnimal(clave) {
+  return clave.startsWith("animal:");
 }
 
 // "sincronizado" | "guardando" | "error" | "sin_conexion" | "conflicto_dispositivo" | "inactivo"
@@ -223,6 +237,7 @@ function aplicarNovedadesDeLaNube(datosNube) {
   // 1. Agrega o actualiza lo que cambió o es nuevo en otro dispositivo.
   Object.keys(datos).forEach((clave) => {
     if (esClaveReservada(clave)) return;
+    if (esClaveDeAnimal(clave)) return; // los animales ya no viven en "datos"
     if (cambiosPendientes[clave]) return;
     if (localStorage.getItem(clave) !== datos[clave]) {
       originalSetItem(clave, datos[clave]);
@@ -230,16 +245,12 @@ function aplicarNovedadesDeLaNube(datosNube) {
     }
   });
 
-  // 2. Borra en este dispositivo lo que otro dispositivo eliminó. Como
-  // "datos" es la foto COMPLETA de la cuenta (no un parche), cualquier
-  // clave que exista acá y ya no esté ahí fue borrada en otro lado —
-  // salvo que este dispositivo tenga un cambio propio sin confirmar
-  // sobre esa misma clave (para no pisarse con algo que se está
-  // subiendo justo ahora).
+  // 2. Borra en este dispositivo lo que otro dispositivo eliminó...
   const clavesLocales = [];
   for (let i = 0; i < localStorage.length; i++) clavesLocales.push(localStorage.key(i));
   clavesLocales.forEach((clave) => {
     if (esClaveReservada(clave)) return;
+    if (esClaveDeAnimal(clave)) return; // los animales se sincronizan aparte (subcolección)
     if (cambiosPendientes[clave]) return;
     if (!(clave in datos) && localStorage.getItem(clave) !== null) {
       originalRemoveItem(clave);
@@ -291,8 +302,17 @@ async function actualizarBackupDeHoy(datos) {
   ultimoBackupMs = Date.now();
   try {
     const fecha = fechaDeHoyISO();
+    // El backup tiene que ser una foto COMPLETA, incluidos los animales
+    // (que ya no están en "datos" sino en localStorage + subcolección).
+    const datosCompletos = { ...datos };
+    for (let i = 0; i < localStorage.length; i++) {
+      const clave = localStorage.key(i);
+      if (esClaveDeAnimal(clave)) datosCompletos[clave] = localStorage.getItem(clave);
+    }
     const refBackup = doc(db, "usuarios", uidActual, "backups", fecha);
-    await conTiempoLimite(setDoc(refBackup, { datos, guardado: new Date().toISOString() }));
+    await conTiempoLimite(
+      setDoc(refBackup, { datos: datosCompletos, guardado: new Date().toISOString() })
+    );
     if (ultimaFechaLimpieza !== fecha) {
       ultimaFechaLimpieza = fecha;
       limpiarBackupsViejos();
@@ -355,9 +375,17 @@ async function subirAhora() {
           if (esClaveReservada(clave)) delete datosNube[clave];
         });
 
+        // Limpieza: los animales ya no viven acá, viven en la subcolección
+        // "animales". Esto también achica de una vez documentos viejos que
+        // todavía los tengan adentro de una versión anterior de la app.
+        Object.keys(datosNube).forEach((clave) => {
+          if (esClaveDeAnimal(clave)) delete datosNube[clave];
+        });
+
         // ...y le aplicamos SOLO los cambios hechos en este dispositivo.
         Object.keys(cambiosEnviados).forEach((clave) => {
           if (esClaveReservada(clave)) return;
+          if (esClaveDeAnimal(clave)) return; // por si quedó algo viejo en el registro
           if (cambiosEnviados[clave].t === "del") {
             delete datosNube[clave];
           } else {
@@ -365,11 +393,6 @@ async function subirAhora() {
             if (valorLocal !== null) datosNube[clave] = valorLocal;
           }
         });
-
-        datosFinales = datosNube;
-        transaction.set(referencia, { datos: datosNube, actualizado: nuevaMarca });
-      })
-    );
 
     ultimaVersionConocida = nuevaMarca;
 
@@ -388,7 +411,7 @@ async function subirAhora() {
     // Traer lo que cargaron otros dispositivos
     aplicarNovedadesDeLaNube(datosFinales);
 
-    fijarEstado(pendienteDeSubir ? "guardando" : "sincronizado");
+    fijarEstado(hayAlgoPendiente() ? "guardando" : "sincronizado");
     actualizarBackupDeHoy(datosFinales);
 
     if (pendienteDeSubir) {
@@ -502,10 +525,65 @@ function iniciarEscuchaEnVivo(uid) {
   );
 }
 
-function detenerEscuchaEnVivo() {
-  if (cancelarListenerNube) {
-    cancelarListenerNube();
-    cancelarListenerNube = null;
+// La carga inicial y la escucha en vivo van en la MISMA suscripción, así
+// no se leen los animales dos veces (una por getDocs, otra por onSnapshot)
+// cada vez que se abre la app — eso duplicaba las lecturas facturables.
+function iniciarEscuchaAnimalesEnVivo(uid) {
+  detenerEscuchaAnimalesEnVivo();
+  const refColeccion = collection(db, "usuarios", uid, "animales");
+  let primeraVez = true;
+  return new Promise((resolve) => {
+    cancelarListenerAnimales = onSnapshot(
+      refColeccion,
+      { includeMetadataChanges: true },
+      (snapshot) => {
+        if (uid !== uidActual || !sincronizacionActiva) {
+          if (primeraVez) { primeraVez = false; resolve(); }
+          return;
+        }
+        let huboCambios = false;
+        snapshot.docChanges().forEach((cambio) => {
+          if (cambio.doc.metadata.hasPendingWrites) return;
+          const caravana = cambio.doc.id;
+          if (animalesPendientes.has(caravana)) return;
+
+          if (cambio.type === "removed") {
+            if (localStorage.getItem(`animal:${caravana}`) !== null) {
+              originalRemoveItem(`animal:${caravana}`);
+              ultimoSubidoPorAnimal.delete(caravana);
+              huboCambios = true;
+            }
+            return;
+          }
+          const animal = cambio.doc.data();
+          const json = JSON.stringify(animal);
+          if (localStorage.getItem(`animal:${caravana}`) !== json) {
+            originalSetItem(`animal:${caravana}`, json);
+            ultimoSubidoPorAnimal.set(caravana, json);
+            huboCambios = true;
+          }
+        });
+        // El primer disparo es la carga inicial, no "novedades": no avisa.
+        if (huboCambios && typeof window !== "undefined" && !primeraVez) {
+          window.dispatchEvent(new Event("agrodata:actualizado"));
+        }
+        if (primeraVez) {
+          primeraVez = false;
+          resolve();
+        }
+      },
+      (error) => {
+        console.warn("Se cortó la escucha en vivo de animales:", error);
+        if (primeraVez) { primeraVez = false; resolve(); }
+      }
+    );
+  });
+}
+
+function detenerEscuchaAnimalesEnVivo() {
+  if (cancelarListenerAnimales) {
+    cancelarListenerAnimales();
+    cancelarListenerAnimales = null;
   }
 }
 
@@ -530,12 +608,14 @@ function programarSubidaIndividual(caravana, datos) {
   if (!uidActual) return;
   if (!datos || typeof datos !== "object" || Array.isArray(datos)) return;
   animalesPendientes.set(caravana, datos);
+  fijarEstado("guardando");
   programarLoteAnimales();
 }
 
 function borrarAnimalIndividual(caravana) {
   if (!sincronizacionActiva || !uidActual) return;
   animalesPendientes.set(caravana, null);
+  fijarEstado("guardando");
   programarLoteAnimales();
 }
 
@@ -590,7 +670,7 @@ async function subirLoteAnimales() {
   } catch (e) {
     fallosLoteAnimales += 1;
     console.error("No se pudo subir el lote de animales:", e);
-  } finally {
+   } finally {
     loteAnimalesEnCurso = false;
     if (animalesPendientes.size > 0 && sincronizacionActiva) {
       const espera =
@@ -598,6 +678,8 @@ async function subirLoteAnimales() {
           ? ESPERAS_REINTENTO[Math.min(fallosLoteAnimales - 1, ESPERAS_REINTENTO.length - 1)]
           : 500;
       programarLoteAnimales(espera);
+    } else if (!hayAlgoPendiente() && sincronizacionActiva) {
+      fijarEstado("sincronizado");
     }
   }
 }
@@ -618,15 +700,11 @@ Storage.prototype.setItem = function (clave, valor) {
   originalSetItem(clave, valorNuevo);
   if (esClaveReservada(clave)) return;
 
-  // Si el valor es idéntico al que ya había, no cambió nada: no se sube.
-  // (Evita miles de guardados inútiles cuando la app vuelve a guardar
-  // todos los animales sin haber modificado nada.)
   if (valorAnterior === valorNuevo) return;
 
-  registrarCambioLocal(clave, "set");
-  programarSubida();
-
-  if (clave.startsWith("animal:")) {
+  if (esClaveDeAnimal(clave)) {
+    // Los animales no van al documento grande: solo a su documento
+    // individual en la subcolección "animales".
     try {
       const caravana = clave.slice("animal:".length);
       const datos = JSON.parse(valorNuevo);
@@ -634,21 +712,25 @@ Storage.prototype.setItem = function (clave, valor) {
     } catch (e) {
       // el valor no era JSON válido; no se sube individualmente
     }
+    return;
   }
-};
 
+  registrarCambioLocal(clave, "set");
+  programarSubida();
+};
 Storage.prototype.removeItem = function (clave) {
   const existia = localStorage.getItem(clave) !== null;
   originalRemoveItem(clave);
   if (esClaveReservada(clave)) return;
   if (!existia) return;
 
+  if (esClaveDeAnimal(clave)) {
+    borrarAnimalIndividual(clave.slice("animal:".length));
+    return;
+  }
+
   registrarCambioLocal(clave, "del");
   programarSubida();
-
-  if (clave.startsWith("animal:")) {
-    borrarAnimalIndividual(clave.slice("animal:".length));
-  }
 };
 
 Storage.prototype.clear = function () {
@@ -661,7 +743,13 @@ Storage.prototype.clear = function () {
   }
   originalClear();
   Object.keys(reservadas).forEach((clave) => originalSetItem(clave, reservadas[clave]));
-  clavesDeApp.forEach((clave) => registrarCambioLocal(clave, "del"));
+  clavesDeApp.forEach((clave) => {
+    if (esClaveDeAnimal(clave)) {
+      borrarAnimalIndividual(clave.slice("animal:".length));
+    } else {
+      registrarCambioLocal(clave, "del");
+    }
+  });
   programarSubida();
 };
 
@@ -674,12 +762,15 @@ if (typeof window !== "undefined") {
     if (pendienteDeSubir) {
       intentosFallidos = 0;
       subirAhora();
-    } else {
+    } else if (!hayAlgoPendiente()) {
       fijarEstado("sincronizado");
+      traerNovedadesDeLaNube();
+    } else {
       traerNovedadesDeLaNube();
     }
     if (animalesPendientes.size > 0) programarLoteAnimales(500);
   });
+  
   window.addEventListener("offline", () => {
     if (sincronizacionActiva) fijarEstado("sin_conexion");
   });
@@ -772,6 +863,17 @@ export async function iniciarSincronizacion(uid) {
       // la nube por esta vía).
       if (Object.keys(cambiosPendientes).length === 0) {
         Object.keys(leerTodoLocalStorage()).forEach((clave) => {
+          if (esClaveDeAnimal(clave)) {
+            try {
+              programarSubidaIndividual(
+                clave.slice("animal:".length),
+                JSON.parse(localStorage.getItem(clave))
+              );
+            } catch (e) {
+              // valor inválido, se ignora
+            }
+            return;
+          }
           cambiosPendientes[clave] = { t: "set", n: ++secuenciaCambios };
         });
         guardarCambiosPendientes();
@@ -780,9 +882,18 @@ export async function iniciarSincronizacion(uid) {
       originalSetItem("agrodata:cuentaActual", uid);
       subirAhora();
       return;
-    }
+    
+          }
+          cambiosPendientes[clave] = { t: "set", n: ++secuenciaCambios };
+        });
+        guardarCambiosPendientes();
+      }
+      pendienteDeSubir = true;
+      originalSetItem("agrodata:cuentaActual", uid);
+      subirAhora();
+      return;
 
-    const referencia = doc(db, "usuarios", uid);
+     const referencia = doc(db, "usuarios", uid);
     const snapshot = await conTiempoLimite(getDoc(referencia));
 
     if (snapshot.exists() && snapshot.data().datos) {
@@ -794,7 +905,11 @@ export async function iniciarSincronizacion(uid) {
       });
       ultimaVersionConocida = snapshot.data().actualizado || null;
     } else if (!cuentaAnterior || cuentaAnterior === uid) {
-      const datosLocales = leerTodoLocalStorage();
+      const datosLocales = {};
+      Object.keys(leerTodoLocalStorage()).forEach((clave) => {
+        if (esClaveDeAnimal(clave)) return; // los animales van aparte
+        datosLocales[clave] = localStorage.getItem(clave);
+      });
       const marcaInicial = new Date().toISOString();
       await conTiempoLimite(
         setDoc(referencia, {
@@ -803,10 +918,26 @@ export async function iniciarSincronizacion(uid) {
         })
       );
       ultimaVersionConocida = marcaInicial;
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const clave = localStorage.key(i);
+        if (esClaveDeAnimal(clave)) {
+          try {
+            programarSubidaIndividual(
+              clave.slice("animal:".length),
+              JSON.parse(localStorage.getItem(clave))
+            );
+          } catch (e) {
+            // valor inválido, se ignora
+          }
+        }
+      }
     }
 
+    await iniciarEscuchaAnimalesEnVivo(uid);
     originalSetItem("agrodata:cuentaActual", uid);
     fijarEstado("sincronizado");
+
   } catch (e) {
     console.error("No se pudo traer los datos de la nube:", e);
     fijarEstado("error");
@@ -833,7 +964,9 @@ export async function detenerSincronizacion() {
   // dispositivo. Si algún usuario distinto entra después en el mismo
   // dispositivo, no debe encontrar datos de la cuenta anterior.
   detenerEscuchaEnVivo();
+  detenerEscuchaAnimalesEnVivo();
   sincronizacionActiva = false;
+  
   uidActual = null;
   ultimaVersionConocida = null;
   pendienteDeSubir = false;
@@ -898,18 +1031,33 @@ export async function restaurarBackup(fecha) {
 
     const datosBackup = snapshot.data().datos;
 
-    // Lo que hay hoy y no está en el backup se marca como borrado; lo del
-    // backup, como para subir. Así la nube queda igual al backup.
     const clavesActuales = Object.keys(leerTodoLocalStorage());
     borrarSoloDatosDeApp();
     limpiarCambiosPendientes();
-    clavesActuales.forEach((clave) => marcarCambio(clave, "del"));
+    clavesActuales.forEach((clave) => {
+      if (esClaveDeAnimal(clave)) {
+        borrarAnimalIndividual(clave.slice("animal:".length));
+      } else {
+        marcarCambio(clave, "del");
+      }
+    });
     Object.keys(datosBackup).forEach((clave) => {
-      if (!esClaveReservada(clave)) {
-        originalSetItem(clave, datosBackup[clave]);
+      if (esClaveReservada(clave)) return;
+      originalSetItem(clave, datosBackup[clave]);
+      if (esClaveDeAnimal(clave)) {
+        try {
+          programarSubidaIndividual(
+            clave.slice("animal:".length),
+            JSON.parse(datosBackup[clave])
+          );
+        } catch (e) {
+          // valor inválido, se ignora
+        }
+      } else {
         marcarCambio(clave, "set");
       }
     });
+    
 
     programarSubida();
     if (typeof window !== "undefined") {
