@@ -46,8 +46,7 @@ export async function preguntarAGemini(pregunta, contextoDelCampo) {
 /* ------------------------------------------------------------------ */
 
 const LARGO_MAXIMO_TEXTO = 5000; // más largo que esto = archivo adjunto (factura en base64, etc.)
-const CLAVES_IGNORADAS = /firebase|token|auth|apikey|password|session/i;
-
+const CLAVES_IGNORADAS = /firebase|token|auth|apikey|password|session|^firestore_|^_grecaptcha|^agrodata:cuentaActual$|^ultimoAvisoAlertas$/i;
 const esObjeto = (x) => x && typeof x === "object" && !Array.isArray(x);
 const tieneCaravana = (x) => esObjeto(x) && x.caravana !== undefined;
 
