@@ -179,11 +179,14 @@ function resumirLista(listaOriginal) {
   Object.keys(fechas).forEach((campo) => {
     const r = fechas[campo].masReciente;
     const a = fechas[campo].masAntiguo;
+    // El registro completo ya va más abajo, en "DATOS COMPLETOS": acá
+    // alcanza con la caravana para no duplicar el mismo animal entero.
     porFecha[campo] = {
-      masReciente: { fecha: r.f.toISOString().slice(0, 10), registro: r.item },
-      masAntiguo: { fecha: a.f.toISOString().slice(0, 10), registro: a.item },
+      masReciente: { fecha: r.f.toISOString().slice(0, 10), caravana: r.item.caravana },
+      masAntiguo: { fecha: a.f.toISOString().slice(0, 10), caravana: a.item.caravana },
     };
   });
+  
   if (Object.keys(porFecha).length) resumen.registrosExtremosPorFecha = porFecha;
 
   return resumen;
