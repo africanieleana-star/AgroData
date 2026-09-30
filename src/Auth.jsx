@@ -53,6 +53,7 @@ export default function Auth() {
   const [modo, setModo] = useState("login"); // "login" | "registro"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [repetirPassword, setRepetirPassword] = useState("");
   const [nombreCompleto, setNombreCompleto] = useState("");
   const [telefono, setTelefono] = useState("");
   const [establecimiento, setEstablecimiento] = useState("");
@@ -68,6 +69,10 @@ export default function Auth() {
     e.preventDefault();
     setError("");
     setAviso("");
+    if (modo === "registro" && password !== repetirPassword) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
     if (modo === "registro" && !aceptaPrivacidad) {
       setError("Tenés que aceptar el aviso de privacidad para crear tu cuenta.");
       return;
@@ -201,6 +206,7 @@ export default function Auth() {
 
         {modo === "registro" && (
           <>
+            <CampoAuth etiqueta="Repetir contraseña" valor={repetirPassword} onChange={setRepetirPassword} placeholder="Repetí tu contraseña" tipo="password" />
             <CampoAuth etiqueta="Nombre completo" valor={nombreCompleto} onChange={setNombreCompleto} placeholder="Ej: Juan Pérez" />
             <CampoAuth etiqueta="Teléfono" valor={telefono} onChange={setTelefono} placeholder="Ej: 2236819372" tipo="tel" />
             <CampoAuth etiqueta="Nombre del establecimiento" valor={establecimiento} onChange={setEstablecimiento} placeholder="Ej: Estancia La Esperanza" />
