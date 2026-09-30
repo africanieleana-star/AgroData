@@ -559,7 +559,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     pantallaAnteriorRef.current = pantalla;
   }, [pantalla]);
   
-  const [caravanaFormularioimagensetCaravanaFormularioRecria] = useState(null);
+   const [caravanaFormularioRecria, setCaravanaFormularioRecria] = useState(null);
   const [menuAbierto, setMenuAbierto] = useState(false);
 
     // ============================================================
