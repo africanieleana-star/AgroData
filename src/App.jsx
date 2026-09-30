@@ -643,7 +643,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [fallecio, setFallecio] = useState(false);
   const [fechaFallecimiento, setFechaFallecimiento] = useState("");
   const [imagenes, setImagenes] = useState([]); // fotos del animal (array de dataURL)
-  const [datosToro, setDatosToro] = useState({}); // datos de cabaña (solo Toros)
+  const [datosToro, setDatosToro] = useState({}); // historial de datos de cabaña (solo Toros)
 
   
   // Datos de Recría (solo aplican a Terneros / Terneras)
