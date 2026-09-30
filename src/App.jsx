@@ -559,7 +559,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     pantallaAnteriorRef.current = pantalla;
   }, [pantalla]);
   
-  const [caravanaFormularioRecria, setCaravanaFormularioRecria] = useState(null);
+  const [caravanaFormularioimagensetCaravanaFormularioRecria] = useState(null);
   const [menuAbierto, setMenuAbierto] = useState(false);
 
     // ============================================================
@@ -1349,7 +1349,7 @@ const irAIngresar = () => {
         fallecimiento,
         recria,
         imagenes,
-        datosToro: tipo === "Toro" && Object.keys(datosToro || {}).length > 0 ? datosToro : null,
+         datosToro: tipo === "Toro" && tieneDatosToro(datosToro) ? datosToro : null,
       };
 
       localStorage.setItem(clave, JSON.stringify(ficha));
@@ -6739,12 +6739,37 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
 }
 
 /* ---------------------------------------------------------------- */
-/* Datos de cabaña (solo Toros)                                      */
+/* Datos de toro (cabaña): 4 secciones desplegables con historial    */
 /* ---------------------------------------------------------------- */
 
 // Días en los que se considera vigente un raspado / examen andrológico.
 // Si querés otro plazo (por ejemplo 180), cambiá solo este número.
 const DIAS_VIGENCIA_CONTROL_TORO = 365;
+const CONTROL_ANDROLOGICO = "Examen andrológico";
+const CONTROL_RASPADO = "Raspado";
+
+// Asegura que los datos tengan siempre las 4 listas (aunque la ficha sea vieja o esté vacía)
+function normalizarDatosToro(datos) {
+  const d = datos && typeof datos === "object" ? datos : {};
+  return {
+    performance: Array.isArray(d.performance) ? d.performance : [],
+    genetica: Array.isArray(d.genetica) ? d.genetica : [],
+    reproductiva: Array.isArray(d.reproductiva) ? d.reproductiva : [],
+    sanidad: Array.isArray(d.sanidad) ? d.sanidad : [],
+  };
+}
+
+function tieneDatosToro(datos) {
+  const d = normalizarDatosToro(datos);
+  return Object.values(d).some((lista) => lista.length > 0);
+}
+
+// Devuelve el registro más reciente de un tipo de control (raspado / andrológico)
+function ultimoControlToro(datos, tipoControl) {
+  const lista = normalizarDatosToro(datos).reproductiva.filter((e) => e.tipo === tipoControl && e.fecha);
+  if (lista.length === 0) return null;
+  return [...lista].sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+}
 
 // Botones de opción (toca uno para elegirlo, toca de nuevo para sacarlo)
 function OpcionesPills({ etiqueta, opciones, valor, onChange }) {
@@ -6781,212 +6806,555 @@ function OpcionesPills({ etiqueta, opciones, valor, onChange }) {
   );
 }
 
-function VencimientoControl({ fecha }) {
-  if (!fecha) return null;
-  const vence = sumarDiasISO(fecha, DIAS_VIGENCIA_CONTROL_TORO);
-  if (!vence) return null;
-  const dias = diasEntre(vence, new Date());
-  const vencido = dias !== null && dias < 0;
+function AreaTextoToro({ id, etiqueta, placeholder, valor, onChange }) {
   return (
-    <p style={{ fontSize: 11.5, margin: "-6px 0 12px", fontWeight: 600, color: vencido ? "var(--terracota)" : "var(--verde-exito)" }}>
-      {vencido ? "⚠️ Vencido desde el " : "✅ Vigente hasta el "}
-      {formatearFechaDDMMYYYY(vence)}
-    </p>
+    <div style={{ marginBottom: 12 }}>
+      <label htmlFor={id} style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--marron-oscuro)", marginBottom: 5 }}>
+        {etiqueta}
+      </label>
+      <textarea
+        id={id}
+        rows={2}
+        placeholder={placeholder}
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 14,
+          padding: "12px 14px",
+          borderRadius: 10,
+          border: "2px solid var(--borde)",
+          background: "#FFFDF8",
+          color: "var(--marron-oscuro)",
+          resize: "vertical",
+        }}
+      />
+    </div>
   );
 }
 
-function SeccionDatosToro({ datosToro, setDatosToro }) {
-  const d = datosToro || {};
-  const set = (campo) => (valor) => setDatosToro((prev) => ({ ...(prev || {}), [campo]: valor }));
-
-  const estiloTituloSub = {
-    fontFamily: "'PP Neue Montreal Bold', serif",
-    fontWeight: 600,
-    fontSize: 14.5,
-    color: "var(--verde-monte)",
-    marginBottom: 10,
-    display: "block",
-  };
-  const estiloCaja = {
-    background: "#FFFDF8",
-    border: "1px solid var(--borde)",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 14,
-  };
-  const estiloSubtitulo = {
-    fontSize: 12.5,
-    fontWeight: 700,
-    color: "var(--marron-cuero-oscuro)",
-    marginBottom: 8,
-  };
-
+function BotonAgregarHistorialToro({ onClick }) {
   return (
-    <details className="seccion-desplegable" style={{ borderTop: "1px dashed var(--borde)", paddingTop: 18, marginBottom: 20 }}>
+    <div style={{ marginTop: 6, textAlign: "right" }}>
+      <button
+        type="button"
+        onClick={onClick}
+        style={{
+          background: "var(--verde-monte)",
+          color: "white",
+          border: "none",
+          padding: "10px 16px",
+          borderRadius: 10,
+          cursor: "pointer",
+          fontWeight: "bold",
+          fontSize: 13.5,
+        }}
+      >
+        ➕ Agregar al historial
+      </button>
+    </div>
+  );
+}
+
+// Sección desplegable (con la cantidad de registros en el título)
+function DesplegableToro({ titulo, cantidad, children }) {
+  return (
+    <details
+      className="seccion-desplegable"
+      style={{
+        background: "#FFFDF8",
+        border: "1px solid var(--borde)",
+        borderRadius: 12,
+        padding: "12px 14px",
+        marginBottom: 12,
+      }}
+    >
       <summary
         style={{
           fontFamily: "'PP Neue Montreal Bold', serif",
-          fontSize: 18,
           fontWeight: 600,
-          color: "#FBF7ED",
-          background: "var(--verde-monte)",
-          padding: "12px 16px",
-          borderRadius: 8,
-          margin: "10px 0 14px 0",
+          fontSize: 15,
+          color: "var(--verde-monte)",
           cursor: "pointer",
           userSelect: "none",
-          boxSizing: "border-box",
         }}
       >
-        Datos de toro
+        {titulo}
+        {cantidad > 0 ? ` (${cantidad})` : ""}
       </summary>
-      <p style={{ fontSize: 12, color: "#8A7A63", margin: "0 0 12px" }}>
-        Todo es opcional.
-      </p>
-
-      {/* PERFORMANCE */}
-      <div style={estiloCaja}>
-        <span style={estiloTituloSub}>📏 Performance</span>
-        <div className="grilla-formulario">
-          <CampoTexto id="toro-peso-nacer" etiqueta="Peso al nacer (kg)" tipo="text" valor={d.pesoNacer || ""} onChange={set("pesoNacer")} />
-          <CampoTexto id="toro-peso-destete" etiqueta="Peso al destete, 205 días (kg)" tipo="text" valor={d.pesoDestete205 || ""} onChange={set("pesoDestete205")} />
-          <CampoTexto id="toro-peso-12" etiqueta="Peso a los 12 meses (kg)" tipo="text" valor={d.peso12m || ""} onChange={set("peso12m")} />
-          <CampoTexto id="toro-peso-18" etiqueta="Peso a los 18 meses (kg)" tipo="text" valor={d.peso18m || ""} onChange={set("peso18m")} />
-          <div className="columna-completa">
-            <CampoTexto id="toro-altura" etiqueta="Altura (cm)" tipo="text" valor={d.altura || ""} onChange={set("altura")} />
-          </div>
-          <CampoTexto id="toro-ce-12" etiqueta="Circunferencia escrotal a 12 meses (cm)" tipo="text" valor={d.ce12 || ""} onChange={set("ce12")} />
-          <CampoTexto id="toro-ce-18" etiqueta="Circunferencia escrotal a 18 meses (cm)" tipo="text" valor={d.ce18 || ""} onChange={set("ce18")} />
-        </div>
-      </div>
-
-      {/* GENÉTICA Y FENOTIPO */}
-      <div style={estiloCaja}>
-        <span style={estiloTituloSub}>🧬 Genética y fenotipo</span>
-        <label htmlFor="toro-deps" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--marron-oscuro)", marginBottom: 5 }}>
-          DEPs
-        </label>
-        <textarea
-          id="toro-deps"
-          rows={3}
-          placeholder="Ej: Peso al nacer +1.2 / Destete +35 / Leche +8 / CE +0.9"
-          value={d.deps || ""}
-          onChange={(e) => set("deps")(e.target.value)}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 14,
-            padding: "12px 14px",
-            borderRadius: 10,
-            border: "2px solid var(--borde)",
-            background: "#FFFDF8",
-            color: "var(--marron-oscuro)",
-            resize: "vertical",
-            marginBottom: 12,
-          }}
-        />
-        <div className="grilla-formulario">
-          <CampoTexto id="toro-adn" etiqueta="ADN" tipo="text" placeholder="Ej: Parentesco verificado" valor={d.adn || ""} onChange={set("adn")} />
-          <CampoTexto id="toro-conformacion" etiqueta="Conformación (puntaje)" tipo="text" placeholder="Ej: 8" valor={d.conformacion || ""} onChange={set("conformacion")} />
-          <div className="columna-completa">
-            <CampoTexto id="toro-premios" etiqueta="Premios" tipo="text" placeholder="Ej: Campeón Joven Expo Rural 2026" valor={d.premios || ""} onChange={set("premios")} />
-          </div>
-        </div>
-      </div>
-
-      {/* APTITUD REPRODUCTIVA */}
-      <div style={estiloCaja}>
-        <span style={estiloTituloSub}>🔬 Aptitud reproductiva</span>
-
-        <div style={estiloSubtitulo}>Examen andrológico</div>
-        <CampoTexto id="toro-fecha-andro" etiqueta="Fecha del examen" tipo="date" valor={d.fechaAndrologico || ""} onChange={set("fechaAndrologico")} />
-        <VencimientoControl fecha={d.fechaAndrologico} />
-        <OpcionesPills etiqueta="Resultado" opciones={["Apto", "No apto", "Reexaminar"]} valor={d.resultadoAndrologico || ""} onChange={set("resultadoAndrologico")} />
-        <div className="grilla-formulario">
-          <CampoTexto id="toro-motilidad" etiqueta="Motilidad (%)" tipo="text" valor={d.motilidad || ""} onChange={set("motilidad")} />
-          <CampoTexto id="toro-morfologia" etiqueta="Morfología espermática (% normales)" tipo="text" valor={d.morfologia || ""} onChange={set("morfologia")} />
-        </div>
-
-        <div style={{ ...estiloSubtitulo, margin: "10px 0 8px", paddingTop: 10, borderTop: "1px dashed var(--borde)" }}>
-          Raspado
-        </div>
-        <CampoTexto id="toro-fecha-raspado" etiqueta="Fecha del raspado" tipo="date" valor={d.fechaRaspado || ""} onChange={set("fechaRaspado")} />
-        <VencimientoControl fecha={d.fechaRaspado} />
-        <OpcionesPills etiqueta="Trichomonas" opciones={["Negativo", "Positivo"]} valor={d.trichomonas || ""} onChange={set("trichomonas")} />
-        <OpcionesPills etiqueta="Campylobacter" opciones={["Negativo", "Positivo"]} valor={d.campylobacter || ""} onChange={set("campylobacter")} />
-      </div>
-
-      {/* SANIDAD DE TOROS */}
-      <div style={estiloCaja}>
-        <span style={estiloTituloSub}>💉 Sanidad de toros</span>
-
-        <div style={estiloSubtitulo}>Brucelosis</div>
-        <CampoTexto id="toro-fecha-bruc" etiqueta="Fecha del control" tipo="date" valor={d.fechaBrucelosis || ""} onChange={set("fechaBrucelosis")} />
-        <OpcionesPills etiqueta="Resultado" opciones={["Negativo", "Positivo"]} valor={d.resultadoBrucelosis || ""} onChange={set("resultadoBrucelosis")} />
-
-        <div style={{ ...estiloSubtitulo, margin: "10px 0 8px", paddingTop: 10, borderTop: "1px dashed var(--borde)" }}>
-          Tuberculosis
-        </div>
-        <CampoTexto id="toro-fecha-tuber" etiqueta="Fecha del control" tipo="date" valor={d.fechaTuberculosis || ""} onChange={set("fechaTuberculosis")} />
-        <OpcionesPills etiqueta="Resultado" opciones={["Negativo", "Positivo"]} valor={d.resultadoTuberculosis || ""} onChange={set("resultadoTuberculosis")} />
-      </div>
+      <div style={{ marginTop: 12 }}>{children}</div>
     </details>
   );
 }
 
-// Resumen de solo lectura (se usa en la ficha del animal). Solo muestra
-// las filas que tienen dato cargado.
+// Lista del historial: más reciente primero, con botón para borrar cada registro
+function ListaHistorialToro({ items, onEliminar, renderFilas }) {
+  if (items.length === 0) {
+    return (
+      <p style={{ fontSize: 12.5, color: "#8A7A63", fontStyle: "italic", margin: "14px 0 0" }}>
+        Todavía no hay registros en el historial.
+      </p>
+    );
+  }
+  const ordenados = [...items].sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
+      {ordenados.map((item) => (
+        <div
+          key={item.id}
+          style={{
+            padding: "10px 12px",
+            background: "#F5F2EC",
+            borderRadius: 8,
+            borderLeft: "4px solid var(--verde-salvia)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: "var(--marron-oscuro)" }}>
+              📅 {item.fecha ? formatearFechaDDMMYYYY(parseISO(item.fecha)) : "Sin fecha"}
+            </div>
+            <button
+              type="button"
+              onClick={() => onEliminar(item.id)}
+              title="Eliminar registro"
+              style={{ background: "none", border: "none", color: "#C62828", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
+            >
+              ❌
+            </button>
+          </div>
+          {renderFilas(item)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Estado del último raspado / andrológico (vigente o vencido)
+function EstadoVigenciaControl({ nombre, entrada }) {
+  if (!entrada) {
+    return (
+      <div style={{ fontSize: 12, color: "#8A7A63", marginBottom: 4 }}>
+        {nombre}: sin registrar
+      </div>
+    );
+  }
+  const vence = sumarDiasISO(entrada.fecha, DIAS_VIGENCIA_CONTROL_TORO);
+  const dias = vence ? diasEntre(vence, new Date()) : null;
+  const vencido = dias !== null && dias < 0;
+  return (
+    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, color: vencido ? "var(--terracota)" : "var(--verde-exito)" }}>
+      {vencido ? "⚠️" : "✅"} {nombre}: {formatearFechaDDMMYYYY(parseISO(entrada.fecha))} ·{" "}
+      {vencido ? "vencido desde el " : "vigente hasta el "}
+      {vence ? formatearFechaDDMMYYYY(vence) : "—"}
+    </div>
+  );
+}
+
+/* ---------- 📏 Performance ---------- */
+function FormPerformance({ items, onAgregar, onEliminar }) {
+  const [fecha, setFecha] = useState(fechaAISO(new Date()));
+  const [momento, setMomento] = useState("");
+  const [peso, setPeso] = useState("");
+  const [altura, setAltura] = useState("");
+  const [ce, setCe] = useState("");
+
+  const agregar = () => {
+    if (!fecha) {
+      alert("Elegí la fecha.");
+      return;
+    }
+    if (!peso.trim() && !altura.trim() && !ce.trim()) {
+      alert("Cargá al menos un dato: peso, altura o circunferencia escrotal.");
+      return;
+    }
+    onAgregar({
+      fecha,
+      momento: momento || null,
+      peso: peso.trim() || null,
+      altura: altura.trim() || null,
+      ce: ce.trim() || null,
+    });
+    setMomento("");
+    setPeso("");
+    setAltura("");
+    setCe("");
+  };
+
+  return (
+    <>
+      <CampoTexto id="toro-perf-fecha" etiqueta="Fecha de la medición" tipo="date" valor={fecha} onChange={setFecha} />
+      <OpcionesPills
+        etiqueta="Momento (opcional)"
+        opciones={["Al nacer", "Destete (205 días)", "12 meses", "18 meses"]}
+        valor={momento}
+        onChange={setMomento}
+      />
+      <div className="grilla-formulario">
+        <CampoTexto id="toro-perf-peso" etiqueta="Peso (kg)" tipo="text" valor={peso} onChange={setPeso} />
+        <CampoTexto id="toro-perf-altura" etiqueta="Altura (cm)" tipo="text" valor={altura} onChange={setAltura} />
+        <div className="columna-completa">
+          <CampoTexto id="toro-perf-ce" etiqueta="Circunferencia escrotal (cm)" tipo="text" valor={ce} onChange={setCe} />
+        </div>
+      </div>
+      <BotonAgregarHistorialToro onClick={agregar} />
+      <ListaHistorialToro
+        items={items}
+        onEliminar={onEliminar}
+        renderFilas={(it) => (
+          <>
+            {it.momento && <FilaDato etiqueta="Momento" valor={it.momento} />}
+            {it.peso && <FilaDato etiqueta="Peso" valor={`${it.peso} kg`} />}
+            {it.altura && <FilaDato etiqueta="Altura" valor={`${it.altura} cm`} />}
+            {it.ce && <FilaDato etiqueta="Circunferencia escrotal" valor={`${it.ce} cm`} />}
+          </>
+        )}
+      />
+    </>
+  );
+}
+
+/* ---------- 🧬 Genética y fenotipo ---------- */
+function FormGenetica({ items, onAgregar, onEliminar }) {
+  const [fecha, setFecha] = useState(fechaAISO(new Date()));
+  const [deps, setDeps] = useState("");
+  const [adn, setAdn] = useState("");
+  const [conformacion, setConformacion] = useState("");
+  const [premios, setPremios] = useState("");
+
+  const agregar = () => {
+    if (!fecha) {
+      alert("Elegí la fecha.");
+      return;
+    }
+    if (!deps.trim() && !adn.trim() && !conformacion.trim() && !premios.trim()) {
+      alert("Cargá al menos un dato: DEPs, ADN, conformación o premios.");
+      return;
+    }
+    onAgregar({
+      fecha,
+      deps: deps.trim() || null,
+      adn: adn.trim() || null,
+      conformacion: conformacion.trim() || null,
+      premios: premios.trim() || null,
+    });
+    setDeps("");
+    setAdn("");
+    setConformacion("");
+    setPremios("");
+  };
+
+  return (
+    <>
+      <CampoTexto id="toro-gen-fecha" etiqueta="Fecha" tipo="date" valor={fecha} onChange={setFecha} />
+      <AreaTextoToro
+        id="toro-gen-deps"
+        etiqueta="DEPs"
+        placeholder="Ej: Peso al nacer +1.2 / Destete +35 / Leche +8 / CE +0.9"
+        valor={deps}
+        onChange={setDeps}
+      />
+      <div className="grilla-formulario">
+        <CampoTexto id="toro-gen-adn" etiqueta="ADN" tipo="text" placeholder="Ej: Parentesco verificado" valor={adn} onChange={setAdn} />
+        <CampoTexto id="toro-gen-conf" etiqueta="Conformación (puntaje)" tipo="text" placeholder="Ej: 8" valor={conformacion} onChange={setConformacion} />
+        <div className="columna-completa">
+          <CampoTexto id="toro-gen-premios" etiqueta="Premios" tipo="text" placeholder="Ej: Campeón Joven Expo Rural 2026" valor={premios} onChange={setPremios} />
+        </div>
+      </div>
+      <BotonAgregarHistorialToro onClick={agregar} />
+      <ListaHistorialToro
+        items={items}
+        onEliminar={onEliminar}
+        renderFilas={(it) => (
+          <>
+            {it.deps && <FilaDato etiqueta="DEPs" valor={it.deps} />}
+            {it.adn && <FilaDato etiqueta="ADN" valor={it.adn} />}
+            {it.conformacion && <FilaDato etiqueta="Conformación" valor={it.conformacion} />}
+            {it.premios && <FilaDato etiqueta="Premios" valor={it.premios} />}
+          </>
+        )}
+      />
+    </>
+  );
+}
+
+/* ---------- 🔬 Aptitud reproductiva ---------- */
+function FormReproductiva({ items, onAgregar, onEliminar }) {
+  const [tipoControl, setTipoControl] = useState(CONTROL_ANDROLOGICO);
+  const [fecha, setFecha] = useState(fechaAISO(new Date()));
+  const [resultado, setResultado] = useState("");
+  const [motilidad, setMotilidad] = useState("");
+  const [morfologia, setMorfologia] = useState("");
+  const [trichomonas, setTrichomonas] = useState("");
+  const [campylobacter, setCampylobacter] = useState("");
+  const [observaciones, setObservaciones] = useState("");
+
+  const esAndrologico = tipoControl === CONTROL_ANDROLOGICO;
+
+  const agregar = () => {
+    if (!fecha) {
+      alert("Elegí la fecha.");
+      return;
+    }
+    if (esAndrologico && !resultado) {
+      alert("Elegí el resultado del examen andrológico (Apto, No apto o Reexaminar).");
+      return;
+    }
+    if (!esAndrologico && !trichomonas && !campylobacter) {
+      alert("Elegí el resultado de Trichomonas y/o Campylobacter.");
+      return;
+    }
+    onAgregar(
+      esAndrologico
+        ? {
+            tipo: tipoControl,
+            fecha,
+            resultado,
+            motilidad: motilidad.trim() || null,
+            morfologia: morfologia.trim() || null,
+            observaciones: observaciones.trim() || null,
+          }
+        : {
+            tipo: tipoControl,
+            fecha,
+            trichomonas: trichomonas || null,
+            campylobacter: campylobacter || null,
+            observaciones: observaciones.trim() || null,
+          }
+    );
+    setResultado("");
+    setMotilidad("");
+    setMorfologia("");
+    setTrichomonas("");
+    setCampylobacter("");
+    setObservaciones("");
+  };
+
+  return (
+    <>
+      <div style={{ background: "#F5F2EC", borderRadius: 10, padding: "10px 12px", marginBottom: 14 }}>
+        <EstadoVigenciaControl nombre="Último examen andrológico" entrada={ultimoControlToro({ reproductiva: items }, CONTROL_ANDROLOGICO)} />
+        <EstadoVigenciaControl nombre="Último raspado" entrada={ultimoControlToro({ reproductiva: items }, CONTROL_RASPADO)} />
+      </div>
+
+      <OpcionesPills
+        etiqueta="¿Qué control querés cargar?"
+        opciones={[CONTROL_ANDROLOGICO, CONTROL_RASPADO]}
+        valor={tipoControl}
+        onChange={(v) => v && setTipoControl(v)}
+      />
+      <CampoTexto id="toro-rep-fecha" etiqueta="Fecha del control" tipo="date" valor={fecha} onChange={setFecha} />
+
+      {esAndrologico ? (
+        <>
+          <OpcionesPills etiqueta="Resultado" opciones={["Apto", "No apto", "Reexaminar"]} valor={resultado} onChange={setResultado} />
+          <div className="grilla-formulario">
+            <CampoTexto id="toro-rep-motilidad" etiqueta="Motilidad (%)" tipo="text" valor={motilidad} onChange={setMotilidad} />
+            <CampoTexto id="toro-rep-morfologia" etiqueta="Morfología espermática (% normales)" tipo="text" valor={morfologia} onChange={setMorfologia} />
+          </div>
+        </>
+      ) : (
+        <>
+          <OpcionesPills etiqueta="Trichomonas" opciones={["Negativo", "Positivo"]} valor={trichomonas} onChange={setTrichomonas} />
+          <OpcionesPills etiqueta="Campylobacter" opciones={["Negativo", "Positivo"]} valor={campylobacter} onChange={setCampylobacter} />
+        </>
+      )}
+
+      <CampoTexto id="toro-rep-obs" etiqueta="Observaciones (opcional)" tipo="text" valor={observaciones} onChange={setObservaciones} />
+      <BotonAgregarHistorialToro onClick={agregar} />
+      <ListaHistorialToro
+        items={items}
+        onEliminar={onEliminar}
+        renderFilas={(it) => (
+          <>
+            <FilaDato etiqueta="Control" valor={it.tipo} />
+            {it.resultado && <FilaDato etiqueta="Resultado" valor={it.resultado} />}
+            {it.motilidad && <FilaDato etiqueta="Motilidad" valor={`${it.motilidad} %`} />}
+            {it.morfologia && <FilaDato etiqueta="Morfología (normales)" valor={`${it.morfologia} %`} />}
+            {it.trichomonas && <FilaDato etiqueta="Trichomonas" valor={it.trichomonas} />}
+            {it.campylobacter && <FilaDato etiqueta="Campylobacter" valor={it.campylobacter} />}
+            {it.observaciones && <FilaDato etiqueta="Observaciones" valor={it.observaciones} />}
+          </>
+        )}
+      />
+    </>
+  );
+}
+
+/* ---------- 💉 Sanidad de toros ---------- */
+function FormSanidadToro({ items, onAgregar, onEliminar }) {
+  const [tipoControl, setTipoControl] = useState("Brucelosis");
+  const [fecha, setFecha] = useState(fechaAISO(new Date()));
+  const [resultado, setResultado] = useState("");
+  const [observaciones, setObservaciones] = useState("");
+
+  const agregar = () => {
+    if (!fecha) {
+      alert("Elegí la fecha.");
+      return;
+    }
+    if (!resultado) {
+      alert("Elegí el resultado (Negativo o Positivo).");
+      return;
+    }
+    onAgregar({
+      tipo: tipoControl,
+      fecha,
+      resultado,
+      observaciones: observaciones.trim() || null,
+    });
+    setResultado("");
+    setObservaciones("");
+  };
+
+  return (
+    <>
+      <OpcionesPills
+        etiqueta="¿Qué control querés cargar?"
+        opciones={["Brucelosis", "Tuberculosis"]}
+        valor={tipoControl}
+        onChange={(v) => v && setTipoControl(v)}
+      />
+      <CampoTexto id="toro-san-fecha" etiqueta="Fecha del control" tipo="date" valor={fecha} onChange={setFecha} />
+      <OpcionesPills etiqueta="Resultado" opciones={["Negativo", "Positivo"]} valor={resultado} onChange={setResultado} />
+      <CampoTexto id="toro-san-obs" etiqueta="Observaciones (opcional)" tipo="text" valor={observaciones} onChange={setObservaciones} />
+      <BotonAgregarHistorialToro onClick={agregar} />
+      <ListaHistorialToro
+        items={items}
+        onEliminar={onEliminar}
+        renderFilas={(it) => (
+          <>
+            <FilaDato etiqueta="Control" valor={it.tipo} />
+            <FilaDato etiqueta="Resultado" valor={it.resultado} />
+            {it.observaciones && <FilaDato etiqueta="Observaciones" valor={it.observaciones} />}
+          </>
+        )}
+      />
+    </>
+  );
+}
+
+/* ---------- Sección completa (se muestra solo en Toros) ---------- */
+function SeccionDatosToro({ caravana, enEdicion, datosToro, setDatosToro }) {
+  const datos = normalizarDatosToro(datosToro);
+
+  // En un toro que ya existe, cada cambio se guarda al instante en su ficha.
+  // En un toro nuevo se guarda al tocar "Registrar animal".
+  const persistir = (nuevoDatos) => {
+    if (!enEdicion || !caravana) return;
+    try {
+      const clave = `animal:${caravana}`;
+      const ficha = JSON.parse(localStorage.getItem(clave) || "{}");
+      ficha.datosToro = nuevoDatos;
+      localStorage.setItem(clave, JSON.stringify(ficha));
+    } catch (e) {
+      console.error("No se pudo guardar el historial del toro:", e);
+      alert("No se pudo guardar el registro.");
+    }
+  };
+
+  const agregar = (seccion) => (entrada) => {
+    const nuevo = {
+      ...datos,
+      [seccion]: [...datos[seccion], { id: `${Date.now()}`, ...entrada }],
+    };
+    setDatosToro(nuevo);
+    persistir(nuevo);
+  };
+
+  const eliminar = (seccion) => (id) => {
+    if (!window.confirm("¿Eliminar este registro del historial?")) return;
+    const nuevo = { ...datos, [seccion]: datos[seccion].filter((e) => e.id !== id) };
+    setDatosToro(nuevo);
+    persistir(nuevo);
+  };
+
+  return (
+    <div style={{ borderTop: "1px dashed var(--borde)", paddingTop: 18, marginBottom: 20 }}>
+      <h3
+        style={{
+          fontFamily: "'PP Neue Montreal Bold', serif",
+          fontSize: 16,
+          fontWeight: 600,
+          color: "#FBF7ED",
+          background: "var(--verde-monte)",
+          padding: "8px 12px",
+          borderRadius: 8,
+          margin: "0 0 10px 0",
+        }}
+      >
+        Datos de toro
+      </h3>
+      <p style={{ fontSize: 12, color: "#8A7A63", margin: "0 0 12px" }}>
+        {enEdicion
+          ? "Cada registro que agregues queda guardado en el historial al instante."
+          : "Los registros se guardan en el historial cuando toques “Registrar animal”."}
+      </p>
+
+      <DesplegableToro titulo="📏 Performance" cantidad={datos.performance.length}>
+        <FormPerformance items={datos.performance} onAgregar={agregar("performance")} onEliminar={eliminar("performance")} />
+      </DesplegableToro>
+
+      <DesplegableToro titulo="🧬 Genética y fenotipo" cantidad={datos.genetica.length}>
+        <FormGenetica items={datos.genetica} onAgregar={agregar("genetica")} onEliminar={eliminar("genetica")} />
+      </DesplegableToro>
+
+      <DesplegableToro titulo="🔬 Aptitud reproductiva" cantidad={datos.reproductiva.length}>
+        <FormReproductiva items={datos.reproductiva} onAgregar={agregar("reproductiva")} onEliminar={eliminar("reproductiva")} />
+      </DesplegableToro>
+
+      <DesplegableToro titulo="💉 Sanidad de toros" cantidad={datos.sanidad.length}>
+        <FormSanidadToro items={datos.sanidad} onAgregar={agregar("sanidad")} onEliminar={eliminar("sanidad")} />
+      </DesplegableToro>
+    </div>
+  );
+}
+
+// Resumen de solo lectura (se usa en la ficha del animal)
 function ResumenDatosToro({ datos }) {
-  const fecha = (f) => (f ? formatearFechaDDMMYYYY(parseISO(f)) : null);
-  const con = (v, unidad) => (v ? `${v} ${unidad}` : null);
+  const d = normalizarDatosToro(datos);
+  const fecha = (f) => (f ? formatearFechaDDMMYYYY(parseISO(f)) : "Sin fecha");
+  const ordenar = (lista) => [...lista].sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+  const unir = (partes) => partes.filter(Boolean).join(" · ");
 
   const grupos = [
     {
       titulo: "Performance",
-      filas: [
-        ["Peso al nacer", con(datos.pesoNacer, "kg")],
-        ["Peso al destete (205 días)", con(datos.pesoDestete205, "kg")],
-        ["Peso a 12 meses", con(datos.peso12m, "kg")],
-        ["Peso a 18 meses", con(datos.peso18m, "kg")],
-        ["Altura", con(datos.altura, "cm")],
-        ["Circunf. escrotal 12 meses", con(datos.ce12, "cm")],
-        ["Circunf. escrotal 18 meses", con(datos.ce18, "cm")],
-      ],
+      filas: ordenar(d.performance).map((e) => [
+        e.id,
+        fecha(e.fecha),
+        unir([e.momento, e.peso && `${e.peso} kg`, e.altura && `${e.altura} cm de altura`, e.ce && `CE ${e.ce} cm`]),
+      ]),
     },
     {
       titulo: "Genética y fenotipo",
-      filas: [
-        ["DEPs", datos.deps],
-        ["ADN", datos.adn],
-        ["Conformación", datos.conformacion],
-        ["Premios", datos.premios],
-      ],
+      filas: ordenar(d.genetica).map((e) => [
+        e.id,
+        fecha(e.fecha),
+        unir([e.deps && `DEPs: ${e.deps}`, e.adn && `ADN: ${e.adn}`, e.conformacion && `Conformación: ${e.conformacion}`, e.premios && `Premios: ${e.premios}`]),
+      ]),
     },
     {
       titulo: "Aptitud reproductiva",
-      filas: [
-        ["Examen andrológico", fecha(datos.fechaAndrologico)],
-        ["Resultado", datos.resultadoAndrologico],
-        ["Motilidad", con(datos.motilidad, "%")],
-        ["Morfología (normales)", con(datos.morfologia, "%")],
-        ["Raspado", fecha(datos.fechaRaspado)],
-        ["Trichomonas", datos.trichomonas],
-        ["Campylobacter", datos.campylobacter],
-      ],
+      filas: ordenar(d.reproductiva).map((e) => [
+        e.id,
+        fecha(e.fecha),
+        unir([
+          e.tipo,
+          e.resultado,
+          e.motilidad && `motilidad ${e.motilidad}%`,
+          e.morfologia && `morfología ${e.morfologia}%`,
+          e.trichomonas && `Trichomonas ${e.trichomonas}`,
+          e.campylobacter && `Campylobacter ${e.campylobacter}`,
+        ]),
+      ]),
     },
     {
       titulo: "Sanidad de toros",
-      filas: [
-        ["Brucelosis (fecha)", fecha(datos.fechaBrucelosis)],
-        ["Brucelosis (resultado)", datos.resultadoBrucelosis],
-        ["Tuberculosis (fecha)", fecha(datos.fechaTuberculosis)],
-        ["Tuberculosis (resultado)", datos.resultadoTuberculosis],
-      ],
+      filas: ordenar(d.sanidad).map((e) => [e.id, fecha(e.fecha), unir([e.tipo, e.resultado])]),
     },
-  ]
-    .map((g) => ({ ...g, filas: g.filas.filter(([, valor]) => valor) }))
-    .filter((g) => g.filas.length > 0);
+  ].filter((g) => g.filas.length > 0);
 
   if (grupos.length === 0) return null;
 
@@ -6997,14 +7365,15 @@ function ResumenDatosToro({ datos }) {
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--verde-salvia)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>
             {g.titulo}
           </div>
-          {g.filas.map(([etiqueta, valor]) => (
-            <FilaDato key={etiqueta} etiqueta={etiqueta} valor={valor} />
+          {g.filas.map(([id, etiqueta, valor]) => (
+            <FilaDato key={id} etiqueta={etiqueta} valor={valor} />
           ))}
         </div>
       ))}
     </>
   );
 }
+
 
 /* ---------------------------------------------------------------- */
 /* Pantalla 2: Formulario (alta o edición)                           */
@@ -7366,7 +7735,12 @@ function PantallaFormulario({
       </div>
 
       {tipo === "Toro" && (
-        <SeccionDatosToro datosToro={datosToro} setDatosToro={setDatosToro} />
+   <SeccionDatosToro
+          caravana={caravana}
+          enEdicion={enEdicion}
+          datosToro={datosToro}
+          setDatosToro={setDatosToro}
+        />
       )}
             
 
