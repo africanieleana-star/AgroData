@@ -716,8 +716,12 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [toast, setToast] = useState(null); // { tipo: "exito" | "error", mensaje: string } | null
   const [versionDeshacer, setVersionDeshacer] = useState(0); // cambia cada vez que se deshace algo, para refrescar la pantalla
 
-  const muestraServicio = true;
-  const listoParaGuardar = (caravana || "").length > 0 && tipo !== null; const enEdicion = modo === "edicion";
+  // Las secciones de Servicio reproductivo, Tacto y Parición solo aplican a
+  // hembras (Vaca, Vaquillona, Ternera). Para Toro, Novillo y Ternero se ocultan.
+  // Mientras no se elija categoría, tampoco se muestran.
+  const muestraServicio = APLICA_SERVICIO.includes(tipo);
+  const listoParaGuardar = (caravana || "").length > 0 && tipo !== null;
+  const enEdicion = modo === "edicion";
 
   const mostrarToast = (mensaje, tipo = "exito") => {
     setToast({ mensaje, tipo });
