@@ -1349,7 +1349,7 @@ const irAIngresar = () => {
         fallecimiento,
         recria,
         imagenes,
-         datosToro: tipo === "Toro" && tieneDatosToro(datosToro) ? datosToro : null,
+        datosToro: tipo === "Toro" && tieneDatosToro(datosToro) ? datosToro : null,
       };
 
       localStorage.setItem(clave, JSON.stringify(ficha));
