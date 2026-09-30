@@ -4,7 +4,8 @@ import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
-import { auth } from "./firebase";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "./firebase";
 
 // Traduce los códigos de error de Firebase a mensajes entendibles.
 function mensajeError(codigo) {
@@ -21,10 +22,43 @@ function mensajeError(codigo) {
   return mapa[codigo] || "Ocurrió un error. Probá de nuevo.";
 }
 
+function CampoAuth({ etiqueta, valor, onChange, placeholder, tipo = "text" }) {
+  return (
+    <div>
+      <label style={{ fontSize: 12, fontWeight: 600, color: "#8A7A63", display: "block", marginBottom: 4 }}>
+        {etiqueta}
+      </label>
+      <input
+        type={tipo}
+        required
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: "100%",
+          padding: 12,
+          borderRadius: 10,
+          border: "1px solid #E0D8C3",
+          background: "#F5F2EC",
+          fontSize: 14,
+          boxSizing: "border-box",
+          color: "#3B2A1D",
+        }}
+      />
+    </div>
+  );
+}
+
 export default function Auth() {
   const [modo, setModo] = useState("login"); // "login" | "registro"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [nombreCompleto, setNombreCompleto] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [establecimiento, setEstablecimiento] = useState("");
+  const [localidad, setLocalidad] = useState("");
+  const [provincia, setProvincia] = useState("");
+  const [pais, setPais] = useState("Argentina");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
@@ -38,7 +72,18 @@ export default function Auth() {
       if (modo === "login") {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       } else {
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
+        const credencial = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        // Datos del productor: se guardan una sola vez, al registrarse.
+        await setDoc(doc(db, "productores", credencial.user.uid), {
+          nombreCompleto: nombreCompleto.trim(),
+          telefono: telefono.trim(),
+          establecimiento: establecimiento.trim(),
+          localidad: localidad.trim(),
+          provincia: provincia.trim(),
+          pais: pais.trim(),
+          email: email.trim(),
+          creado: serverTimestamp(),
+        });
       }
       // Si funciona, el componente que escucha el login (main.jsx)
       // se encarga de mostrar la app. No hace falta hacer nada más acá.
@@ -147,6 +192,17 @@ export default function Auth() {
             }}
           />
         </div>
+
+        {modo === "registro" && (
+          <>
+            <CampoAuth etiqueta="Nombre completo" valor={nombreCompleto} onChange={setNombreCompleto} placeholder="Ej: Juan Pérez" />
+            <CampoAuth etiqueta="Teléfono" valor={telefono} onChange={setTelefono} placeholder="Ej: 2236819372" tipo="tel" />
+            <CampoAuth etiqueta="Nombre del establecimiento" valor={establecimiento} onChange={setEstablecimiento} placeholder="Ej: Estancia La Esperanza" />
+            <CampoAuth etiqueta="Localidad" valor={localidad} onChange={setLocalidad} placeholder="Ej: Tandil" />
+            <CampoAuth etiqueta="Provincia" valor={provincia} onChange={setProvincia} placeholder="Ej: Buenos Aires" />
+            <CampoAuth etiqueta="País" valor={pais} onChange={setPais} placeholder="Ej: Argentina" />
+          </>
+        )}
 
         {error && (
           <div style={{ fontSize: 12, color: "#78281F", background: "#FADBD8", padding: 10, borderRadius: 8 }}>
