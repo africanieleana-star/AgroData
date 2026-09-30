@@ -643,7 +643,9 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
   const [fallecio, setFallecio] = useState(false);
   const [fechaFallecimiento, setFechaFallecimiento] = useState("");
   const [imagenes, setImagenes] = useState([]); // fotos del animal (array de dataURL)
+  const [datosToro, setDatosToro] = useState({}); // datos de cabaña (solo Toros)
 
+  
   // Datos de Recría (solo aplican a Terneros / Terneras)
   const [pesoDestete205, setPesoDestete205] = useState("");
   const [castrado, setCastrado] = useState(false);
@@ -844,6 +846,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     setFallecio(false);
     setFechaFallecimiento("");
     setImagenes([]);
+    setDatosToro({});
     setPesoDestete205("");
     setCastrado(false);
     setGananciaDiariaSuplementacion("");
@@ -924,7 +927,7 @@ export default function RodeoInteligente({ userEmail, onCerrarSesion }) {
     }
 
     setImagenes(Array.isArray(f.imagenes) ? f.imagenes : []);
-
+    setDatosToro(f.datosToro && typeof f.datosToro === "object" ? f.datosToro : {});
     if (f.recria) {
       setPesoDestete205(f.recria.pesoDestete205 || "");
       setCastrado(Boolean(f.recria.castrado));
@@ -1118,6 +1121,7 @@ const irAIngresar = () => {
   setHistorialServicios([]);
   setHistorialCrias([]);
   setImagenes([]);
+  setDatosToro({});
 
 
   // 6. Restablecemos estado y mostramos el formulario vacio
@@ -1345,6 +1349,7 @@ const irAIngresar = () => {
         fallecimiento,
         recria,
         imagenes,
+        datosToro: tipo === "Toro" && Object.keys(datosToro || {}).length > 0 ? datosToro : null,
       };
 
       localStorage.setItem(clave, JSON.stringify(ficha));
@@ -1526,6 +1531,8 @@ const irAIngresar = () => {
     fechaVenta,
     pesoVenta,
     imagenes,
+    datosToro,
+    tipo,
   ]);
 
   return (
@@ -1904,6 +1911,8 @@ const irAIngresar = () => {
                 setPesoVenta={setPesoVenta}
                 imagenes={imagenes}
                 setImagenes={setImagenes}
+                datosToro={datosToro}
+                setDatosToro={setDatosToro}
               />
             )}
 
@@ -5711,8 +5720,10 @@ function PantallaResumen({ ficha, onVolver, onEditar, onVerFicha }) {
         </div>
       )}
 
-            {ficha.recria && (
-        <>
+      {ficha.tipo === "Toro" && ficha.datosToro && <ResumenDatosToro datos={ficha.datosToro} />}
+
+      {ficha.recria && (
+      <>
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--verde-salvia)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>
             Datos de recría
           </div>
@@ -6726,6 +6737,275 @@ function ArbolGraficoPedigree({ animal, onVerFicha }) {
     </div>
   );
 }
+
+/* ---------------------------------------------------------------- */
+/* Datos de cabaña (solo Toros)                                      */
+/* ---------------------------------------------------------------- */
+
+// Días en los que se considera vigente un raspado / examen andrológico.
+// Si querés otro plazo (por ejemplo 180), cambiá solo este número.
+const DIAS_VIGENCIA_CONTROL_TORO = 365;
+
+// Botones de opción (toca uno para elegirlo, toca de nuevo para sacarlo)
+function OpcionesPills({ etiqueta, opciones, valor, onChange }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--marron-oscuro)", marginBottom: 6 }}>
+        {etiqueta}
+      </label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {opciones.map((op) => {
+          const activo = valor === op;
+          return (
+            <button
+              key={op}
+              type="button"
+              onClick={() => onChange(activo ? "" : op)}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 999,
+                border: activo ? "2px solid var(--verde-monte)" : "2px solid var(--borde)",
+                background: activo ? "var(--verde-monte)" : "#FFFDF8",
+                color: activo ? "#FBF7ED" : "var(--marron-oscuro)",
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {op}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function VencimientoControl({ fecha }) {
+  if (!fecha) return null;
+  const vence = sumarDiasISO(fecha, DIAS_VIGENCIA_CONTROL_TORO);
+  if (!vence) return null;
+  const dias = diasEntre(vence, new Date());
+  const vencido = dias !== null && dias < 0;
+  return (
+    <p style={{ fontSize: 11.5, margin: "-6px 0 12px", fontWeight: 600, color: vencido ? "var(--terracota)" : "var(--verde-exito)" }}>
+      {vencido ? "⚠️ Vencido desde el " : "✅ Vigente hasta el "}
+      {formatearFechaDDMMYYYY(vence)}
+    </p>
+  );
+}
+
+function SeccionDatosToro({ datosToro, setDatosToro }) {
+  const d = datosToro || {};
+  const set = (campo) => (valor) => setDatosToro((prev) => ({ ...(prev || {}), [campo]: valor }));
+
+  const estiloTituloSub = {
+    fontFamily: "'PP Neue Montreal Bold', serif",
+    fontWeight: 600,
+    fontSize: 14.5,
+    color: "var(--verde-monte)",
+    marginBottom: 10,
+    display: "block",
+  };
+  const estiloCaja = {
+    background: "#FFFDF8",
+    border: "1px solid var(--borde)",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+  };
+  const estiloSubtitulo = {
+    fontSize: 12.5,
+    fontWeight: 700,
+    color: "var(--marron-cuero-oscuro)",
+    marginBottom: 8,
+  };
+
+  return (
+    <details className="seccion-desplegable" style={{ borderTop: "1px dashed var(--borde)", paddingTop: 18, marginBottom: 20 }}>
+      <summary
+        style={{
+          fontFamily: "'PP Neue Montreal Bold', serif",
+          fontSize: 18,
+          fontWeight: 600,
+          color: "#FBF7ED",
+          background: "var(--verde-monte)",
+          padding: "12px 16px",
+          borderRadius: 8,
+          margin: "10px 0 14px 0",
+          cursor: "pointer",
+          userSelect: "none",
+          boxSizing: "border-box",
+        }}
+      >
+        Datos de toro
+      </summary>
+      <p style={{ fontSize: 12, color: "#8A7A63", margin: "0 0 12px" }}>
+        Todo es opcional.
+      </p>
+
+      {/* PERFORMANCE */}
+      <div style={estiloCaja}>
+        <span style={estiloTituloSub}>📏 Performance</span>
+        <div className="grilla-formulario">
+          <CampoTexto id="toro-peso-nacer" etiqueta="Peso al nacer (kg)" tipo="text" valor={d.pesoNacer || ""} onChange={set("pesoNacer")} />
+          <CampoTexto id="toro-peso-destete" etiqueta="Peso al destete, 205 días (kg)" tipo="text" valor={d.pesoDestete205 || ""} onChange={set("pesoDestete205")} />
+          <CampoTexto id="toro-peso-12" etiqueta="Peso a los 12 meses (kg)" tipo="text" valor={d.peso12m || ""} onChange={set("peso12m")} />
+          <CampoTexto id="toro-peso-18" etiqueta="Peso a los 18 meses (kg)" tipo="text" valor={d.peso18m || ""} onChange={set("peso18m")} />
+          <div className="columna-completa">
+            <CampoTexto id="toro-altura" etiqueta="Altura (cm)" tipo="text" valor={d.altura || ""} onChange={set("altura")} />
+          </div>
+          <CampoTexto id="toro-ce-12" etiqueta="Circunferencia escrotal a 12 meses (cm)" tipo="text" valor={d.ce12 || ""} onChange={set("ce12")} />
+          <CampoTexto id="toro-ce-18" etiqueta="Circunferencia escrotal a 18 meses (cm)" tipo="text" valor={d.ce18 || ""} onChange={set("ce18")} />
+        </div>
+      </div>
+
+      {/* GENÉTICA Y FENOTIPO */}
+      <div style={estiloCaja}>
+        <span style={estiloTituloSub}>🧬 Genética y fenotipo</span>
+        <label htmlFor="toro-deps" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--marron-oscuro)", marginBottom: 5 }}>
+          DEPs
+        </label>
+        <textarea
+          id="toro-deps"
+          rows={3}
+          placeholder="Ej: Peso al nacer +1.2 / Destete +35 / Leche +8 / CE +0.9"
+          value={d.deps || ""}
+          onChange={(e) => set("deps")(e.target.value)}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 14,
+            padding: "12px 14px",
+            borderRadius: 10,
+            border: "2px solid var(--borde)",
+            background: "#FFFDF8",
+            color: "var(--marron-oscuro)",
+            resize: "vertical",
+            marginBottom: 12,
+          }}
+        />
+        <div className="grilla-formulario">
+          <CampoTexto id="toro-adn" etiqueta="ADN" tipo="text" placeholder="Ej: Parentesco verificado" valor={d.adn || ""} onChange={set("adn")} />
+          <CampoTexto id="toro-conformacion" etiqueta="Conformación (puntaje)" tipo="text" placeholder="Ej: 8" valor={d.conformacion || ""} onChange={set("conformacion")} />
+          <div className="columna-completa">
+            <CampoTexto id="toro-premios" etiqueta="Premios" tipo="text" placeholder="Ej: Campeón Joven Expo Rural 2026" valor={d.premios || ""} onChange={set("premios")} />
+          </div>
+        </div>
+      </div>
+
+      {/* APTITUD REPRODUCTIVA */}
+      <div style={estiloCaja}>
+        <span style={estiloTituloSub}>🔬 Aptitud reproductiva</span>
+
+        <div style={estiloSubtitulo}>Examen andrológico</div>
+        <CampoTexto id="toro-fecha-andro" etiqueta="Fecha del examen" tipo="date" valor={d.fechaAndrologico || ""} onChange={set("fechaAndrologico")} />
+        <VencimientoControl fecha={d.fechaAndrologico} />
+        <OpcionesPills etiqueta="Resultado" opciones={["Apto", "No apto", "Reexaminar"]} valor={d.resultadoAndrologico || ""} onChange={set("resultadoAndrologico")} />
+        <div className="grilla-formulario">
+          <CampoTexto id="toro-motilidad" etiqueta="Motilidad (%)" tipo="text" valor={d.motilidad || ""} onChange={set("motilidad")} />
+          <CampoTexto id="toro-morfologia" etiqueta="Morfología espermática (% normales)" tipo="text" valor={d.morfologia || ""} onChange={set("morfologia")} />
+        </div>
+
+        <div style={{ ...estiloSubtitulo, margin: "10px 0 8px", paddingTop: 10, borderTop: "1px dashed var(--borde)" }}>
+          Raspado
+        </div>
+        <CampoTexto id="toro-fecha-raspado" etiqueta="Fecha del raspado" tipo="date" valor={d.fechaRaspado || ""} onChange={set("fechaRaspado")} />
+        <VencimientoControl fecha={d.fechaRaspado} />
+        <OpcionesPills etiqueta="Trichomonas" opciones={["Negativo", "Positivo"]} valor={d.trichomonas || ""} onChange={set("trichomonas")} />
+        <OpcionesPills etiqueta="Campylobacter" opciones={["Negativo", "Positivo"]} valor={d.campylobacter || ""} onChange={set("campylobacter")} />
+      </div>
+
+      {/* SANIDAD DE TOROS */}
+      <div style={estiloCaja}>
+        <span style={estiloTituloSub}>💉 Sanidad de toros</span>
+
+        <div style={estiloSubtitulo}>Brucelosis</div>
+        <CampoTexto id="toro-fecha-bruc" etiqueta="Fecha del control" tipo="date" valor={d.fechaBrucelosis || ""} onChange={set("fechaBrucelosis")} />
+        <OpcionesPills etiqueta="Resultado" opciones={["Negativo", "Positivo"]} valor={d.resultadoBrucelosis || ""} onChange={set("resultadoBrucelosis")} />
+
+        <div style={{ ...estiloSubtitulo, margin: "10px 0 8px", paddingTop: 10, borderTop: "1px dashed var(--borde)" }}>
+          Tuberculosis
+        </div>
+        <CampoTexto id="toro-fecha-tuber" etiqueta="Fecha del control" tipo="date" valor={d.fechaTuberculosis || ""} onChange={set("fechaTuberculosis")} />
+        <OpcionesPills etiqueta="Resultado" opciones={["Negativo", "Positivo"]} valor={d.resultadoTuberculosis || ""} onChange={set("resultadoTuberculosis")} />
+      </div>
+    </details>
+  );
+}
+
+// Resumen de solo lectura (se usa en la ficha del animal). Solo muestra
+// las filas que tienen dato cargado.
+function ResumenDatosToro({ datos }) {
+  const fecha = (f) => (f ? formatearFechaDDMMYYYY(parseISO(f)) : null);
+  const con = (v, unidad) => (v ? `${v} ${unidad}` : null);
+
+  const grupos = [
+    {
+      titulo: "Performance",
+      filas: [
+        ["Peso al nacer", con(datos.pesoNacer, "kg")],
+        ["Peso al destete (205 días)", con(datos.pesoDestete205, "kg")],
+        ["Peso a 12 meses", con(datos.peso12m, "kg")],
+        ["Peso a 18 meses", con(datos.peso18m, "kg")],
+        ["Altura", con(datos.altura, "cm")],
+        ["Circunf. escrotal 12 meses", con(datos.ce12, "cm")],
+        ["Circunf. escrotal 18 meses", con(datos.ce18, "cm")],
+      ],
+    },
+    {
+      titulo: "Genética y fenotipo",
+      filas: [
+        ["DEPs", datos.deps],
+        ["ADN", datos.adn],
+        ["Conformación", datos.conformacion],
+        ["Premios", datos.premios],
+      ],
+    },
+    {
+      titulo: "Aptitud reproductiva",
+      filas: [
+        ["Examen andrológico", fecha(datos.fechaAndrologico)],
+        ["Resultado", datos.resultadoAndrologico],
+        ["Motilidad", con(datos.motilidad, "%")],
+        ["Morfología (normales)", con(datos.morfologia, "%")],
+        ["Raspado", fecha(datos.fechaRaspado)],
+        ["Trichomonas", datos.trichomonas],
+        ["Campylobacter", datos.campylobacter],
+      ],
+    },
+    {
+      titulo: "Sanidad de toros",
+      filas: [
+        ["Brucelosis (fecha)", fecha(datos.fechaBrucelosis)],
+        ["Brucelosis (resultado)", datos.resultadoBrucelosis],
+        ["Tuberculosis (fecha)", fecha(datos.fechaTuberculosis)],
+        ["Tuberculosis (resultado)", datos.resultadoTuberculosis],
+      ],
+    },
+  ]
+    .map((g) => ({ ...g, filas: g.filas.filter(([, valor]) => valor) }))
+    .filter((g) => g.filas.length > 0);
+
+  if (grupos.length === 0) return null;
+
+  return (
+    <>
+      {grupos.map((g) => (
+        <div key={g.titulo} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--verde-salvia)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>
+            {g.titulo}
+          </div>
+          {g.filas.map(([etiqueta, valor]) => (
+            <FilaDato key={etiqueta} etiqueta={etiqueta} valor={valor} />
+          ))}
+        </div>
+      ))}
+    </>
+  );
+}
+
 /* ---------------------------------------------------------------- */
 /* Pantalla 2: Formulario (alta o edición)                           */
 /* ---------------------------------------------------------------- */
@@ -6818,6 +7098,8 @@ function PantallaFormulario({
   setPesoVenta,
   imagenes,
   setImagenes,
+  datosToro,
+  setDatosToro,
 }) {
   const enEdicion = modo === "edicion";
 
@@ -7082,6 +7364,10 @@ function PantallaFormulario({
 
         <GaleriaFotosAnimal imagenes={imagenes} setImagenes={setImagenes} />
       </div>
+
+      {tipo === "Toro" && (
+        <SeccionDatosToro datosToro={datosToro} setDatosToro={setDatosToro} />
+      )}
             
 
       {/* Servicio reproductivo */}
