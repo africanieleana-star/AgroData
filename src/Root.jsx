@@ -52,6 +52,35 @@ function PruebaVencida({ onCerrarSesion }) {
   );
 }
 
+function BarraPrueba({ diasRestantes }) {
+  return (
+    <div
+      style={{
+        width: "100%",
+        boxSizing: "border-box",
+        background: "#3E4E2F",
+        color: "#FBF7ED",
+        textAlign: "center",
+        padding: "8px 12px",
+        fontSize: 13,
+        fontWeight: 600,
+      }}
+    >
+      {diasRestantes <= 1
+        ? "Último día de tu prueba gratis."
+        : `Te quedan ${diasRestantes} días de prueba gratis.`}{" "}
+      <a
+        href="https://wa.me/5492236819372?text=Hola!%20Quiero%20activar%20mi%20suscripci%C3%B3n%20de%20AgroData"
+        target="_blank"
+        rel="noreferrer"
+        style={{ color: "#FBF7ED", textDecoration: "underline", fontWeight: 700 }}
+      >
+        Activar ahora
+      </a>
+    </div>
+  );
+}
+
 function Cargando() {
   return (
     <div
@@ -119,6 +148,11 @@ export default function Root() {
   }
 
   return (
-    <App userEmail={usuario?.email} onCerrarSesion={manejarCerrarSesion} />
+    <>
+      {suscripcion && suscripcion.estado === "prueba" && (
+        <BarraPrueba diasRestantes={suscripcion.diasRestantes} />
+      )}
+      <App userEmail={usuario?.email} onCerrarSesion={manejarCerrarSesion} />
+    </>
   );
 }
