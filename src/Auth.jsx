@@ -62,12 +62,18 @@ export default function Auth() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
-
+  const [aceptaPrivacidad, setAceptaPrivacidad] = useState(false);
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setAviso("");
+    if (modo === "registro" && !aceptaPrivacidad) {
+      setError("Tenés que aceptar el aviso de privacidad para crear tu cuenta.");
+      return;
+    }
     setCargando(true);
+    
     try {
       if (modo === "login") {
         await signInWithEmailAndPassword(auth, email.trim(), password);
@@ -201,6 +207,20 @@ export default function Auth() {
             <CampoAuth etiqueta="Localidad" valor={localidad} onChange={setLocalidad} placeholder="Ej: Tandil" />
             <CampoAuth etiqueta="Provincia" valor={provincia} onChange={setProvincia} placeholder="Ej: Buenos Aires" />
             <CampoAuth etiqueta="País" valor={pais} onChange={setPais} placeholder="Ej: Argentina" />
+
+            <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12, color: "#8A7A63", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={aceptaPrivacidad}
+                onChange={(e) => setAceptaPrivacidad(e.target.checked)}
+                style={{ marginTop: 2 }}
+              />
+              <span>
+                Al crear tu cuenta, AgroData guarda tu nombre, teléfono, establecimiento y ubicación para
+                identificar tu cuenta y gestionar tu suscripción — nunca se comparten con terceros para fines
+                comerciales. 
+              </span>
+            </label>
           </>
         )}
 
