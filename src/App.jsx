@@ -7735,7 +7735,7 @@ function PantallaFormulario({
       </div>
 
       {tipo === "Toro" && (
-   <SeccionDatosToro
+        <SeccionDatosToro
           caravana={caravana}
           enEdicion={enEdicion}
           datosToro={datosToro}
